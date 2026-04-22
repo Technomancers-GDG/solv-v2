@@ -264,6 +264,10 @@ class MetricsSnapshotRead(ORMModel):
     reroute_count: int
     active_trucks: int
     queued_trucks: int
+    stockouts_prevented: int = 0
+    critical_deliveries_saved: int = 0
+    beneficiary_locations_served: int = 0
+    spoilage_or_wastage_prevented: int = 0
 
 
 class MetricsSummary(BaseModel):
@@ -274,6 +278,10 @@ class MetricsSummary(BaseModel):
     reroute_count: int
     active_trucks: int
     queued_trucks: int
+    stockouts_prevented: int = 0
+    critical_deliveries_saved: int = 0
+    beneficiary_locations_served: int = 0
+    spoilage_or_wastage_prevented: int = 0
 
 
 class DashboardSnapshot(BaseModel):

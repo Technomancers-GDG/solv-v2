@@ -47,6 +47,9 @@ class LiveVehicleState:
     progress_pct: float = 0.0
     duty_minutes_since_rest: float = 0.0
     last_recommendation_action: str | None = None
+    stockout_risk_avoided: bool = False
+    critical_payload: bool = False
+    perishable_payload: bool = False
 
 
 @dataclass(slots=True, order=True)
@@ -138,14 +141,20 @@ class DecisionEngine:
         original_destination_id = objective.destination_facility_id
         baseline_route = route_data[original_destination_id]
         baseline_risk = risk_lookup[original_destination_id]
+        baseline_available = self.effective_available_units(
+            original_destination_id, facilities, port_links, inbound_reserved
+        )
+        baseline_projected_units = baseline_available - vehicle.payload_capacity_units
+        baseline_overload_risk = max(
+            0.0,
+            -baseline_projected_units / max(vehicle.payload_capacity_units, 1),
+        )
         baseline_cost = self._total_cost(
             objective=objective,
             vehicle=vehicle,
             route=baseline_route,
             facility=facilities[original_destination_id],
-            effective_available=self.effective_available_units(
-                original_destination_id, facilities, port_links, inbound_reserved
-            ),
+            effective_available=baseline_available,
             risk=baseline_risk,
             original_duration=baseline_route.duration_minutes,
         )
@@ -209,6 +218,8 @@ class DecisionEngine:
                     / max(facilities[destination_id].base_capacity_units, 1),
                     3,
                 ),
+                "baseline_overload_risk": round(baseline_overload_risk, 3),
+                "baseline_event_severity": round(baseline_risk["route_risk"], 3),
             }
             explanation = self._explain(action, destination, breakdown, risk)
             candidates.append(
@@ -257,6 +268,8 @@ class DecisionEngine:
                         / max(facilities[original_destination_id].base_capacity_units, 1),
                         3,
                     ),
+                    "baseline_overload_risk": round(baseline_overload_risk, 3),
+                    "baseline_event_severity": round(baseline_risk["route_risk"], 3),
                 },
                 travel_minutes=0.0,
                 route_risk=baseline_risk["route_risk"],
@@ -282,6 +295,8 @@ class DecisionEngine:
                     "sla_penalty": round(objective.dispatch_interval_minutes / max(objective.sla_minutes, 1), 3),
                     "event_severity": round(baseline_risk["route_risk"], 3),
                     "downstream_congestion": 0.0,
+                    "baseline_overload_risk": round(baseline_overload_risk, 3),
+                    "baseline_event_severity": round(baseline_risk["route_risk"], 3),
                 },
                 travel_minutes=0.0,
                 route_risk=baseline_risk["route_risk"],
@@ -370,9 +385,14 @@ class SimulationEngine:
             reroute_count=0,
             active_trucks=0,
             queued_trucks=0,
+            stockouts_prevented=0,
+            critical_deliveries_saved=0,
+            beneficiary_locations_served=0,
+            spoilage_or_wastage_prevented=0,
         )
         self.completed_trips = 0
         self.on_time_trips = 0
+        self.beneficiary_location_ids: set[int] = set()
         self.last_metrics_snapshot_hour: tuple[int, int, int, int] | None = None
 
     def queue_size(self) -> int:
@@ -497,9 +517,14 @@ class SimulationEngine:
             reroute_count=0,
             active_trucks=0,
             queued_trucks=0,
+            stockouts_prevented=0,
+            critical_deliveries_saved=0,
+            beneficiary_locations_served=0,
+            spoilage_or_wastage_prevented=0,
         )
         self.completed_trips = 0
         self.on_time_trips = 0
+        self.beneficiary_location_ids.clear()
         self.seed_dispatch_queue()
         self.status = "running"
         self._task = asyncio.create_task(self._run_loop())
@@ -544,6 +569,7 @@ class SimulationEngine:
             settings.simulation_start_date, time(hour=8, minute=0)
         )
         self.seed_dispatch_queue()
+        self.beneficiary_location_ids.clear()
         self.status = "idle"
         return self.snapshot_status()
 
@@ -601,6 +627,10 @@ class SimulationEngine:
             return
         current_facility = self.facilities[state.current_facility_id or objective.origin_facility_id]
         leg = event.payload.get("leg", "outbound")
+        state.stockout_risk_avoided = False
+        if leg == "outbound":
+            state.critical_payload = self._is_critical_objective(objective)
+            state.perishable_payload = self._is_perishable_objective(objective)
 
         if state.duty_minutes_since_rest >= vehicle.rest_every_hours * 60:
             state.status = "resting"
@@ -614,6 +644,8 @@ class SimulationEngine:
             return
 
         if leg == "return":
+            state.critical_payload = False
+            state.perishable_payload = False
             route = self.route_planner.get_or_create_template(
                 session, current_facility, self.facilities[objective.origin_facility_id]
             )
@@ -667,6 +699,14 @@ class SimulationEngine:
         chosen_decision = decision
         if decision.action != "continue":
             chosen_decision = self._apply_driver_override(session, vehicle, objective, decision, current_facility)
+
+        state.stockout_risk_avoided = (
+            chosen_decision.action.startswith("reroute")
+            and (
+                chosen_decision.breakdown.get("baseline_overload_risk", 0.0) >= 0.25
+                or chosen_decision.breakdown.get("baseline_event_severity", 0.0) >= 0.6
+            )
+        )
 
         if chosen_decision.action == "wait":
             state.status = "waiting"
@@ -810,11 +850,24 @@ class SimulationEngine:
 
         self.completed_trips += 1
         trip_minutes = self._estimate_trip_minutes(objective)
-        if trip_minutes <= objective.sla_minutes:
+        arrived_on_time = trip_minutes <= objective.sla_minutes
+        if arrived_on_time:
             self.on_time_trips += 1
         self.current_metrics.on_time_delivery_pct = round(
             (self.on_time_trips / max(self.completed_trips, 1)) * 100, 2
         )
+        if state.stockout_risk_avoided:
+            self.current_metrics.stockouts_prevented += 1
+        if state.critical_payload:
+            if arrived_on_time:
+                self.current_metrics.critical_deliveries_saved += 1
+            self.beneficiary_location_ids.add(destination.id)
+            self.current_metrics.beneficiary_locations_served = len(self.beneficiary_location_ids)
+        if state.perishable_payload and (state.stockout_risk_avoided or arrived_on_time):
+            self.current_metrics.spoilage_or_wastage_prevented += vehicle.payload_capacity_units
+        state.stockout_risk_avoided = False
+        state.critical_payload = False
+        state.perishable_payload = False
         next_due = self.simulation_time + timedelta(minutes=12)
         vehicle.available_at = next_due
         self._schedule(
@@ -968,6 +1021,34 @@ class SimulationEngine:
         )
         duration = route.duration_minutes if route else 0.0
         return duration + objective.loading_duration_minutes + objective.unloading_duration_minutes
+
+    def _is_critical_objective(self, objective: Objective) -> bool:
+        text = f"{objective.name} {objective.commodity}".lower()
+        critical_terms = (
+            "medicine",
+            "vaccine",
+            "oxygen",
+            "blood",
+            "relief",
+            "food",
+            "grain",
+            "nutrition",
+            "essential",
+        )
+        return objective.priority >= 3 or any(term in text for term in critical_terms)
+
+    def _is_perishable_objective(self, objective: Objective) -> bool:
+        text = f"{objective.name} {objective.commodity}".lower()
+        perishable_terms = (
+            "vaccine",
+            "insulin",
+            "blood",
+            "medicine",
+            "food",
+            "grain",
+            "nutrition",
+        )
+        return any(term in text for term in perishable_terms)
 
     async def _maybe_snapshot(self, session: Session) -> None:
         warehouse_facilities = [

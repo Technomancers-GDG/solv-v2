@@ -243,3 +243,82 @@ def test_simulation_seed_handles_large_vehicle_state_counts() -> None:
 
     assert active == 3333
     assert waiting == 6667
+
+
+def test_decision_breakdown_includes_baseline_stockout_signals() -> None:
+    engine = DecisionEngine()
+    origin = make_facility(1, "Delhi Hub", "Delhi", "warehouse", 10000, 4200)
+    destination = make_facility(2, "Chennai Health Warehouse", "Chennai", "warehouse", 10000, 9300)
+    fallback = make_facility(3, "Bengaluru Relief Warehouse", "Bengaluru", "warehouse", 12000, 3800)
+    objective = Objective(
+        id=1,
+        name="Emergency Medicines",
+        commodity="Emergency Medicines",
+        origin_facility_id=1,
+        destination_facility_id=2,
+        dispatch_interval_minutes=120,
+        loading_duration_minutes=30,
+        unloading_duration_minutes=35,
+        sla_minutes=1100,
+        priority=3,
+        assigned_vehicle_ids=[1],
+        fallback_facility_ids=[3],
+        active=True,
+    )
+    vehicle = Vehicle(
+        id=1,
+        identifier="MED-001",
+        payload_capacity_units=1000,
+        home_facility_id=1,
+        current_facility_id=1,
+        driver_profile_id=1,
+        default_objective_id=1,
+        average_speed_kmph=48,
+        emission_kg_per_km=1.5,
+        rest_every_hours=8,
+        rest_duration_minutes=45,
+        status="idle",
+    )
+
+    decision = engine.score_dispatch_options(
+        sim_time=datetime(2026, 1, 1, 9, 0),
+        vehicle=vehicle,
+        objective=objective,
+        current_facility=origin,
+        facilities={1: origin, 2: destination, 3: fallback},
+        port_links=[],
+        inbound_reserved={2: 600},
+        route_data={
+            2: make_route("1:2", 1, 2, 1900, 2200),
+            3: make_route("1:3", 1, 3, 1700, 1850),
+        },
+        risk_lookup={
+            2: {"route_risk": 0.68, "eta_multiplier": 1.15},
+            3: {"route_risk": 0.22, "eta_multiplier": 1.04},
+        },
+    )
+
+    assert "baseline_overload_risk" in decision.breakdown
+    assert "baseline_event_severity" in decision.breakdown
+
+
+def test_critical_and_perishable_detection_for_relief_objectives() -> None:
+    engine = SimulationEngine(RoutePlanner())
+    objective = Objective(
+        id=1,
+        name="Emergency Medicines Delhi to Flood Relief",
+        commodity="Emergency Medicines",
+        origin_facility_id=1,
+        destination_facility_id=2,
+        dispatch_interval_minutes=120,
+        loading_duration_minutes=30,
+        unloading_duration_minutes=35,
+        sla_minutes=1100,
+        priority=3,
+        assigned_vehicle_ids=[1],
+        fallback_facility_ids=[3],
+        active=True,
+    )
+
+    assert engine._is_critical_objective(objective) is True
+    assert engine._is_perishable_objective(objective) is True

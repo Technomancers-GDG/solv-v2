@@ -25,7 +25,7 @@ def _get_env(name: str, default: str) -> str:
 
 def load_settings() -> Settings:
     return Settings(
-        app_name=_get_env("APP_NAME", "Intelligent Supply Chain Optimizer"),
+        app_name=_get_env("APP_NAME", "Resilient Essential Goods Coordinator"),
         database_url=_get_env("DATABASE_URL", "sqlite:///./supply_chain.db"),
         osrm_base_url=_get_env("OSRM_BASE_URL", "https://router.project-osrm.org"),
         simulation_start_date=date.fromisoformat(

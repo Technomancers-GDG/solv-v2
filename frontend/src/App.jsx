@@ -31,7 +31,7 @@ const initialVehicleForm = {
 
 const initialObjectiveForm = {
   name: "",
-  commodity: "Iron Ore",
+  commodity: "Emergency Medicines",
   origin_facility_id: "",
   destination_facility_id: "",
   dispatch_interval_minutes: "120",
@@ -305,10 +305,10 @@ function App() {
       <header className="hero">
         <div>
           <p className="eyebrow">Google Solution Challenge 2026</p>
-          <h1>Intelligent Supply Chain Optimization</h1>
+          <h1>Resilient Essential Goods Coordination</h1>
           <p className="hero-copy">
-            Endless lane-based simulation for rerouting, congestion control, event-aware dispatch,
-            and SDG-linked operations metrics without relying on a map-heavy interface.
+            AI-assisted operations for medicines, vaccines, and relief materials during disruptions
+            across India, with explainable reroutes and beneficiary-focused impact tracking.
           </p>
         </div>
         <div className="hero-controls">
@@ -538,10 +538,14 @@ function App() {
         {activeTab === "Live Ops" ? (
           <section className="ops-layout">
             <div className="metrics-row">
-              <MetricCard label="CO2 Saved" value={`${Number(metrics?.co2_saved_kg ?? 0).toFixed(1)} kg`} tone="teal" />
-              <MetricCard label="Idle Time Prevented" value={`${Number(metrics?.idle_minutes_prevented ?? 0).toFixed(0)} min`} tone="amber" />
-              <MetricCard label="On-Time Delivery" value={`${Number(metrics?.on_time_delivery_pct ?? 0).toFixed(1)}%`} tone="steel" />
-              <MetricCard label="Reroutes" value={metrics?.reroute_count ?? 0} tone="coral" />
+              <MetricCard label="Critical Deliveries Saved" value={metrics?.critical_deliveries_saved ?? 0} tone="teal" />
+              <MetricCard label="Stockouts Prevented" value={metrics?.stockouts_prevented ?? 0} tone="amber" />
+              <MetricCard label="Beneficiary Locations Served" value={metrics?.beneficiary_locations_served ?? 0} tone="steel" />
+              <MetricCard
+                label="Spoilage/Wastage Prevented"
+                value={`${Number(metrics?.spoilage_or_wastage_prevented ?? 0).toFixed(0)} units`}
+                tone="coral"
+              />
             </div>
 
             <div className="grid-two">
@@ -667,20 +671,21 @@ function App() {
             <Panel title="SDG Alignment">
               <div className="impact-copy">
                 <p>
-                  The simulator ties operational efficiency to SDG 9, 11, 12, and 13 by
-                  quantifying cleaner routing, lower idle time, and fewer congestion-driven delays.
+                  The platform connects operational decisions to health and resilience outcomes,
+                  helping essential goods reach communities during disruption events.
                 </p>
                 <ul className="impact-list">
-                  <li>SDG 9: more resilient logistics infrastructure through event-aware rerouting.</li>
-                  <li>SDG 11: reduced urban congestion via load balancing across warehouses and ports.</li>
-                  <li>SDG 12: smarter use of storage and dispatch windows to avoid wasteful dwell time.</li>
-                  <li>SDG 13: lower emissions through fewer dead-end trips and less waiting.</li>
+                  <li>SDG 3: improved continuity of medicine, vaccine, and emergency health supply delivery.</li>
+                  <li>SDG 9: stronger logistics resilience through disruption-aware rerouting decisions.</li>
+                  <li>SDG 11: reduced service disruption risk in high-demand urban beneficiary regions.</li>
+                  <li>SDG 12 and 13: lower waste and emissions through fewer delayed or failed dispatches.</li>
                 </ul>
               </div>
               <div className="metrics-row single-column">
                 <MetricCard label="Warehouse Utilization" value={`${Number(metrics?.warehouse_utilization_pct ?? 0).toFixed(1)}%`} tone="steel" />
-                <MetricCard label="Active Trucks" value={metrics?.active_trucks ?? 0} tone="teal" />
-                <MetricCard label="Queued Trucks" value={metrics?.queued_trucks ?? 0} tone="coral" />
+                <MetricCard label="On-Time Delivery" value={`${Number(metrics?.on_time_delivery_pct ?? 0).toFixed(1)}%`} tone="teal" />
+                <MetricCard label="CO2 Saved" value={`${Number(metrics?.co2_saved_kg ?? 0).toFixed(1)} kg`} tone="coral" />
+                <MetricCard label="Idle Time Prevented" value={`${Number(metrics?.idle_minutes_prevented ?? 0).toFixed(0)} min`} tone="amber" />
               </div>
             </Panel>
 

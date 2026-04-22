@@ -1,6 +1,6 @@
-# Intelligent Supply Chain Optimization MVP
+# Resilient Essential Goods Coordination MVP
 
-FastAPI + React prototype for event-aware warehouse and port routing, endless supply-chain simulation, and SDG metrics.
+FastAPI + React prototype for disruption-aware routing of medicines, vaccines, food grain, and relief kits with SDG-linked impact metrics.
 
 ## What is included
 
@@ -11,7 +11,7 @@ FastAPI + React prototype for event-aware warehouse and port routing, endless su
 - Historical news and weather replay from the provided Excel datasets
 - Lightweight news relevance classifier for route-impacting articles
 - Driver override scoring and recommendation history
-- SDG metrics for `CO2 saved`, `idle time prevented`, `on-time delivery`, and utilization
+- Impact metrics for `stockouts prevented`, `critical deliveries saved`, `beneficiary locations served`, `spoilage or wastage prevented`, plus operations KPIs
 - WebSocket-powered live operations dashboard
 
 ## Run the backend
@@ -49,6 +49,6 @@ python -m pytest tests/test_simulation.py -q
 
 ## Notes
 
-- On first startup, the app seeds demo facilities, vehicles, drivers, and objectives.
+- On first startup, the app seeds essential-goods facilities, vehicles, drivers, and objectives, including a stockout-risk medicine corridor.
 - The app also imports weather history and a sampled news replay automatically if the event tables are empty.
 - If OSRM is unreachable, route templates fall back to estimated road-distance calculations so the simulation still runs.

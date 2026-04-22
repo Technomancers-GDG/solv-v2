@@ -287,8 +287,9 @@ def sdg_metrics(session: Session = Depends(get_session)) -> MetricsSummary:
     snapshot = session.scalar(
         select(MetricsSnapshot).order_by(MetricsSnapshot.captured_at.desc()).limit(1)
     )
+    current = simulation_engine.current_metrics
     if snapshot is None:
-        return simulation_engine.current_metrics
+        return current
     return MetricsSummary(
         co2_saved_kg=snapshot.co2_saved_kg,
         idle_minutes_prevented=snapshot.idle_minutes_prevented,
@@ -297,6 +298,16 @@ def sdg_metrics(session: Session = Depends(get_session)) -> MetricsSummary:
         reroute_count=snapshot.reroute_count,
         active_trucks=snapshot.active_trucks,
         queued_trucks=snapshot.queued_trucks,
+        stockouts_prevented=getattr(snapshot, "stockouts_prevented", current.stockouts_prevented),
+        critical_deliveries_saved=getattr(
+            snapshot, "critical_deliveries_saved", current.critical_deliveries_saved
+        ),
+        beneficiary_locations_served=getattr(
+            snapshot, "beneficiary_locations_served", current.beneficiary_locations_served
+        ),
+        spoilage_or_wastage_prevented=getattr(
+            snapshot, "spoilage_or_wastage_prevented", current.spoilage_or_wastage_prevented
+        ),
     )
 
 
@@ -326,9 +337,9 @@ else:
         return HTMLResponse(
             """
             <html>
-              <head><title>Supply Chain Optimizer</title></head>
+<head><title>Resilient Essential Goods Coordinator</title></head>
               <body style="font-family:Segoe UI, sans-serif;padding:32px;background:#101622;color:#f4f7fb;">
-                <h1>Supply Chain Optimizer API</h1>
+<h1>Resilient Essential Goods Coordinator API</h1>
                 <p>The FastAPI backend is running. Build the React admin panel in <code>frontend/</code> to serve it here.</p>
                 <p>Core endpoints are available under <code>/api/*</code> and the live stream is at <code>/ws/operations</code>.</p>
               </body>
