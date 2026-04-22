@@ -14,6 +14,7 @@ from config import settings
 from database import SessionLocal, get_session, init_db
 from models import (
     DriverDecision,
+    DriverIncident,
     DriverProfile,
     Facility,
     MetricsSnapshot,
@@ -22,12 +23,18 @@ from models import (
     PortLink,
     Recommendation,
     RouteTemplate,
+    ScenarioPreset,
     Vehicle,
     WeatherEvent,
 )
 from schemas import (
     DashboardSnapshot,
     DriverDecisionRead,
+    DriverIncidentCreate,
+    DriverIncidentRead,
+    DriverInstructionRead,
+    DriverMobileSnapshot,
+    DriverResponseRequest,
     DriverProfileCreate,
     DriverProfileRead,
     FacilityCreate,
@@ -42,6 +49,9 @@ from schemas import (
     PortLinkRead,
     RecommendationRead,
     RouteTemplateRead,
+    ScenarioComparisonMetrics,
+    ScenarioComparisonRead,
+    ScenarioPresetRead,
     SimulationControlRequest,
     SimulationStatus,
     VehicleCreate,
@@ -78,6 +88,19 @@ def apply_updates(instance: ModelType, updates: dict[str, Any]) -> ModelType:
     for field_name, value in updates.items():
         setattr(instance, field_name, value)
     return instance
+
+
+def normalize_incident_impact_type(incident_type: str) -> str:
+    mapping = {
+        "road_blockage": "road_blockage",
+        "blockage": "road_blockage",
+        "strike": "labor_disruption",
+        "delay": "logistics_delay",
+        "port_congestion": "port_congestion",
+        "weather": "weather_disruption",
+    }
+    key = incident_type.strip().lower().replace(" ", "_")
+    return mapping.get(key, "logistics_disruption")
 
 
 @app.on_event("startup")
@@ -263,6 +286,68 @@ def simulation_status() -> SimulationStatus:
     return simulation_engine.snapshot_status()
 
 
+@app.get("/api/scenarios", response_model=list[ScenarioPresetRead])
+def list_scenarios(session: Session = Depends(get_session)) -> list[ScenarioPreset]:
+    return session.scalars(
+        select(ScenarioPreset).where(ScenarioPreset.active.is_(True)).order_by(ScenarioPreset.name)
+    ).all()
+
+
+@app.post("/api/scenarios/{scenario_key}/trigger")
+def trigger_scenario(scenario_key: str, session: Session = Depends(get_session)) -> dict[str, Any]:
+    scenario = session.scalar(
+        select(ScenarioPreset).where(
+            ScenarioPreset.scenario_key == scenario_key,
+            ScenarioPreset.active.is_(True),
+        )
+    )
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    event_date = simulation_engine.simulation_time.date()
+    event = NewsEvent(
+        original_date=event_date,
+        simulation_date=event_date,
+        city=scenario.event_city,
+        category="Scenario Trigger",
+        headline=f"Scenario triggered: {scenario.name}",
+        relevant=True,
+        impact_type=scenario.event_type,
+        impact_score=min(0.99, max(0.0, scenario.severity)),
+        model_probability=min(0.99, max(0.0, scenario.severity)),
+    )
+    session.add(event)
+    session.commit()
+    simulation_engine._load_event_maps(session)
+    return {
+        "status": "triggered",
+        "scenario_key": scenario.scenario_key,
+        "event_city": scenario.event_city,
+        "severity": scenario.severity,
+    }
+
+
+@app.get("/api/scenarios/{scenario_key}/compare", response_model=ScenarioComparisonRead)
+def compare_scenario(scenario_key: str, session: Session = Depends(get_session)) -> ScenarioComparisonRead:
+    scenario = session.scalar(
+        select(ScenarioPreset).where(
+            ScenarioPreset.scenario_key == scenario_key,
+            ScenarioPreset.active.is_(True),
+        )
+    )
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    comparison = simulation_engine.compare_scenario(session, scenario)
+    return ScenarioComparisonRead(
+        scenario_key=scenario.scenario_key,
+        scenario_name=scenario.name,
+        baseline=ScenarioComparisonMetrics(**comparison["baseline"]),
+        ai=ScenarioComparisonMetrics(**comparison["ai"]),
+        improvement_summary=comparison["improvement"],
+    )
+
+
 @app.get("/api/dashboard", response_model=DashboardSnapshot)
 def dashboard(session: Session = Depends(get_session)) -> DashboardSnapshot:
     return simulation_engine.dashboard_snapshot(session)
@@ -279,6 +364,163 @@ def list_recommendations(session: Session = Depends(get_session)) -> list[Recomm
 def list_driver_decisions(session: Session = Depends(get_session)) -> list[DriverDecision]:
     return session.scalars(
         select(DriverDecision).order_by(DriverDecision.decided_at.desc()).limit(100)
+    ).all()
+
+
+@app.get("/api/driver/{driver_id}/mobile", response_model=DriverMobileSnapshot)
+def driver_mobile_snapshot(driver_id: int, session: Session = Depends(get_session)) -> DriverMobileSnapshot:
+    driver = session.get(DriverProfile, driver_id)
+    if driver is None:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    driver_vehicles = session.scalars(
+        select(Vehicle).where(Vehicle.driver_profile_id == driver_id)
+    ).all()
+    vehicle_ids = {vehicle.id for vehicle in driver_vehicles}
+    vehicle_lookup = {vehicle.id: vehicle for vehicle in driver_vehicles}
+    objective_lookup = {
+        objective.id: objective for objective in session.scalars(select(Objective)).all()
+    }
+
+    recent_recommendations = session.scalars(
+        select(Recommendation).order_by(Recommendation.created_at.desc()).limit(200)
+    ).all()
+    pending_instructions: list[DriverInstructionRead] = []
+    for recommendation in recent_recommendations:
+        if recommendation.vehicle_id not in vehicle_ids:
+            continue
+        if recommendation.status != "suggested":
+            continue
+        vehicle = vehicle_lookup[recommendation.vehicle_id]
+        objective = objective_lookup.get(recommendation.objective_id)
+        pending_instructions.append(
+            DriverInstructionRead(
+                recommendation_id=recommendation.id,
+                created_at=recommendation.created_at,
+                vehicle_id=vehicle.id,
+                vehicle_identifier=vehicle.identifier,
+                objective_name=objective.name if objective else "Unassigned Objective",
+                action=recommendation.action,
+                explanation=recommendation.explanation,
+                status=recommendation.status,
+            )
+        )
+        if len(pending_instructions) >= 20:
+            break
+
+    recent_incidents = session.scalars(
+        select(DriverIncident)
+        .where(DriverIncident.driver_profile_id == driver_id)
+        .order_by(DriverIncident.reported_at.desc())
+        .limit(20)
+    ).all()
+
+    return DriverMobileSnapshot(
+        driver_id=driver.id,
+        driver_name=driver.name,
+        override_rating=driver.override_rating,
+        confidence=driver.confidence,
+        pending_instructions=pending_instructions,
+        recent_incidents=recent_incidents,
+    )
+
+
+@app.post("/api/driver/decision", response_model=DriverDecisionRead)
+def submit_driver_decision(
+    payload: DriverResponseRequest,
+    session: Session = Depends(get_session),
+) -> DriverDecision:
+    recommendation = session.get(Recommendation, payload.recommendation_id)
+    if recommendation is None:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+
+    existing = session.scalar(
+        select(DriverDecision).where(DriverDecision.recommendation_id == recommendation.id)
+    )
+    if existing is not None:
+        return existing
+
+    vehicle = session.get(Vehicle, recommendation.vehicle_id)
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    driver = session.get(DriverProfile, vehicle.driver_profile_id)
+    if driver is None:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    recommendation.status = payload.decision
+    rating_delta = 0.05 if payload.decision == "accepted" else -0.08
+    driver.override_rating = round(max(0.2, driver.override_rating + rating_delta), 3)
+    note = payload.note.strip() or (
+        "Driver accepted mobile recommendation." if payload.decision == "accepted"
+        else "Driver ignored mobile recommendation."
+    )
+
+    decision = DriverDecision(
+        recommendation_id=recommendation.id,
+        driver_profile_id=driver.id,
+        vehicle_id=vehicle.id,
+        decision=payload.decision,
+        actual_trip_cost=(
+            recommendation.recommended_cost if payload.decision == "accepted"
+            else recommendation.baseline_cost
+        ),
+        recommended_trip_cost=recommendation.recommended_cost,
+        rating_delta=rating_delta,
+        note=note,
+    )
+    session.add(decision)
+    session.commit()
+    session.refresh(decision)
+    return decision
+
+
+@app.post("/api/driver/incidents", response_model=DriverIncidentRead)
+def report_driver_incident(
+    payload: DriverIncidentCreate,
+    session: Session = Depends(get_session),
+) -> DriverIncident:
+    driver = session.get(DriverProfile, payload.driver_profile_id)
+    if driver is None:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    if payload.vehicle_id is not None and session.get(Vehicle, payload.vehicle_id) is None:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    severity = min(0.99, max(0.0, payload.severity))
+    incident_date = simulation_engine.simulation_time.date()
+    news_event = NewsEvent(
+        original_date=incident_date,
+        simulation_date=incident_date,
+        city=payload.city,
+        category="Driver Incident",
+        headline=f"Driver report: {payload.incident_type} in {payload.city}",
+        relevant=True,
+        impact_type=normalize_incident_impact_type(payload.incident_type),
+        impact_score=severity,
+        model_probability=severity,
+    )
+    session.add(news_event)
+    session.flush()
+
+    incident = DriverIncident(
+        driver_profile_id=payload.driver_profile_id,
+        vehicle_id=payload.vehicle_id,
+        city=payload.city,
+        incident_type=payload.incident_type,
+        severity=severity,
+        note=payload.note,
+        linked_news_event_id=news_event.id,
+    )
+    session.add(incident)
+    session.commit()
+    session.refresh(incident)
+    simulation_engine._load_event_maps(session)
+    return incident
+
+
+@app.get("/api/driver/incidents", response_model=list[DriverIncidentRead])
+def list_driver_incidents(session: Session = Depends(get_session)) -> list[DriverIncident]:
+    return session.scalars(
+        select(DriverIncident).order_by(DriverIncident.reported_at.desc()).limit(120)
     ).all()
 
 

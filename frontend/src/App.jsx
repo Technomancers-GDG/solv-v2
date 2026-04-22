@@ -1,7 +1,7 @@
 import { startTransition, useDeferredValue, useEffect, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
-const tabs = ["Network", "Objectives", "Live Ops", "Events", "Impact"];
+const tabs = ["Network", "Objectives", "Live Ops", "Scenarios", "Driver Mobile", "Events", "Impact"];
 
 const initialFacilityForm = {
   name: "",
@@ -53,6 +53,15 @@ const initialPortLinkForm = {
   active: true,
 };
 
+const initialDriverIncidentForm = {
+  driver_profile_id: "",
+  vehicle_id: "",
+  city: "Chennai",
+  incident_type: "road_blockage",
+  severity: "0.7",
+  note: "",
+};
+
 async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
@@ -82,13 +91,19 @@ function App() {
   const [vehicles, setVehicles] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [objectives, setObjectives] = useState([]);
+  const [scenarios, setScenarios] = useState([]);
+  const [scenarioComparison, setScenarioComparison] = useState(null);
+  const [selectedScenarioKey, setSelectedScenarioKey] = useState("");
   const [recommendations, setRecommendations] = useState([]);
   const [decisions, setDecisions] = useState([]);
   const [metrics, setMetrics] = useState(null);
+  const [selectedDriverId, setSelectedDriverId] = useState("");
+  const [driverMobile, setDriverMobile] = useState(null);
   const [facilityForm, setFacilityForm] = useState(initialFacilityForm);
   const [vehicleForm, setVehicleForm] = useState(initialVehicleForm);
   const [objectiveForm, setObjectiveForm] = useState(initialObjectiveForm);
   const [portLinkForm, setPortLinkForm] = useState(initialPortLinkForm);
+  const [driverIncidentForm, setDriverIncidentForm] = useState(initialDriverIncidentForm);
 
   const deferredVehicles = useDeferredValue(dashboard?.vehicles ?? []);
 
@@ -103,6 +118,7 @@ function App() {
         vehicleData,
         driverData,
         objectiveData,
+        scenarioData,
         recommendationData,
         decisionData,
         metricData,
@@ -113,6 +129,7 @@ function App() {
         apiFetch("/api/vehicles"),
         apiFetch("/api/drivers"),
         apiFetch("/api/objectives"),
+        apiFetch("/api/scenarios"),
         apiFetch("/api/recommendations"),
         apiFetch("/api/driver-decisions"),
         apiFetch("/api/metrics/sdg"),
@@ -124,10 +141,19 @@ function App() {
         setVehicles(vehicleData);
         setDrivers(driverData);
         setObjectives(objectiveData);
+        setScenarios(scenarioData);
         setRecommendations(recommendationData);
         setDecisions(decisionData);
         setMetrics(metricData);
         setDashboard(dashboardData);
+        if (!selectedScenarioKey && scenarioData.length > 0) {
+          setSelectedScenarioKey(scenarioData[0].scenario_key);
+        }
+        if (!selectedDriverId && driverData.length > 0) {
+          const firstDriverId = String(driverData[0].id);
+          setSelectedDriverId(firstDriverId);
+          setDriverIncidentForm((current) => ({ ...current, driver_profile_id: firstDriverId }));
+        }
         setError("");
       });
     } catch (fetchError) {
@@ -175,6 +201,14 @@ function App() {
       socket.close();
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedDriverId) {
+      setDriverMobile(null);
+      return;
+    }
+    loadDriverMobile(selectedDriverId);
+  }, [selectedDriverId]);
 
   function resetBanner(nextMessage = "") {
     setMessage(nextMessage);
@@ -287,6 +321,117 @@ function App() {
     }
   }
 
+  async function compareScenario(scenarioKey) {
+    if (!scenarioKey) {
+      return;
+    }
+    try {
+      const comparison = await apiFetch(`/api/scenarios/${scenarioKey}/compare`);
+      setScenarioComparison(comparison);
+      resetBanner(`Compared baseline vs AI for ${comparison.scenario_name}.`);
+    } catch (compareError) {
+      setError(compareError.message);
+    }
+  }
+
+  async function triggerScenarioDisruption(scenarioKey) {
+    if (!scenarioKey) {
+      return;
+    }
+    try {
+      const result = await apiFetch(`/api/scenarios/${scenarioKey}/trigger`, {
+        method: "POST",
+      });
+      resetBanner(`Triggered ${result.scenario_key} in ${result.event_city}.`);
+      await refreshAll(false);
+    } catch (triggerError) {
+      setError(triggerError.message);
+    }
+  }
+
+  async function startScenarioFlow(scenarioKey) {
+    if (!scenarioKey) {
+      return;
+    }
+    try {
+      await apiFetch("/api/simulation/reset", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      await apiFetch("/api/simulation/start", {
+        method: "POST",
+        body: JSON.stringify({ speed_multiplier: 180 }),
+      });
+      await apiFetch(`/api/scenarios/${scenarioKey}/trigger`, {
+        method: "POST",
+      });
+      const comparison = await apiFetch(`/api/scenarios/${scenarioKey}/compare`);
+      setScenarioComparison(comparison);
+      resetBanner(`Scenario started and compared: ${comparison.scenario_name}.`);
+      await refreshAll(false);
+    } catch (scenarioError) {
+      setError(scenarioError.message);
+    }
+  }
+
+  async function loadDriverMobile(driverId) {
+    try {
+      const snapshot = await apiFetch(`/api/driver/${driverId}/mobile`);
+      setDriverMobile(snapshot);
+      setDriverIncidentForm((current) => ({
+        ...current,
+        driver_profile_id: String(driverId),
+      }));
+    } catch (mobileError) {
+      setError(mobileError.message);
+    }
+  }
+
+  async function submitDriverMobileDecision(recommendationId, decision) {
+    try {
+      await apiFetch("/api/driver/decision", {
+        method: "POST",
+        body: JSON.stringify({ recommendation_id: recommendationId, decision, note: "" }),
+      });
+      resetBanner(`Driver decision recorded: ${decision}.`);
+      await refreshAll(false);
+      if (selectedDriverId) {
+        await loadDriverMobile(selectedDriverId);
+      }
+    } catch (decisionError) {
+      setError(decisionError.message);
+    }
+  }
+
+  async function handleDriverIncidentSubmit(event) {
+    event.preventDefault();
+    const driverId = Number(driverIncidentForm.driver_profile_id || selectedDriverId);
+    if (!driverId) {
+      setError("Choose a driver before reporting an incident.");
+      return;
+    }
+    const payload = {
+      driver_profile_id: driverId,
+      vehicle_id: driverIncidentForm.vehicle_id ? Number(driverIncidentForm.vehicle_id) : null,
+      city: driverIncidentForm.city,
+      incident_type: driverIncidentForm.incident_type,
+      severity: Number(driverIncidentForm.severity),
+      note: driverIncidentForm.note,
+    };
+    try {
+      await apiFetch("/api/driver/incidents", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      resetBanner("Driver incident sent and added to disruption feed.");
+      setDriverIncidentForm((current) => ({ ...current, vehicle_id: "", note: "" }));
+      await refreshAll(false);
+      await loadDriverMobile(String(driverId));
+    } catch (incidentError) {
+      setError(incidentError.message);
+    }
+  }
+
   function updateMultiSelect(event, setter, field) {
     const values = Array.from(event.target.selectedOptions).map((option) => option.value);
     setter((current) => ({ ...current, [field]: values }));
@@ -295,6 +440,10 @@ function App() {
   const facilityLookup = Object.fromEntries(facilities.map((facility) => [facility.id, facility]));
   const driverLookup = Object.fromEntries(drivers.map((driver) => [driver.id, driver]));
   const objectiveLookup = Object.fromEntries(objectives.map((objective) => [objective.id, objective]));
+  const selectedScenario = scenarios.find((scenario) => scenario.scenario_key === selectedScenarioKey) ?? null;
+  const selectedDriverVehicles = vehicles.filter(
+    (vehicle) => String(vehicle.driver_profile_id) === String(selectedDriverId),
+  );
   const criticalFacilities = (dashboard?.facilities ?? [])
     .filter((facility) => facility.utilization_pct >= 70)
     .slice(0, 6);
@@ -622,6 +771,173 @@ function App() {
           </section>
         ) : null}
 
+        {activeTab === "Scenarios" ? (
+          <section className="grid-two">
+            <Panel title="Scenario Replay">
+              <div className="form-grid">
+                <Select
+                  label="Scenario"
+                  value={selectedScenarioKey}
+                  options={scenarios.map((scenario) => [scenario.scenario_key, scenario.name])}
+                  onChange={(value) => setSelectedScenarioKey(value)}
+                />
+              </div>
+              {selectedScenario ? (
+                <div className="lane-card">
+                  <div className="lane-head">
+                    <h3>{selectedScenario.name}</h3>
+                    <span className="priority">{selectedScenario.event_type}</span>
+                  </div>
+                  <p>{selectedScenario.description}</p>
+                  <div className="lane-meta">
+                    <span>{selectedScenario.event_city}</span>
+                    <span>severity {selectedScenario.severity.toFixed(2)}</span>
+                    <span>ETA x{selectedScenario.eta_multiplier.toFixed(2)}</span>
+                  </div>
+                </div>
+              ) : null}
+              <div className="action-row section-divider">
+                <button onClick={() => startScenarioFlow(selectedScenarioKey)}>Start Scenario</button>
+                <button onClick={() => triggerScenarioDisruption(selectedScenarioKey)}>Trigger Disruption</button>
+                <button onClick={() => compareScenario(selectedScenarioKey)}>Compare With Baseline</button>
+              </div>
+            </Panel>
+
+            <Panel title="Baseline Vs AI Outcomes">
+              {!scenarioComparison ? (
+                <div className="empty">Run Compare With Baseline to view scenario deltas.</div>
+              ) : (
+                <div className="lane-stack">
+                  <div className="lane-card">
+                    <div className="lane-head">
+                      <h3>{scenarioComparison.scenario_name}</h3>
+                      <span className="priority">Comparison</span>
+                    </div>
+                    <div className="comparison-grid">
+                      <div>
+                        <strong>Baseline On-Time</strong>
+                        <p>{scenarioComparison.baseline.on_time_delivery_pct.toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <strong>AI On-Time</strong>
+                        <p>{scenarioComparison.ai.on_time_delivery_pct.toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <strong>Baseline Avg Delay</strong>
+                        <p>{scenarioComparison.baseline.average_delay_minutes.toFixed(1)} min</p>
+                      </div>
+                      <div>
+                        <strong>AI Avg Delay</strong>
+                        <p>{scenarioComparison.ai.average_delay_minutes.toFixed(1)} min</p>
+                      </div>
+                    </div>
+                    <div className="lane-meta">
+                      <span>Overflow reduction {scenarioComparison.improvement_summary.overflow_reduction.toFixed(1)}</span>
+                      <span>Delay reduction {scenarioComparison.improvement_summary.delay_reduction_minutes.toFixed(1)} min</span>
+                      <span>Stockouts prevented {scenarioComparison.ai.stockouts_prevented}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Panel>
+          </section>
+        ) : null}
+
+        {activeTab === "Driver Mobile" ? (
+          <section className="grid-two">
+            <Panel title="Driver Instructions">
+              <div className="form-grid">
+                <Select
+                  label="Driver"
+                  value={selectedDriverId}
+                  options={drivers.map((driver) => [String(driver.id), `${driver.name} (${driver.override_rating.toFixed(2)})`])}
+                  onChange={(value) => setSelectedDriverId(value)}
+                />
+              </div>
+              {driverMobile ? (
+                <div className="lane-stack">
+                  <div className="lane-card">
+                    <div className="lane-head">
+                      <h3>{driverMobile.driver_name}</h3>
+                      <span className="priority">confidence {Math.round(driverMobile.confidence * 100)}%</span>
+                    </div>
+                    <div className="lane-meta">
+                      <span>override rating {driverMobile.override_rating.toFixed(2)}</span>
+                      <span>{driverMobile.pending_instructions.length} pending actions</span>
+                    </div>
+                  </div>
+                  {driverMobile.pending_instructions.length === 0 ? (
+                    <div className="empty">No pending instructions for this driver.</div>
+                  ) : (
+                    driverMobile.pending_instructions.map((instruction) => (
+                      <div className="event-card" key={instruction.recommendation_id}>
+                        <div className="event-top">
+                          <strong>{instruction.vehicle_identifier}</strong>
+                          <span>{instruction.action.replaceAll("_", " ")}</span>
+                        </div>
+                        <p>{instruction.explanation}</p>
+                        <small>{instruction.objective_name}</small>
+                        <div className="action-row">
+                          <button onClick={() => submitDriverMobileDecision(instruction.recommendation_id, "accepted")}>Accept</button>
+                          <button className="danger" onClick={() => submitDriverMobileDecision(instruction.recommendation_id, "ignored")}>Ignore</button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="empty">Select a driver to load mobile instructions.</div>
+              )}
+            </Panel>
+
+            <Panel title="Incident Reporting">
+              <form className="form-grid" onSubmit={handleDriverIncidentSubmit}>
+                <Select
+                  label="Driver"
+                  value={driverIncidentForm.driver_profile_id || selectedDriverId}
+                  options={drivers.map((driver) => [String(driver.id), driver.name])}
+                  onChange={(value) => setDriverIncidentForm({ ...driverIncidentForm, driver_profile_id: value })}
+                />
+                <Select
+                  label="Vehicle"
+                  value={driverIncidentForm.vehicle_id}
+                  options={selectedDriverVehicles.map((vehicle) => [String(vehicle.id), vehicle.identifier])}
+                  onChange={(value) => setDriverIncidentForm({ ...driverIncidentForm, vehicle_id: value })}
+                  required={false}
+                />
+                <Input label="City" value={driverIncidentForm.city} onChange={(value) => setDriverIncidentForm({ ...driverIncidentForm, city: value })} />
+                <Select
+                  label="Incident Type"
+                  value={driverIncidentForm.incident_type}
+                  options={[
+                    ["road_blockage", "Road Blockage"],
+                    ["strike", "Strike"],
+                    ["delay", "Delay"],
+                    ["port_congestion", "Port Congestion"],
+                    ["weather", "Weather"],
+                  ]}
+                  onChange={(value) => setDriverIncidentForm({ ...driverIncidentForm, incident_type: value })}
+                />
+                <Input label="Severity (0-1)" value={driverIncidentForm.severity} onChange={(value) => setDriverIncidentForm({ ...driverIncidentForm, severity: value })} />
+                <Input label="Note" value={driverIncidentForm.note} onChange={(value) => setDriverIncidentForm({ ...driverIncidentForm, note: value })} required={false} />
+                <button type="submit">Report Incident</button>
+              </form>
+              <div className="lane-stack section-divider">
+                {(driverMobile?.recent_incidents ?? []).slice(0, 8).map((incident) => (
+                  <div className="event-card" key={incident.id}>
+                    <div className="event-top">
+                      <strong>{incident.city}</strong>
+                      <span>{incident.incident_type}</span>
+                    </div>
+                    <p>{incident.note || "No extra note"}</p>
+                    <small>severity {Number(incident.severity).toFixed(2)}</small>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          </section>
+        ) : null}
+
         {activeTab === "Events" ? (
           <section className="grid-two">
             <Panel title="Import & Recommendations">
@@ -750,20 +1066,20 @@ function StatusPill({ label, value }) {
   );
 }
 
-function Input({ label, value, onChange }) {
+function Input({ label, value, onChange, required = true }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} required />
+      <input value={value} onChange={(event) => onChange(event.target.value)} required={required} />
     </label>
   );
 }
 
-function Select({ label, value, options, onChange }) {
+function Select({ label, value, options, onChange, required = true }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} required>
+      <select value={value} onChange={(event) => onChange(event.target.value)} required={required}>
         <option value="">Select</option>
         {options.map(([optionValue, optionLabel]) => (
           <option key={optionValue} value={optionValue}>

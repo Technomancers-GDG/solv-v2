@@ -1050,6 +1050,150 @@ class SimulationEngine:
         )
         return any(term in text for term in perishable_terms)
 
+    def compare_scenario(self, session: Session, scenario: Any) -> dict[str, Any]:
+        if not self.objectives or not self.facilities or not self.vehicles:
+            self.load_state(session)
+        active_objectives = [objective for objective in self.objectives.values() if objective.active]
+        if not active_objectives or not self.vehicles:
+            empty = {
+                "on_time_delivery_pct": 0.0,
+                "average_delay_minutes": 0.0,
+                "overflow_events": 0,
+                "reroute_count": 0,
+                "idle_minutes_prevented": 0.0,
+                "co2_saved_kg": 0.0,
+                "stockouts_prevented": 0,
+            }
+            return {
+                "baseline": empty,
+                "ai": empty,
+                "improvement": {
+                    "on_time_delta_pct": 0.0,
+                    "delay_reduction_minutes": 0.0,
+                    "overflow_reduction": 0.0,
+                    "stockout_delta": 0.0,
+                },
+            }
+
+        baseline_delays: list[float] = []
+        ai_delays: list[float] = []
+        baseline_on_time = 0
+        ai_on_time = 0
+        baseline_overflow = 0
+        ai_overflow = 0
+        ai_reroutes = 0
+        ai_idle_saved = 0.0
+        ai_co2_saved = 0.0
+        ai_stockouts_prevented = 0
+        fallback_vehicle = next(iter(self.vehicles.values()))
+        scenario_city = str(getattr(scenario, "event_city", "")).lower()
+        scenario_eta_multiplier = max(1.0, float(getattr(scenario, "eta_multiplier", 1.2)))
+        scenario_severity = min(0.99, max(0.0, float(getattr(scenario, "severity", 0.6))))
+        inventory_pressure_pct = max(0.0, float(getattr(scenario, "inventory_pressure_pct", 0.0)))
+
+        for objective in active_objectives:
+            origin = self.facilities.get(objective.origin_facility_id)
+            destination = self.facilities.get(objective.destination_facility_id)
+            if origin is None or destination is None:
+                continue
+
+            route = self.route_planner.get_or_create_template(session, origin, destination)
+            self.routes[route.route_key] = route
+            first_vehicle_id = objective.assigned_vehicle_ids[0] if objective.assigned_vehicle_ids else fallback_vehicle.id
+            vehicle = self.vehicles.get(first_vehicle_id, fallback_vehicle)
+            payload_units = vehicle.payload_capacity_units
+
+            base_trip_minutes = (
+                route.duration_minutes
+                + objective.loading_duration_minutes
+                + objective.unloading_duration_minutes
+            )
+            disrupted_leg = (
+                origin.city.lower() == scenario_city or destination.city.lower() == scenario_city
+            )
+            multiplier = scenario_eta_multiplier if disrupted_leg else (1.0 + scenario_severity * 0.12)
+            baseline_trip_minutes = base_trip_minutes * multiplier
+
+            pressure_units = int(destination.base_capacity_units * (inventory_pressure_pct / 100))
+            projected_inventory = destination.current_inventory_units + payload_units + pressure_units
+            baseline_overflow_risk = max(
+                0.0,
+                (projected_inventory - destination.base_capacity_units) / max(payload_units, 1),
+            )
+            baseline_delay = max(0.0, baseline_trip_minutes - objective.sla_minutes)
+            baseline_delays.append(baseline_delay)
+            if baseline_trip_minutes <= objective.sla_minutes:
+                baseline_on_time += 1
+            if baseline_overflow_risk > 0.0:
+                baseline_overflow += 1
+
+            critical = self._is_critical_objective(objective)
+            baseline_stockout = baseline_overflow_risk > 0.2 or (
+                critical and baseline_delay > objective.sla_minutes * 0.1
+            )
+
+            ai_trip_minutes = baseline_trip_minutes
+            ai_overflow_risk = baseline_overflow_risk
+            rerouted = False
+            if objective.fallback_facility_ids and (
+                baseline_overflow_risk > 0.05 or baseline_delay > 0.0 or disrupted_leg
+            ):
+                rerouted = True
+                ai_reroutes += 1
+                ai_trip_minutes = baseline_trip_minutes * (0.72 if critical else 0.78)
+                ai_overflow_risk = max(0.0, baseline_overflow_risk - 0.55)
+
+            ai_delay = max(0.0, ai_trip_minutes - objective.sla_minutes)
+            ai_delays.append(ai_delay)
+            if ai_trip_minutes <= objective.sla_minutes:
+                ai_on_time += 1
+            if ai_overflow_risk > 0.0:
+                ai_overflow += 1
+
+            ai_idle_saved += max(0.0, baseline_delay - ai_delay) * 0.5
+            ai_co2_saved += max(0.0, baseline_delay - ai_delay) * 0.14
+            if baseline_stockout and (rerouted or ai_delay < baseline_delay * 0.75):
+                ai_stockouts_prevented += 1
+
+        total = max(len(active_objectives), 1)
+        baseline_metrics = {
+            "on_time_delivery_pct": round((baseline_on_time / total) * 100, 2),
+            "average_delay_minutes": round(sum(baseline_delays) / max(len(baseline_delays), 1), 2),
+            "overflow_events": baseline_overflow,
+            "reroute_count": 0,
+            "idle_minutes_prevented": 0.0,
+            "co2_saved_kg": 0.0,
+            "stockouts_prevented": 0,
+        }
+        ai_metrics = {
+            "on_time_delivery_pct": round((ai_on_time / total) * 100, 2),
+            "average_delay_minutes": round(sum(ai_delays) / max(len(ai_delays), 1), 2),
+            "overflow_events": ai_overflow,
+            "reroute_count": ai_reroutes,
+            "idle_minutes_prevented": round(ai_idle_saved, 2),
+            "co2_saved_kg": round(ai_co2_saved, 2),
+            "stockouts_prevented": ai_stockouts_prevented,
+        }
+        return {
+            "baseline": baseline_metrics,
+            "ai": ai_metrics,
+            "improvement": {
+                "on_time_delta_pct": round(
+                    ai_metrics["on_time_delivery_pct"] - baseline_metrics["on_time_delivery_pct"],
+                    2,
+                ),
+                "delay_reduction_minutes": round(
+                    baseline_metrics["average_delay_minutes"] - ai_metrics["average_delay_minutes"],
+                    2,
+                ),
+                "overflow_reduction": round(
+                    baseline_metrics["overflow_events"] - ai_metrics["overflow_events"],
+                    2,
+                ),
+                "stockout_delta": round(ai_metrics["stockouts_prevented"], 2),
+            },
+        }
+
     async def _maybe_snapshot(self, session: Session) -> None:
         warehouse_facilities = [
             facility for facility in self.facilities.values() if facility.facility_type == "warehouse"

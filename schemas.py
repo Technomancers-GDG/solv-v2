@@ -291,3 +291,81 @@ class DashboardSnapshot(BaseModel):
     alerts: list[RecommendationRead]
     metrics: MetricsSummary
     active_events: list[dict[str, Any]]
+
+
+class ScenarioPresetRead(ORMModel):
+    id: int
+    scenario_key: str
+    name: str
+    description: str
+    event_city: str
+    event_type: str
+    severity: float
+    eta_multiplier: float
+    inventory_pressure_pct: float
+    active: bool
+
+
+class ScenarioComparisonMetrics(BaseModel):
+    on_time_delivery_pct: float
+    average_delay_minutes: float
+    overflow_events: int
+    reroute_count: int
+    idle_minutes_prevented: float
+    co2_saved_kg: float
+    stockouts_prevented: int
+
+
+class ScenarioComparisonRead(BaseModel):
+    scenario_key: str
+    scenario_name: str
+    baseline: ScenarioComparisonMetrics
+    ai: ScenarioComparisonMetrics
+    improvement_summary: dict[str, float]
+
+
+class DriverInstructionRead(BaseModel):
+    recommendation_id: int
+    created_at: datetime
+    vehicle_id: int
+    vehicle_identifier: str
+    objective_name: str
+    action: str
+    explanation: str
+    status: str
+
+
+class DriverResponseRequest(BaseModel):
+    recommendation_id: int
+    decision: str = Field(pattern="^(accepted|ignored)$")
+    note: str = ""
+
+
+class DriverIncidentCreate(BaseModel):
+    driver_profile_id: int
+    vehicle_id: int | None = None
+    city: str
+    incident_type: str
+    severity: float = 0.6
+    note: str = ""
+
+
+class DriverIncidentRead(ORMModel):
+    id: int
+    reported_at: datetime
+    driver_profile_id: int
+    vehicle_id: int | None
+    city: str
+    incident_type: str
+    severity: float
+    note: str
+    linked_news_event_id: int | None
+
+
+class DriverMobileSnapshot(BaseModel):
+    driver_id: int
+    driver_name: str
+    override_rating: float
+    confidence: float
+    pending_instructions: list[DriverInstructionRead]
+    recent_incidents: list[DriverIncidentRead]

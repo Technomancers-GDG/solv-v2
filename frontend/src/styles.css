@@ -377,6 +377,25 @@ th {
   align-items: center;
 }
 
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.comparison-grid div {
+  border: 1px solid rgba(156, 183, 200, 0.14);
+  border-radius: 16px;
+  padding: 10px 12px;
+  background: rgba(5, 14, 24, 0.72);
+}
+
+.comparison-grid p {
+  margin: 6px 0 0;
+  color: var(--text);
+}
+
 .lane-card h3,
 .event-card p,
 .util-card strong {
@@ -472,5 +491,9 @@ th {
   .tabs {
     overflow: auto;
     padding-bottom: 4px;
+  }
+
+  .comparison-grid {
+    grid-template-columns: 1fr;
   }
 }

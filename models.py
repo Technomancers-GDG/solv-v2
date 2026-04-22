@@ -148,6 +148,21 @@ class RouteTemplate(Base):
     refreshed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class ScenarioPreset(Base):
+    __tablename__ = "scenario_presets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scenario_key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(140), index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    event_city: Mapped[str] = mapped_column(String(80), index=True)
+    event_type: Mapped[str] = mapped_column(String(80), default="disruption")
+    severity: Mapped[float] = mapped_column(Float, default=0.6)
+    eta_multiplier: Mapped[float] = mapped_column(Float, default=1.2)
+    inventory_pressure_pct: Mapped[float] = mapped_column(Float, default=12.0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class NewsEvent(Base):
     __tablename__ = "news_events"
 
@@ -213,6 +228,20 @@ class DriverDecision(Base):
     recommended_trip_cost: Mapped[float] = mapped_column(Float, default=0.0)
     rating_delta: Mapped[float] = mapped_column(Float, default=0.0)
     note: Mapped[str] = mapped_column(Text, default="")
+
+
+class DriverIncident(Base):
+    __tablename__ = "driver_incidents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reported_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    driver_profile_id: Mapped[int] = mapped_column(ForeignKey("driver_profiles.id"), index=True)
+    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=True, index=True)
+    city: Mapped[str] = mapped_column(String(80), index=True)
+    incident_type: Mapped[str] = mapped_column(String(80), index=True)
+    severity: Mapped[float] = mapped_column(Float, default=0.6)
+    note: Mapped[str] = mapped_column(Text, default="")
+    linked_news_event_id: Mapped[int] = mapped_column(ForeignKey("news_events.id"), nullable=True)
 
 
 class SimEvent(Base):

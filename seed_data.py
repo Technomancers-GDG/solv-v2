@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from models import DriverProfile, Facility, Objective, PortLink, Vehicle
+from models import DriverProfile, Facility, Objective, PortLink, ScenarioPreset, Vehicle
 
 
 FACILITY_SEEDS = [
@@ -229,8 +229,59 @@ DRIVER_SEEDS = [
 ]
 
 
+SCENARIO_PRESETS = [
+    {
+        "scenario_key": "warehouse_overflow_chennai",
+        "name": "Warehouse Overflow Risk",
+        "description": "Chennai public health warehouse nears capacity due to delayed unloading and high inbound medicine flow.",
+        "event_city": "Chennai",
+        "event_type": "warehouse_overflow",
+        "severity": 0.72,
+        "eta_multiplier": 1.18,
+        "inventory_pressure_pct": 20.0,
+    },
+    {
+        "scenario_key": "heavy_rain_corridor",
+        "name": "Heavy Rainfall Corridor Slowdown",
+        "description": "Severe rain impacts interstate corridors and raises route ETA multipliers for health and food deliveries.",
+        "event_city": "Bengaluru",
+        "event_type": "heavy_rainfall",
+        "severity": 0.66,
+        "eta_multiplier": 1.34,
+        "inventory_pressure_pct": 8.0,
+    },
+    {
+        "scenario_key": "road_blockage_strike",
+        "name": "Road Blockage And Strike",
+        "description": "A sudden labor strike and road blockade forces rerouting to protect critical deliveries.",
+        "event_city": "Mumbai",
+        "event_type": "road_blockage",
+        "severity": 0.79,
+        "eta_multiplier": 1.41,
+        "inventory_pressure_pct": 14.0,
+    },
+]
+
+
+def _seed_scenario_presets(session: Session) -> None:
+    existing = {
+        item.scenario_key
+        for item in session.scalars(select(ScenarioPreset).where(ScenarioPreset.active.is_(True))).all()
+    }
+    to_add = [
+        ScenarioPreset(**scenario)
+        for scenario in SCENARIO_PRESETS
+        if scenario["scenario_key"] not in existing
+    ]
+    if not to_add:
+        return
+    session.add_all(to_add)
+    session.commit()
+
+
 def seed_demo_data(session: Session) -> None:
     if session.scalar(select(Facility.id).limit(1)) is not None:
+        _seed_scenario_presets(session)
         return
 
     session.add_all(Facility(**facility) for facility in FACILITY_SEEDS)
@@ -407,3 +458,4 @@ def seed_demo_data(session: Session) -> None:
     ]
     session.add_all(port_links)
     session.commit()
+    _seed_scenario_presets(session)
