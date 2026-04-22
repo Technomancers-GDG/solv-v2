@@ -66,51 +66,72 @@ class EventIngestionService:
     def import_news(
         self, session: Session, full_news_import: bool = False, sample_per_sheet: int = 500
     ) -> int:
-        path = settings.news_dataset_path
-        if not path.exists():
+        import httpx
+        from collections import defaultdict
+
+        try:
+            response = httpx.get("http://localhost:3000/news")
+            response.raise_for_status()
+            news_data = response.json()
+        except Exception as e:
+            print(f"Failed to fetch news from API: {e}")
             return 0
 
         self.news_model.ensure_trained()
-        reader = WorkbookXmlReader(path)
         session.execute(delete(NewsEvent))
         session.commit()
 
         imported = 0
         source_start_year = 2020
         batch: list[NewsEvent] = []
-        for sheet_name in reader.sheet_names():
-            rows = reader.iter_sheet_rows(sheet_name)
-            if not full_news_import:
-                rows = rows[:sample_per_sheet]
-            for row in rows:
-                date_text = row.get("Date")
-                headline = (row.get("News") or "").strip()
-                if not date_text or not headline:
-                    continue
-                original_date = date.fromisoformat(str(date_text))
-                prediction = self.news_model.predict(
-                    str(row.get("Category") or ""), headline
+
+        if not full_news_import:
+            city_groups = defaultdict(list)
+            for row in news_data:
+                city = row.get("city") or "Unknown"
+                city_groups[city].append(row)
+            
+            sampled_data = []
+            for city_events in city_groups.values():
+                sampled_data.extend(city_events[:sample_per_sheet])
+            news_data = sampled_data
+
+        for row in news_data:
+            date_text = row.get("date")
+            headline = (row.get("content") or "").strip()
+            if not date_text or not headline:
+                continue
+            
+            clean_date_text = str(date_text)[:10]
+            try:
+                original_date = date.fromisoformat(clean_date_text)
+            except ValueError:
+                continue
+
+            prediction = self.news_model.predict(
+                str(row.get("category") or ""), headline
+            )
+            batch.append(
+                NewsEvent(
+                    original_date=original_date,
+                    simulation_date=normalize_simulation_date(
+                        original_date, source_start_year, settings.simulation_start_date.year
+                    ),
+                    city=str(row.get("city") or "Unknown"),
+                    category=str(row.get("category") or ""),
+                    headline=headline,
+                    relevant=prediction.relevant,
+                    impact_type=prediction.impact_type,
+                    impact_score=prediction.impact_score,
+                    model_probability=prediction.model_probability,
                 )
-                batch.append(
-                    NewsEvent(
-                        original_date=original_date,
-                        simulation_date=normalize_simulation_date(
-                            original_date, source_start_year, settings.simulation_start_date.year
-                        ),
-                        city=str(row.get("City") or sheet_name),
-                        category=str(row.get("Category") or ""),
-                        headline=headline,
-                        relevant=prediction.relevant,
-                        impact_type=prediction.impact_type,
-                        impact_score=prediction.impact_score,
-                        model_probability=prediction.model_probability,
-                    )
-                )
-                if len(batch) >= 500:
-                    session.add_all(batch)
-                    session.commit()
-                    imported += len(batch)
-                    batch.clear()
+            )
+            if len(batch) >= 500:
+                session.add_all(batch)
+                session.commit()
+                imported += len(batch)
+                batch.clear()
+
         if batch:
             session.add_all(batch)
             session.commit()
