@@ -2,7 +2,7 @@ import { startTransition, useDeferredValue, useEffect, useState } from "react";
 
 import { MapView } from "./components/views/MapView";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+const API_BASE = import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL ?? "";
 const tabs = ["Map View", "Network", "Objectives", "Live Ops", "Scenarios", "Driver Mobile", "Events", "Impact"];
 
 const initialFacilityForm = {
@@ -93,6 +93,7 @@ function App() {
   const [vehicles, setVehicles] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [objectives, setObjectives] = useState([]);
+  const [routes, setRoutes] = useState([]);
   const [scenarios, setScenarios] = useState([]);
   const [scenarioComparison, setScenarioComparison] = useState(null);
   const [selectedScenarioKey, setSelectedScenarioKey] = useState("");
@@ -120,6 +121,7 @@ function App() {
         vehicleData,
         driverData,
         objectiveData,
+        routeData,
         scenarioData,
         recommendationData,
         decisionData,
@@ -131,6 +133,7 @@ function App() {
         apiFetch("/api/vehicles"),
         apiFetch("/api/drivers"),
         apiFetch("/api/objectives"),
+        apiFetch("/api/routes"),
         apiFetch("/api/scenarios"),
         apiFetch("/api/recommendations"),
         apiFetch("/api/driver-decisions"),
@@ -143,6 +146,7 @@ function App() {
         setVehicles(vehicleData);
         setDrivers(driverData);
         setObjectives(objectiveData);
+        setRoutes(routeData);
         setScenarios(scenarioData);
         setRecommendations(recommendationData);
         setDecisions(decisionData);
@@ -506,9 +510,11 @@ function App() {
         {activeTab === "Map View" ? (
           <MapView 
             facilities={facilities} 
-            vehicles={deferredVehicles} 
+            vehicles={dashboard?.vehicles ?? []}
             objectives={objectives} 
-            recommendations={recommendations} 
+            recommendations={recommendations}
+            activeEvents={dashboard?.active_events ?? []}
+            routeTemplates={routes}
           />
         ) : null}
 

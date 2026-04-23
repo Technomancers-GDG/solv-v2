@@ -1,65 +1,426 @@
 import React, { useMemo, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
+import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
 import L from "leaflet";
 import { Panel, Select } from "../common/UiPrimitives";
-export function MapView({ facilities = [], vehicles = [], objectives = [], recommendations = [] }) {
+
+const DEFAULT_CENTER = [22.5937, 78.9629];
+const DEFAULT_ZOOM = 5;
+const VEHICLE_SPREAD_DEGREES = 0.04;
+const MARKER_GROUP_PRECISION = 3;
+
+function toNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function hasCoordinates(item) {
+  return toNumber(item?.latitude) !== null && toNumber(item?.longitude) !== null;
+}
+
+function toLatLng(item) {
+  const latitude = toNumber(item?.latitude);
+  const longitude = toNumber(item?.longitude);
+  if (latitude === null || longitude === null) {
+    return null;
+  }
+  return [latitude, longitude];
+}
+
+function distanceKm(startPoint, endPoint) {
+  const earthRadiusKm = 6371;
+  const toRadians = (degrees) => (degrees * Math.PI) / 180;
+  const latDelta = toRadians(endPoint[0] - startPoint[0]);
+  const lonDelta = toRadians(endPoint[1] - startPoint[1]);
+  const startLat = toRadians(startPoint[0]);
+  const endLat = toRadians(endPoint[0]);
+  const value =
+    Math.sin(latDelta / 2) * Math.sin(latDelta / 2) +
+    Math.cos(startLat) * Math.cos(endLat) * Math.sin(lonDelta / 2) * Math.sin(lonDelta / 2);
+  const arc = 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+  return earthRadiusKm * arc;
+}
+
+function pathDistanceKm(points) {
+  if (!Array.isArray(points) || points.length < 2) {
+    return 0;
+  }
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    total += distanceKm(points[index - 1], points[index]);
+  }
+  return total;
+}
+
+function pointAlongPath(points, progressPct) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return null;
+  }
+  if (points.length === 1) {
+    return points[0];
+  }
+
+  const clampedProgress = Math.max(0, Math.min(100, Number(progressPct) || 0));
+  if (clampedProgress === 0) {
+    return points[0];
+  }
+  if (clampedProgress === 100) {
+    return points[points.length - 1];
+  }
+
+  const segmentLengths = [];
+  let totalLength = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const length = distanceKm(points[index - 1], points[index]);
+    segmentLengths.push(length);
+    totalLength += length;
+  }
+  if (totalLength <= 0) {
+    return points[0];
+  }
+
+  let remaining = (clampedProgress / 100) * totalLength;
+  for (let index = 0; index < segmentLengths.length; index += 1) {
+    const segmentLength = segmentLengths[index];
+    if (remaining <= segmentLength || index === segmentLengths.length - 1) {
+      const ratio = segmentLength <= 0 ? 0 : remaining / segmentLength;
+      const start = points[index];
+      const end = points[index + 1];
+      return [
+        start[0] + (end[0] - start[0]) * ratio,
+        start[1] + (end[1] - start[1]) * ratio,
+      ];
+    }
+    remaining -= segmentLength;
+  }
+
+  return points[points.length - 1];
+}
+
+function decodePolyline(encoded, precision = 5) {
+  if (!encoded) {
+    return [];
+  }
+
+  const coordinates = [];
+  let index = 0;
+  let latitude = 0;
+  let longitude = 0;
+  const factor = 10 ** precision;
+
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let byte;
+    do {
+      if (index >= encoded.length) {
+        return coordinates;
+      }
+      byte = encoded.charCodeAt(index) - 63;
+      index += 1;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    const latitudeChange = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+    latitude += latitudeChange;
+
+    result = 0;
+    shift = 0;
+    do {
+      if (index >= encoded.length) {
+        return coordinates;
+      }
+      byte = encoded.charCodeAt(index) - 63;
+      index += 1;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    const longitudeChange = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+    longitude += longitudeChange;
+
+    coordinates.push([latitude / factor, longitude / factor]);
+  }
+
+  return coordinates;
+}
+
+function spreadPoint(point, index, total) {
+  if (!point || total <= 1) {
+    return point;
+  }
+  const [latitude, longitude] = point;
+  const angle = (2 * Math.PI * index) / total;
+  const ringMultiplier = 1 + Math.floor(index / 8) * 0.45;
+  const radius = VEHICLE_SPREAD_DEGREES * ringMultiplier;
+  const safeCos = Math.max(Math.cos((latitude * Math.PI) / 180), 0.25);
+  return [
+    latitude + Math.sin(angle) * radius,
+    longitude + (Math.cos(angle) * radius) / safeCos,
+  ];
+}
+
+function createFacilityIcon(facilityType) {
+  const kind = facilityType === "port" ? "port" : "warehouse";
+  const label = kind === "port" ? "PT" : "WH";
+  return L.divIcon({
+    html: `<div class="map-pin map-pin-facility ${kind}"><span>${label}</span></div>`,
+    className: "map-pin-wrap",
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+}
+
+function createVehicleIcon(status, identifier, selected = false) {
+  const statusClass = String(status || "idle").toLowerCase().replaceAll("_", "-");
+  const selectedClass = selected ? "selected" : "";
+  const shortId = String(identifier || "TRK").replace(/[^A-Za-z0-9]/g, "").slice(-3) || "TRK";
+  return L.divIcon({
+    html: `<div class="map-pin map-pin-vehicle ${statusClass} ${selectedClass}"><span>${shortId}</span></div>`,
+    className: "map-pin-wrap",
+    iconSize: [42, 24],
+    iconAnchor: [21, 12],
+  });
+}
+
+function eventSeverity(impactScore) {
+  const score = Number(impactScore) || 0;
+  if (score >= 0.75) {
+    return "high";
+  }
+  if (score >= 0.45) {
+    return "medium";
+  }
+  return "low";
+}
+
+export function MapView({
+  facilities = [],
+  vehicles = [],
+  objectives = [],
+  recommendations = [],
+  activeEvents = [],
+  routeTemplates = [],
+}) {
   const [filterVehicleId, setFilterVehicleId] = useState("");
+  const [highlightedVehicleId, setHighlightedVehicleId] = useState("");
   const [filterObjectiveId, setFilterObjectiveId] = useState("");
   const [showDisruptions, setShowDisruptions] = useState(true);
-  const [showAlternateRoutes, setShowAlternateRoutes] = useState(true);
+  const [showRoutePaths, setShowRoutePaths] = useState(true);
 
-  // Calculate statistics for the map
-  const mapStats = useMemo(() => {
-    const facilityLocations = facilities.filter((f) => f.latitude && f.longitude).length;
-    const activeVehicles = vehicles.filter((v) => v.status !== "idle").length;
-    const pendingReroutes = recommendations.filter((r) => r.action === "reroute").length;
+  const objectiveLookup = useMemo(
+    () => Object.fromEntries(objectives.map((objective) => [objective.id, objective])),
+    [objectives],
+  );
 
-    return {
-      facilitiesOnMap: facilityLocations,
-      activeVehicles,
-      pendingReroutes,
-      totalDistance: vehicles.reduce((sum, v) => sum + (v.estimated_distance_km || 0), 0),
-    };
-  }, [facilities, vehicles, recommendations]);
+  const facilityLookup = useMemo(() => {
+    const lookup = {};
+    facilities.forEach((facility) => {
+      if (hasCoordinates(facility)) {
+        lookup[facility.id] = facility;
+      }
+    });
+    return lookup;
+  }, [facilities]);
 
-  // Mock route data for visualization
-  const mockRoutes = useMemo(() => {
-    return vehicles
-      .filter((v) => !filterVehicleId || v.id === parseInt(filterVehicleId))
-      .slice(0, 10)
-      .map((vehicle) => {
-        const objective = objectives.find((o) => o.id === vehicle.current_objective_id);
-        return {
-          vehicleId: vehicle.id,
-          identifier: vehicle.identifier,
-          status: vehicle.status,
-          currentLat: vehicle.current_latitude || 28.6139,
-          currentLon: vehicle.current_longitude || 77.209,
-          originLat: objective?.origin_facility_id ? 28.7041 : 28.6139,
-          originLon: objective?.origin_facility_id ? 77.1025 : 77.209,
-          destLat: objective?.destination_facility_id ? 12.9716 : 13.1939,
-          destLon: objective?.destination_facility_id ? 77.5946 : 80.1398,
-          objectiveName: objective?.name || "No objective",
-          progress: vehicle.current_progress_pct || 0,
-        };
+  const routeTemplateLookup = useMemo(() => {
+    const lookup = {};
+    routeTemplates.forEach((template) => {
+      if (template?.route_key) {
+        lookup[template.route_key] = template;
+      }
+    });
+    return lookup;
+  }, [routeTemplates]);
+
+  const liveRoutes = useMemo(() => {
+    const transformed = [];
+
+    vehicles.forEach((vehicle) => {
+      const vehicleId = toNumber(vehicle.vehicle_id ?? vehicle.id);
+      if (vehicleId === null) {
+        return;
+      }
+
+      const objectiveId = toNumber(
+        vehicle.objective_id ?? vehicle.current_objective_id ?? vehicle.default_objective_id,
+      );
+      const objective = objectiveId !== null ? objectiveLookup[objectiveId] : null;
+
+      const currentFacilityId = toNumber(vehicle.current_facility_id);
+      const nextFacilityId = toNumber(vehicle.next_facility_id);
+      const status = String(vehicle.status ?? "idle").toLowerCase();
+      const progress = Math.max(
+        0,
+        Math.min(100, Number(vehicle.progress_pct ?? vehicle.current_progress_pct ?? 0)),
+      );
+      const payloadUnits = Number(vehicle.payload_units ?? 0);
+
+      const currentFacility = currentFacilityId !== null ? facilityLookup[currentFacilityId] : null;
+      const nextFacility = nextFacilityId !== null ? facilityLookup[nextFacilityId] : null;
+      const objectiveOrigin = objective ? facilityLookup[objective.origin_facility_id] : null;
+      const objectiveDestination = objective ? facilityLookup[objective.destination_facility_id] : null;
+
+      let startFacility = currentFacility;
+      if (!startFacility) {
+        if (status === "in_transit" && objective && nextFacility) {
+          if (nextFacility.id === objective.destination_facility_id) {
+            startFacility = objectiveOrigin ?? objectiveDestination ?? nextFacility;
+          } else if (nextFacility.id === objective.origin_facility_id) {
+            startFacility = objectiveDestination ?? objectiveOrigin ?? nextFacility;
+          } else {
+            startFacility = payloadUnits > 0
+              ? (objectiveOrigin ?? objectiveDestination ?? nextFacility)
+              : (objectiveDestination ?? objectiveOrigin ?? nextFacility);
+          }
+        } else {
+          startFacility = objectiveOrigin ?? objectiveDestination ?? nextFacility;
+        }
+      }
+
+      let endFacility = nextFacility;
+      if (!endFacility) {
+        if (status === "in_transit" && objective) {
+          endFacility = payloadUnits > 0
+            ? (objectiveDestination ?? objectiveOrigin ?? startFacility)
+            : (objectiveOrigin ?? objectiveDestination ?? startFacility);
+        } else {
+          endFacility = objectiveDestination ?? startFacility;
+        }
+      }
+
+      if (status !== "in_transit") {
+        endFacility = startFacility;
+      }
+
+      let startPoint = startFacility ? toLatLng(startFacility) : null;
+      const endPoint = endFacility ? toLatLng(endFacility) : startPoint;
+      if (!startPoint && endPoint) {
+        startPoint = endPoint;
+      }
+      if (!startPoint || !endPoint) {
+        return;
+      }
+
+      const routeKey = startFacility && endFacility
+        ? `${startFacility.id}:${endFacility.id}`
+        : null;
+      const routeTemplate = routeKey ? routeTemplateLookup[routeKey] : null;
+      const decodedRoutePoints = routeTemplate?.encoded_polyline
+        ? decodePolyline(routeTemplate.encoded_polyline, 5)
+        : [];
+      const routePoints = decodedRoutePoints.length >= 2
+        ? decodedRoutePoints
+        : [startPoint, endPoint];
+
+      const markerPoint = status === "in_transit"
+        ? (pointAlongPath(routePoints, progress) ?? startPoint)
+        : startPoint;
+
+      transformed.push({
+        vehicleId,
+        identifier: vehicle.identifier || `Truck ${vehicleId}`,
+        status,
+        objectiveId,
+        objectiveName: objective?.name || "Unassigned objective",
+        progress,
+        payloadUnits,
+        currentPoint: markerPoint,
+        routePoints,
+        routeSource: routeTemplate?.source || "derived",
+        recommendationAction: vehicle.recommendation_action || null,
       });
-  }, [vehicles, objectives, filterVehicleId]);
+    });
 
-  // Group facilities by city for density visualization
+    const spreadRoutes = transformed.map((route) => ({
+      ...route,
+      displayPoint: route.currentPoint,
+    }));
+    const groups = {};
+    spreadRoutes.forEach((route, index) => {
+      const key = `${route.currentPoint[0].toFixed(MARKER_GROUP_PRECISION)},${route.currentPoint[1].toFixed(MARKER_GROUP_PRECISION)}`;
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(index);
+    });
+    Object.values(groups).forEach((indices) => {
+      indices.forEach((routeIndex, indexInGroup) => {
+        spreadRoutes[routeIndex].displayPoint = spreadPoint(
+          spreadRoutes[routeIndex].currentPoint,
+          indexInGroup,
+          indices.length,
+        );
+      });
+    });
+
+    return spreadRoutes;
+  }, [vehicles, objectiveLookup, facilityLookup, routeTemplateLookup]);
+
+  const selectedVehicleId = filterVehicleId || highlightedVehicleId;
+
+  const visibleRoutes = useMemo(() => {
+    return liveRoutes.filter((route) => {
+      if (filterVehicleId && String(route.vehicleId) !== filterVehicleId) {
+        return false;
+      }
+      if (filterObjectiveId && String(route.objectiveId) !== filterObjectiveId) {
+        return false;
+      }
+      return true;
+    });
+  }, [liveRoutes, filterVehicleId, filterObjectiveId]);
+
+  const selectedRoute = useMemo(() => {
+    if (!selectedVehicleId) {
+      return null;
+    }
+    return liveRoutes.find((route) => String(route.vehicleId) === selectedVehicleId) ?? null;
+  }, [selectedVehicleId, liveRoutes]);
+
+  const selectedRoutePath = useMemo(() => {
+    if (!showRoutePaths || !selectedRoute) {
+      return null;
+    }
+    return selectedRoute.routePoints.length >= 2 ? selectedRoute.routePoints : null;
+  }, [showRoutePaths, selectedRoute]);
+
+  const disruptionEvents = useMemo(() => {
+    return activeEvents
+      .filter((event) => Number(event.impact_score ?? 0) >= 0.2)
+      .sort((left, right) => Number(right.impact_score ?? 0) - Number(left.impact_score ?? 0))
+      .slice(0, 8);
+  }, [activeEvents]);
+
+  const mapStats = useMemo(() => {
+    const reroutesPending = recommendations.filter(
+      (recommendation) =>
+        recommendation.status === "suggested" &&
+        String(recommendation.action || "").startsWith("reroute"),
+    ).length;
+    const routeSpanKm = liveRoutes.reduce(
+      (sum, route) => sum + pathDistanceKm(route.routePoints),
+      0,
+    );
+    return {
+      facilitiesOnMap: Object.keys(facilityLookup).length,
+      activeVehicles: liveRoutes.filter((route) => route.status !== "idle").length,
+      pendingReroutes: reroutesPending,
+      routeSpanKm,
+    };
+  }, [facilityLookup, liveRoutes, recommendations]);
+
   const facilitiesByCity = useMemo(() => {
     const grouped = {};
-    facilities.forEach((f) => {
-      if (!grouped[f.city]) {
-        grouped[f.city] = [];
+    facilities.forEach((facility) => {
+      if (!grouped[facility.city]) {
+        grouped[facility.city] = [];
       }
-      grouped[f.city].push(f);
+      grouped[facility.city].push(facility);
     });
     return grouped;
   }, [facilities]);
 
   return (
     <section className="map-layout">
-      {/* Map Controls & Info */}
       <Panel title="Route & Facility Map">
         <div className="map-controls">
           <div className="control-row">
@@ -68,9 +429,12 @@ export function MapView({ facilities = [], vehicles = [], objectives = [], recom
               value={filterVehicleId}
               options={[
                 ["", "All Vehicles"],
-                ...vehicles.map((v) => [String(v.id), v.identifier]),
+                ...liveRoutes.map((route) => [String(route.vehicleId), route.identifier]),
               ]}
-              onChange={setFilterVehicleId}
+              onChange={(value) => {
+                setFilterVehicleId(value);
+                setHighlightedVehicleId(value);
+              }}
             />
 
             <Select
@@ -78,7 +442,7 @@ export function MapView({ facilities = [], vehicles = [], objectives = [], recom
               value={filterObjectiveId}
               options={[
                 ["", "All Objectives"],
-                ...objectives.map((o) => [String(o.id), o.name]),
+                ...objectives.map((objective) => [String(objective.id), objective.name]),
               ]}
               onChange={setFilterObjectiveId}
             />
@@ -89,104 +453,149 @@ export function MapView({ facilities = [], vehicles = [], objectives = [], recom
               <input
                 type="checkbox"
                 checked={showDisruptions}
-                onChange={(e) => setShowDisruptions(e.target.checked)}
+                onChange={(event) => setShowDisruptions(event.target.checked)}
               />
               <span>Show Disruption Zones</span>
             </label>
             <label className="checkbox-label">
               <input
                 type="checkbox"
-                checked={showAlternateRoutes}
-                onChange={(e) => setShowAlternateRoutes(e.target.checked)}
+                checked={showRoutePaths}
+                onChange={(event) => setShowRoutePaths(event.target.checked)}
               />
-              <span>Show Alternative Routes</span>
+              <span>Show Selected Route Path</span>
             </label>
+          </div>
+          <div className="route-hint">
+            Select a vehicle from the dropdown or click a truck marker to render its routed path geometry. Without selection, truck markers stay visible but paths are hidden to avoid clutter.
           </div>
         </div>
 
-        {/* Real Leaflet Map */}
-        <div className="map-container" style={{ height: "500px", width: "100%", borderRadius: "20px", overflow: "hidden", border: "1px solid var(--border)" }}>
-          <MapContainer center={[22.5937, 78.9629]} zoom={5} style={{ height: "100%", width: "100%", background: "#e5e5e5" }}>
+        <div className="map-container">
+          <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} scrollWheelZoom>
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {facilities.map((f, i) => f.latitude && f.longitude && (
-              <Marker 
-                key={`fac-${i}`} 
-                position={[Number(f.latitude), Number(f.longitude)]}
-                icon={L.divIcon({ html: `<div style="font-size: 20px; transform: translate(-50%, -50%);">${f.facility_type === 'port' ? '🚢' : '🏢'}</div>`, className: 'facility-marker', iconSize: [0,0] })}
+            {selectedRoutePath ? (
+              <>
+                <Polyline
+                  positions={selectedRoutePath}
+                  pathOptions={{ color: "#111827", weight: 8, opacity: 0.25 }}
+                />
+                <Polyline
+                  positions={selectedRoutePath}
+                  pathOptions={{
+                    color: selectedRoute?.routeSource === "osrm" ? "#2563eb" : "#dc2626",
+                    weight: 4,
+                    opacity: 0.88,
+                  }}
+                />
+              </>
+            ) : null}
+
+            {facilities.map((facility) => hasCoordinates(facility) && (
+              <Marker
+                key={`facility-${facility.id}`}
+                position={[Number(facility.latitude), Number(facility.longitude)]}
+                icon={createFacilityIcon(facility.facility_type)}
               >
                 <Popup>
-                  <strong>{f.name}</strong><br/>
-                  {f.city} • {f.facility_type}<br/>
-                  Inventory: {f.current_inventory_units}/{f.base_capacity_units}
+                  <strong>{facility.name}</strong>
+                  <br />
+                  {facility.city} - {facility.facility_type}
+                  <br />
+                  Inventory: {facility.current_inventory_units}/{facility.base_capacity_units}
                 </Popup>
               </Marker>
             ))}
-            {mockRoutes.map((route, i) => (
-              <React.Fragment key={`rt-${i}`}>
-                <Polyline 
-                  positions={[
-                    [Number(route.originLat), Number(route.originLon)], 
-                    [Number(route.destLat), Number(route.destLon)]
-                  ]} 
-                  pathOptions={{ color: '#191a23', weight: 2, opacity: 0.3, dashArray: '5, 5' }} 
-                />
-                <Marker 
-                  position={[Number(route.currentLat), Number(route.currentLon)]}
-                  icon={L.divIcon({ html: `<div style="font-size: 24px; transform: translate(-50%, -50%); transition: all 1s linear;">🚛</div>`, className: 'truck-marker', iconSize: [0,0] })}
-                >
-                  <Popup>
-                    <strong>ID: {route.identifier}</strong><br/>
-                    Status: {route.status}<br/>
-                    {route.objectiveName}<br/>
-                    Progress: {route.progress.toFixed(1)}%
-                  </Popup>
-                </Marker>
-              </React.Fragment>
+
+            {visibleRoutes.map((route) => (
+              <Marker
+                key={`vehicle-${route.vehicleId}`}
+                position={route.displayPoint}
+                icon={createVehicleIcon(route.status, route.identifier, String(route.vehicleId) === selectedVehicleId)}
+                eventHandlers={{
+                  click: () => {
+                    setHighlightedVehicleId(String(route.vehicleId));
+                  },
+                }}
+              >
+                <Popup>
+                  <strong>{route.identifier}</strong>
+                  <br />
+                  Status: {route.status}
+                  <br />
+                  {route.objectiveName}
+                  <br />
+                  Progress: {route.progress.toFixed(1)}%
+                  <br />
+                  Route source: {route.routeSource}
+                </Popup>
+              </Marker>
             ))}
           </MapContainer>
         </div>
 
-          {/* Map Info Card */}
-          <div className="map-info-card">
-            <h4>Map Overview</h4>
-            <div className="info-grid">
-              <div className="info-item">
-                <span className="label">Facilities Mapped</span>
-                <span className="value">{mapStats.facilitiesOnMap}</span>
-              </div>
-              <div className="info-item">
-                <span className="label">Active Vehicles</span>
-                <span className="value">{mapStats.activeVehicles}</span>
-              </div>
-              <div className="info-item">
-                <span className="label">Reroute Recommendations</span>
-                <span className="value">{mapStats.pendingReroutes}</span>
-              </div>
-              <div className="info-item">
-                <span className="label">Total Distance</span>
-                <span className="value">{mapStats.totalDistance.toFixed(0)} km</span>
-              </div>
+        <div className="map-info-card">
+          <h4>Map Overview</h4>
+          <div className="info-grid">
+            <div className="info-item">
+              <span className="label">Facilities Mapped</span>
+              <span className="value">{mapStats.facilitiesOnMap}</span>
+            </div>
+            <div className="info-item">
+              <span className="label">Active Vehicles</span>
+              <span className="value">{mapStats.activeVehicles}</span>
+            </div>
+            <div className="info-item">
+              <span className="label">Reroute Recommendations</span>
+              <span className="value">{mapStats.pendingReroutes}</span>
+            </div>
+            <div className="info-item">
+              <span className="label">Route Span</span>
+              <span className="value">{mapStats.routeSpanKm.toFixed(0)} km</span>
             </div>
           </div>
+          {selectedRoute ? (
+            <div className="selected-route-meta">
+              Selected route: <strong>{selectedRoute.identifier}</strong> ({selectedRoute.routeSource})
+            </div>
+          ) : null}
+        </div>
       </Panel>
 
-      {/* Current Routes Summary */}
       <Panel title="Active Routes">
-        {mockRoutes.length === 0 ? (
+        {visibleRoutes.length === 0 ? (
           <div className="empty">No active routes to display.</div>
         ) : (
           <div className="routes-list">
-            {mockRoutes.map((route) => (
-              <div key={route.vehicleId} className="route-card">
+            {visibleRoutes.map((route) => (
+              <div
+                key={`active-route-${route.vehicleId}`}
+                className="route-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => setHighlightedVehicleId(String(route.vehicleId))}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setHighlightedVehicleId(String(route.vehicleId));
+                  }
+                }}
+              >
                 <div className="route-header">
                   <strong>{route.identifier}</strong>
-                  <span className={`route-status ${route.status}`}>{route.status.toUpperCase()}</span>
+                  <span className={`route-status ${route.status.replaceAll("_", "-")}`}>
+                    {route.status.replaceAll("_", " ").toUpperCase()}
+                  </span>
                 </div>
                 <div className="route-details">
-                  <span className="route-objective">📦 {route.objectiveName}</span>
+                  <span className="route-objective">{route.objectiveName}</span>
+                  <span>{route.payloadUnits} units</span>
+                </div>
+                <div className="route-details">
+                  <span className="route-source">Route source: {route.routeSource}</span>
                 </div>
                 <div className="route-progress">
                   <div className="progress-bar-mini">
@@ -200,23 +609,21 @@ export function MapView({ facilities = [], vehicles = [], objectives = [], recom
         )}
       </Panel>
 
-      {/* Facility Network Summary */}
       <Panel title="Facility Network">
         <div className="facility-summary">
           <h4>Facilities by City</h4>
           <div className="cities-grid">
-            {Object.entries(facilitiesByCity).map(([city, cityfacilities]) => (
+            {Object.entries(facilitiesByCity).map(([city, cityFacilities]) => (
               <div key={city} className="city-card">
                 <div className="city-header">
                   <span className="city-name">{city}</span>
-                  <span className="facility-count">{cityfacilities.length}</span>
+                  <span className="facility-count">{cityFacilities.length}</span>
                 </div>
                 <div className="facility-types">
-                  {cityfacilities.map((f, idx) => (
-                    <span key={idx} className={`type-badge ${f.facility_type}`} title={f.name}>
-                      {f.facility_type === "warehouse" && "🏢"}
-                      {f.facility_type === "port" && "🚢"}
-                      {f.facility_type === "distribution" && "📦"}
+                  {cityFacilities.map((facility, index) => (
+                    <span key={index} className={`type-badge ${facility.facility_type}`} title={facility.name}>
+                      {facility.facility_type === "warehouse" && "WH"}
+                      {facility.facility_type === "port" && "PT"}
                     </span>
                   ))}
                 </div>
@@ -226,38 +633,29 @@ export function MapView({ facilities = [], vehicles = [], objectives = [], recom
         </div>
       </Panel>
 
-      {/* Disruption Zones (if visible) */}
       {showDisruptions && (
         <Panel title="Active Disruption Zones">
-          <div className="disruption-zones">
-            <div className="disruption-card">
-              <div className="disruption-header">
-                <span className="disruption-icon">🌧️</span>
-                <h5>Coastal Region - Heavy Monsoon</h5>
-                <span className="disruption-severity high">High Impact</span>
-              </div>
-              <p className="disruption-desc">
-                Affecting routes through Tamil Nadu and Andhra Pradesh. 3 major ports impacted, 12 shipments rerouted.
-              </p>
-              <div className="affected-facilities">
-                <strong>Affected:</strong> Chennai Port, Visakhapatnam Port, Kochi Warehouse
-              </div>
+          {disruptionEvents.length === 0 ? (
+            <div className="empty">No weather or news disruptions exceed the alert threshold right now.</div>
+          ) : (
+            <div className="disruption-zones">
+              {disruptionEvents.map((event, index) => (
+                <div className="disruption-card" key={`${event.city}-${event.kind}-${index}`}>
+                  <div className="disruption-header">
+                    <h5>{event.city}</h5>
+                    <span className={`disruption-severity ${eventSeverity(event.impact_score)}`}>
+                      {event.kind} impact
+                    </span>
+                  </div>
+                  <p className="disruption-desc">{event.headline}</p>
+                  <div className="affected-facilities">
+                    <strong>Impact type:</strong> {event.impact_type} <strong>Score:</strong>{" "}
+                    {Number(event.impact_score || 0).toFixed(2)}
+                  </div>
+                </div>
+              ))}
             </div>
-
-            <div className="disruption-card">
-              <div className="disruption-header">
-                <span className="disruption-icon">🚧</span>
-                <h5>National Highway 16 - Road Closure</h5>
-                <span className="disruption-severity medium">Medium Impact</span>
-              </div>
-              <p className="disruption-desc">
-                Affecting northbound routes. Recommended alternatives available through inland highways. +2 hours estimated delay.
-              </p>
-              <div className="affected-facilities">
-                <strong>Affected:</strong> Delhi-Bengaluru corridor (NH16 section 80km)
-              </div>
-            </div>
-          </div>
+          )}
         </Panel>
       )}
     </section>

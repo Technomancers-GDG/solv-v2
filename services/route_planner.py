@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 
 import httpx
@@ -35,6 +35,20 @@ class RoutePlanner:
         key = self.route_key(origin.id, destination.id)
         existing = session.scalar(select(RouteTemplate).where(RouteTemplate.route_key == key))
         if existing is not None:
+            should_attempt_refresh = (
+                existing.source != "osrm"
+                and existing.refreshed_at <= datetime.utcnow() - timedelta(minutes=5)
+            )
+            if should_attempt_refresh:
+                refreshed_route_data = self._fetch_osrm_route(origin, destination)
+                if refreshed_route_data is not None:
+                    existing.distance_km = refreshed_route_data["distance_km"]
+                    existing.duration_minutes = refreshed_route_data["duration_minutes"]
+                    existing.encoded_polyline = refreshed_route_data["encoded_polyline"]
+                    existing.steps = refreshed_route_data["steps"]
+                    existing.source = refreshed_route_data["source"]
+                    existing.refreshed_at = datetime.utcnow()
+                    session.flush()
             return existing
 
         route_data = self._fetch_osrm_route(origin, destination)
