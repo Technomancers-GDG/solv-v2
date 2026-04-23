@@ -22,6 +22,21 @@ class Settings:
     demo_disruption_delay_seconds: int
     demo_disruption_city: str
     demo_disruption_severity: float
+    # RL & Optimization
+    rl_model_path: str
+    use_rl_engine: bool
+    use_nsga2_optimizer: bool
+    # Blockchain
+    blockchain_ledger_path: str
+    # Google Cloud
+    gcp_project_id: str
+    gcp_region: str
+    firebase_enabled: bool
+    pubsub_enabled: bool
+    vertex_ai_enabled: bool
+    bigquery_enabled: bool
+    bigquery_dataset: str
+    fcm_enabled: bool
 
 
 def _get_env(name: str, default: str) -> str:
@@ -53,6 +68,21 @@ def load_settings() -> Settings:
         demo_disruption_delay_seconds=int(_get_env("DEMO_DISRUPTION_DELAY_SECONDS", "12")),
         demo_disruption_city=_get_env("DEMO_DISRUPTION_CITY", "Chennai"),
         demo_disruption_severity=float(_get_env("DEMO_DISRUPTION_SEVERITY", "0.82")),
+        # RL & Optimization
+        rl_model_path=_get_env("RL_MODEL_PATH", "data/rl_model.json"),
+        use_rl_engine=_get_bool_env("USE_RL_ENGINE", "true"),
+        use_nsga2_optimizer=_get_bool_env("USE_NSGA2_OPTIMIZER", "true"),
+        # Blockchain
+        blockchain_ledger_path=_get_env("BLOCKCHAIN_LEDGER_PATH", "data/blockchain_ledger.json"),
+        # Google Cloud
+        gcp_project_id=_get_env("GCP_PROJECT_ID", ""),
+        gcp_region=_get_env("GCP_REGION", "asia-south1"),
+        firebase_enabled=_get_bool_env("FIREBASE_ENABLED", "false"),
+        pubsub_enabled=_get_bool_env("PUBSUB_ENABLED", "false"),
+        vertex_ai_enabled=_get_bool_env("VERTEX_AI_ENABLED", "false"),
+        bigquery_enabled=_get_bool_env("BIGQUERY_ENABLED", "false"),
+        bigquery_dataset=_get_env("BIGQUERY_DATASET", "supply_chain"),
+        fcm_enabled=_get_bool_env("FCM_ENABLED", "false"),
     )
 
 

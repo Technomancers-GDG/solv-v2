@@ -30,6 +30,9 @@ from models import (
     WeatherEvent,
 )
 from schemas import (
+    BlockchainBlockRead,
+    BlockchainVerifyRead,
+    CloudHealthRead,
     DashboardSnapshot,
     DriverDecisionRead,
     DriverIncidentCreate,
@@ -39,19 +42,26 @@ from schemas import (
     DriverResponseRequest,
     DriverProfileCreate,
     DriverProfileRead,
+    EdgeSyncStatusRead,
     FacilityCreate,
     FacilityRead,
     FacilityUpdate,
     FleetScaleRequest,
     FleetScaleResult,
     ImportSummary,
+    InventoryForecastRead,
     MetricsSummary,
     ObjectiveCreate,
     ObjectiveRead,
     ObjectiveUpdate,
+    ParetoFrontRead,
     PortLinkCreate,
     PortLinkRead,
+    ProactiveDispatchRead,
     RecommendationRead,
+    RLDecisionRequest,
+    RLDecisionResponse,
+    RiskForecastRead,
     RouteTemplateRead,
     ScenarioComparisonMetrics,
     ScenarioComparisonRead,
@@ -65,8 +75,15 @@ from schemas import (
     NewsEventRead,
 )
 from seed_data import seed_demo_data
+from services.blockchain_audit import AuditBlock, get_ledger
+from services.edge_sync import get_edge_sync_manager
 from services.event_ingestion import EventIngestionService
+from services.google_cloud_integration import get_gcp_integration
+from services.inventory_optimizer import InventoryOptimizer
+from services.multi_objective_optimizer import NSGA2Optimizer
 from services.news_relevance import NewsRelevanceService
+from services.predictive_forecast import PredictiveForecastService
+from services.rl_decision_engine import get_rl_engine, StateVector
 from services.route_planner import RoutePlanner
 from services.simulation import SimulationEngine
 
@@ -84,6 +101,8 @@ news_model = NewsRelevanceService()
 route_planner = RoutePlanner()
 event_ingestion_service = EventIngestionService(news_model)
 simulation_engine = SimulationEngine(route_planner)
+forecast_service = PredictiveForecastService()
+inventory_optimizer = InventoryOptimizer()
 demo_disruption_task: asyncio.Task[None] | None = None
 
 ModelType = TypeVar("ModelType")
@@ -742,6 +761,241 @@ def sdg_metrics(session: Session = Depends(get_session)) -> MetricsSummary:
             snapshot, "spoilage_or_wastage_prevented", current.spoilage_or_wastage_prevented
         ),
     )
+
+
+# ===========================
+# NEW: RL Decision Engine
+# ===========================
+@app.post("/api/ai/rl-decision", response_model=RLDecisionResponse)
+def rl_decision(payload: RLDecisionRequest) -> RLDecisionResponse:
+    if not settings.use_rl_engine:
+        raise HTTPException(status_code=503, detail="RL engine is disabled")
+    engine = get_rl_engine()
+    state = StateVector.from_sim_context(
+        facility_utilization=payload.facility_utilization,
+        route_risk=payload.route_risk,
+        eta_multiplier=payload.eta_multiplier,
+        sla_remaining_minutes=payload.sla_remaining_minutes,
+        sla_total_minutes=payload.sla_total_minutes,
+        payload_capacity=payload.payload_capacity,
+        facility_capacity=payload.facility_capacity,
+        priority=payload.priority,
+        port_pressure=payload.port_pressure,
+        weather_severity=payload.weather_severity,
+        news_severity=payload.news_severity,
+        simulation_hour=payload.simulation_hour,
+    )
+    action, confidence = engine.select_action(state, payload.valid_actions)
+    probs = engine.get_action_confidence(state)
+    return RLDecisionResponse(action=action, confidence=confidence, action_probs=probs)
+
+
+@app.post("/api/ai/rl-train")
+def rl_train() -> dict[str, Any]:
+    if not settings.use_rl_engine:
+        raise HTTPException(status_code=503, detail="RL engine is disabled")
+    engine = get_rl_engine()
+    result = engine.train_step_update()
+    if result is None:
+        return {"status": "insufficient_data", "buffer_size": len(engine.replay_buffer)}
+    engine.save_weights()
+    return {"status": "trained", **result}
+
+
+# ===========================
+# NEW: Predictive Forecasting & Risk Heatmap
+# ===========================
+@app.get("/api/forecast/risk", response_model=list[RiskForecastRead])
+def risk_forecast(
+    hours: int = Query(default=12, ge=1, le=72),
+    session: Session = Depends(get_session),
+) -> list[dict[str, Any]]:
+    cities = {f.city for f in session.scalars(select(Facility)).all()}
+    data = forecast_service.get_heatmap_data(session, cities, forecast_hours=hours)
+    return [RiskForecastRead(**d).model_dump() for d in data]
+
+
+@app.get("/api/forecast/city/{city}")
+def city_forecast(city: str, hours: int = Query(default=12, ge=1, le=72), session: Session = Depends(get_session)) -> dict[str, Any] | None:
+    fc = forecast_service.forecast_city(session, city, forecast_hours=hours)
+    if fc is None:
+        raise HTTPException(status_code=404, detail=f"No forecast data for {city}")
+    return {
+        "city": fc.city,
+        "predicted_route_risk": fc.predicted_route_risk,
+        "predicted_eta_multiplier": fc.predicted_eta_multiplier,
+        "predicted_closure_risk": fc.predicted_closure_risk,
+        "confidence": fc.confidence,
+        "contributing_factors": fc.contributing_factors,
+        "forecast_time": fc.forecast_time.isoformat(),
+    }
+
+
+# ===========================
+# NEW: Multi-Objective Optimization (NSGA-II)
+# ===========================
+@app.post("/api/ai/optimize-dispatch", response_model=list[ParetoFrontRead])
+def optimize_dispatch(session: Session = Depends(get_session)) -> list[ParetoFrontRead]:
+    if not settings.use_nsga2_optimizer:
+        raise HTTPException(status_code=503, detail="NSGA-II optimizer is disabled")
+
+    objectives = session.scalars(select(Objective).where(Objective.active.is_(True))).all()
+    vehicles = session.scalars(select(Vehicle)).all()
+    if not objectives or not vehicles:
+        raise HTTPException(status_code=400, detail="No active objectives or vehicles")
+
+    available_destinations: list[list[int]] = []
+    for objective in objectives:
+        dests = [objective.destination_facility_id, *objective.fallback_facility_ids]
+        available_destinations.append(dests)
+
+    def eval_fn(genome: list[Any]) -> list[float]:
+        total_time = 0.0
+        total_co2 = 0.0
+        overload = 0.0
+        sla_violations = 0.0
+        total_cost = 0.0
+        for gene, objective in zip(genome, objectives):
+            route_duration = 120.0  # simplified
+            if gene.action == "reroute_warehouse" or gene.action == "reroute_port":
+                route_duration *= 1.15
+                total_co2 += 5.0
+            elif gene.action == "wait":
+                route_duration += 40.0
+            elif gene.action == "defer_dispatch":
+                route_duration += objective.dispatch_interval_minutes
+            total_time += route_duration
+            if route_duration > objective.sla_minutes:
+                sla_violations += 1.0
+            total_cost += route_duration * 0.5 + overload * 10.0
+        return [total_time, total_co2, overload, sla_violations, total_cost]
+
+    optimizer = NSGA2Optimizer(population_size=40, generations=20)
+    pareto = optimizer.optimize(len(objectives), available_destinations, eval_fn)
+    return [
+        ParetoFrontRead(
+            objectives=ind.objectives.tolist(),
+            genome=[{"action": g.action, "destination_id": g.destination_id} for g in ind.genome],
+            rank=ind.rank,
+            crowding_distance=ind.crowding_distance,
+        )
+        for ind in pareto
+    ]
+
+
+# ===========================
+# NEW: Blockchain Audit Trail
+# ===========================
+@app.get("/api/audit/chain", response_model=list[BlockchainBlockRead])
+def audit_chain(limit: int = Query(default=50, ge=1, le=200)) -> list[dict[str, Any]]:
+    ledger = get_ledger()
+    blocks = ledger.get_chain(limit)
+    for b in blocks:
+        b["hash"] = AuditBlock(**b).compute_hash() if "hash" not in b else b.get("hash")
+    return blocks
+
+
+@app.get("/api/audit/entity/{entity_id}")
+def audit_entity_history(entity_id: int, decision_type: str | None = None) -> list[dict[str, Any]]:
+    ledger = get_ledger()
+    return ledger.get_entity_history(entity_id, decision_type)
+
+
+@app.get("/api/audit/verify", response_model=BlockchainVerifyRead)
+def audit_verify() -> BlockchainVerifyRead:
+    result = get_ledger().verify_integrity()
+    return BlockchainVerifyRead(**result)
+
+
+# ===========================
+# NEW: Inventory Optimization
+# ===========================
+@app.get("/api/inventory/forecasts", response_model=list[InventoryForecastRead])
+def inventory_forecasts(session: Session = Depends(get_session)) -> list[InventoryForecastRead]:
+    forecasts = inventory_optimizer.get_all_forecasts(session)
+    return [
+        InventoryForecastRead(
+            facility_id=f.facility_id,
+            facility_name=f.facility_name,
+            predicted_demand_units=f.predicted_demand_units,
+            safety_stock_units=f.safety_stock_units,
+            reorder_point=f.reorder_point,
+            recommended_dispatch_count=f.recommended_dispatch_count,
+            confidence=f.confidence,
+            forecast_period_hours=f.forecast_period_hours,
+            trend=f.trend,
+        )
+        for f in forecasts
+    ]
+
+
+@app.get("/api/inventory/proactive-dispatches", response_model=list[ProactiveDispatchRead])
+def proactive_dispatches(session: Session = Depends(get_session)) -> list[ProactiveDispatchRead]:
+    recs = inventory_optimizer.recommend_proactive_dispatches(session)
+    return [
+        ProactiveDispatchRead(
+            origin_facility_id=r.origin_facility_id,
+            destination_facility_id=r.destination_facility_id,
+            recommended_units=r.recommended_units,
+            urgency=r.urgency,
+            reason=r.reason,
+            eta_hours=r.eta_hours,
+        )
+        for r in recs
+    ]
+
+
+# ===========================
+# NEW: Edge Sync / Offline-First
+# ===========================
+@app.get("/api/edge/sync/{driver_id}", response_model=EdgeSyncStatusRead)
+def edge_sync_status(driver_id: int) -> EdgeSyncStatusRead:
+    status = get_edge_sync_manager().get_sync_status(driver_id)
+    return EdgeSyncStatusRead(**status)
+
+
+@app.post("/api/edge/sync/{driver_id}")
+def edge_sync_operations(driver_id: int) -> dict[str, Any]:
+    return get_edge_sync_manager().sync_operations(driver_id)
+
+
+@app.post("/api/edge/queue/{driver_id}")
+def edge_queue_operation(
+    driver_id: int,
+    op_type: str = Query(...),
+    payload: dict[str, Any] | None = None,
+    vehicle_id: int | None = None,
+) -> dict[str, Any]:
+    op = get_edge_sync_manager().queue_operation(driver_id, op_type, payload or {}, vehicle_id)
+    return {"status": "queued", "op_id": op.op_id, "checksum": op.checksum}
+
+
+# ===========================
+# NEW: Google Cloud Integration Health
+# ===========================
+@app.get("/api/cloud/health", response_model=CloudHealthRead)
+def cloud_health() -> CloudHealthRead:
+    health = get_gcp_integration().health_check()
+    return CloudHealthRead(**health)
+
+
+# ===========================
+# NEW: Voice Decision Stub (returns config for frontend)
+# ===========================
+@app.get("/api/driver/voice-config")
+def voice_config() -> dict[str, Any]:
+    return {
+        "enabled": True,
+        "languages": ["en-IN", "hi-IN", "ta-IN", "te-IN", "bn-IN"],
+        "incident_types": [
+            {"key": "road_blockage", "label": "Road Blockage"},
+            {"key": "strike", "label": "Strike"},
+            {"key": "delay", "label": "Delay"},
+            {"key": "port_congestion", "label": "Port Congestion"},
+            {"key": "weather", "label": "Weather"},
+        ],
+        "note": "Frontend should use Web Speech API for voice input",
+    }
 
 
 @app.websocket("/ws/operations")

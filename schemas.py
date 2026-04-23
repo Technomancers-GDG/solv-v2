@@ -388,3 +388,103 @@ class DriverMobileSnapshot(BaseModel):
     confidence: float
     pending_instructions: list[DriverInstructionRead]
     recent_incidents: list[DriverIncidentRead]
+
+
+class RLDecisionRequest(BaseModel):
+    facility_utilization: float
+    route_risk: float
+    eta_multiplier: float
+    sla_remaining_minutes: float
+    sla_total_minutes: float
+    payload_capacity: int
+    facility_capacity: int
+    priority: int
+    port_pressure: float
+    weather_severity: float
+    news_severity: float
+    simulation_hour: int
+    valid_actions: list[str] | None = None
+
+
+class RLDecisionResponse(BaseModel):
+    action: str
+    confidence: float
+    action_probs: dict[str, float]
+    engine: str = "dqn_numpy"
+
+
+class RiskForecastRead(BaseModel):
+    city: str
+    risk: float
+    eta_multiplier: float
+    closure_risk: float
+    confidence: float
+    factors: list[str]
+    forecast_time: str
+
+
+class BlockchainBlockRead(BaseModel):
+    index: int
+    timestamp: str
+    decision_type: str
+    entity_id: int
+    action: str
+    explanation: str
+    previous_hash: str
+    metadata: dict[str, Any]
+    nonce: int
+    hash: str | None = None
+
+
+class BlockchainVerifyRead(BaseModel):
+    valid: bool
+    block_count: int
+    tampered_indices: list[int]
+    last_block_hash: str | None
+
+
+class InventoryForecastRead(BaseModel):
+    facility_id: int
+    facility_name: str
+    predicted_demand_units: int
+    safety_stock_units: int
+    reorder_point: int
+    recommended_dispatch_count: int
+    confidence: float
+    forecast_period_hours: int
+    trend: str
+
+
+class ProactiveDispatchRead(BaseModel):
+    origin_facility_id: int
+    destination_facility_id: int
+    recommended_units: int
+    urgency: str
+    reason: str
+    eta_hours: float
+
+
+class EdgeSyncStatusRead(BaseModel):
+    driver_profile_id: int
+    pending_operations: list[dict[str, Any]]
+    last_sync_at: str | None
+    offline_since: str | None
+    cached_routes: list[dict[str, Any]]
+    cached_recommendations: list[dict[str, Any]]
+    pending_count: int
+
+
+class CloudHealthRead(BaseModel):
+    firebase_rtdb: dict[str, Any]
+    pubsub: dict[str, Any]
+    vertex_ai: dict[str, Any]
+    bigquery: dict[str, Any]
+    fcm: dict[str, Any]
+    overall: str
+
+
+class ParetoFrontRead(BaseModel):
+    objectives: list[float]
+    genome: list[dict[str, Any]]
+    rank: int
+    crowding_distance: float
