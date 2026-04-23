@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
-import MarkerClusterGroup from "react-leaflet-cluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
@@ -172,16 +171,35 @@ function createFacilityIcon(facilityType) {
   });
 }
 
-function createVehicleIcon(status, identifier, selected = false) {
-  const statusClass = String(status || "idle").toLowerCase().replaceAll("_", "-");
-  const selectedClass = selected ? "selected" : "";
-  const shortId = String(identifier || "TRK").replace(/[^A-Za-z0-9]/g, "").slice(-3) || "TRK";
-  return L.divIcon({
-    html: `<div class="map-pin map-pin-vehicle ${statusClass} ${selectedClass}"><span>${shortId}</span></div>`,
-    className: "map-pin-wrap",
-    iconSize: [42, 24],
-    iconAnchor: [21, 12],
-  });
+const __vehicleIconCache = {};
+
+function getVehicleIcon(status, identifier, selected = false) {
+  const key = `${status}-${identifier}-${selected}`;
+  if (!__vehicleIconCache[key]) {
+    const statusClass = String(status || "idle").toLowerCase().replaceAll("_", "-");
+    const selectedClass = selected ? "selected" : "";
+    const shortId = String(identifier || "TRK").replace(/[^A-Za-z0-9]/g, "").slice(-3) || "TRK";
+    __vehicleIconCache[key] = L.divIcon({
+      html: `<div class="map-pin map-pin-vehicle ${statusClass} ${selectedClass}"><span>${shortId}</span></div>`,
+      className: "map-pin-wrap",
+      iconSize: [42, 24],
+      iconAnchor: [21, 12],
+    });
+  }
+  return __vehicleIconCache[key];
+}
+
+const __vehicleEventHandlers = {};
+
+function getVehicleEventHandlers(vehicleId, setHighlightedVehicleId) {
+  if (!__vehicleEventHandlers[vehicleId]) {
+    __vehicleEventHandlers[vehicleId] = {
+      click: () => {
+        setHighlightedVehicleId(String(vehicleId));
+      },
+    };
+  }
+  return __vehicleEventHandlers[vehicleId];
 }
 
 function eventSeverity(impactScore) {
@@ -566,17 +584,14 @@ export function MapView({
               </Marker>
             ))}
 
-            <MarkerClusterGroup chunkedLoading={true} maxClusterRadius={50} showCoverageOnHover={false}>
-              {visibleRoutes.map((route) => (
+            {visibleRoutes.map((route) => {
+              const isSelected = String(route.vehicleId) === selectedVehicleId;
+              return (
                 <Marker
                   key={`vehicle-${route.vehicleId}`}
                   position={route.displayPoint}
-                  icon={createVehicleIcon(route.status, route.identifier, String(route.vehicleId) === selectedVehicleId)}
-                  eventHandlers={{
-                    click: () => {
-                      setHighlightedVehicleId(String(route.vehicleId));
-                    },
-                  }}
+                  icon={getVehicleIcon(route.status, route.identifier, isSelected)}
+                  eventHandlers={getVehicleEventHandlers(route.vehicleId, setHighlightedVehicleId)}
                 >
                   <Popup>
                     <strong>{route.identifier}</strong>
@@ -590,8 +605,8 @@ export function MapView({
                     Route source: {route.routeSource}
                   </Popup>
                 </Marker>
-              ))}
-            </MarkerClusterGroup>
+               );
+            })}
           </MapContainer>
         </div>
 
