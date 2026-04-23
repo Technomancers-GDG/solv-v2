@@ -102,6 +102,7 @@ function App() {
   const [metrics, setMetrics] = useState(null);
   const [selectedDriverId, setSelectedDriverId] = useState("");
   const [driverMobile, setDriverMobile] = useState(null);
+  const [isScalingFleet, setIsScalingFleet] = useState(false);
   const [facilityForm, setFacilityForm] = useState(initialFacilityForm);
   const [vehicleForm, setVehicleForm] = useState(initialVehicleForm);
   const [objectiveForm, setObjectiveForm] = useState(initialObjectiveForm);
@@ -313,6 +314,29 @@ function App() {
     }
   }
 
+  async function scaleDemoFleet(targetVehicleCount) {
+    try {
+      setIsScalingFleet(true);
+      const result = await apiFetch("/api/demo/scale-fleet", {
+        method: "POST",
+        body: JSON.stringify({
+          target_vehicle_count: Number(targetVehicleCount),
+          reset_simulation: true,
+          auto_start: true,
+          speed_multiplier: Number(dashboard?.simulation?.speed_multiplier ?? 180),
+        }),
+      });
+      resetBanner(
+        `Fleet scaled from ${result.previous_vehicle_count} to ${result.new_vehicle_count} trucks and simulation restarted.`,
+      );
+      await refreshAll(false);
+    } catch (scaleError) {
+      setError(scaleError.message);
+    } finally {
+      setIsScalingFleet(false);
+    }
+  }
+
   async function importEvents(fullNewsImport) {
     try {
       const result = await apiFetch(`/api/events/import?full_news_import=${fullNewsImport}`, {
@@ -515,6 +539,9 @@ function App() {
             recommendations={recommendations}
             activeEvents={dashboard?.active_events ?? []}
             routeTemplates={routes}
+            vehicleCount={dashboard?.vehicles?.length ?? vehicles.length}
+            onScaleFleet={scaleDemoFleet}
+            isScalingFleet={isScalingFleet}
           />
         ) : null}
 

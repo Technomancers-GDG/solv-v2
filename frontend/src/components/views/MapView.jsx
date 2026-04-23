@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
 import { Panel, Select } from "../common/UiPrimitives";
 
@@ -199,6 +202,9 @@ export function MapView({
   recommendations = [],
   activeEvents = [],
   routeTemplates = [],
+  vehicleCount = 0,
+  onScaleFleet,
+  isScalingFleet = false,
 }) {
   const [filterVehicleId, setFilterVehicleId] = useState("");
   const [highlightedVehicleId, setHighlightedVehicleId] = useState("");
@@ -225,7 +231,13 @@ export function MapView({
     const lookup = {};
     routeTemplates.forEach((template) => {
       if (template?.route_key) {
-        lookup[template.route_key] = template;
+        const decodedRoutePoints = template.encoded_polyline
+          ? decodePolyline(template.encoded_polyline, 5)
+          : [];
+        lookup[template.route_key] = {
+          ...template,
+          decodedRoutePoints,
+        };
       }
     });
     return lookup;
@@ -304,9 +316,7 @@ export function MapView({
         ? `${startFacility.id}:${endFacility.id}`
         : null;
       const routeTemplate = routeKey ? routeTemplateLookup[routeKey] : null;
-      const decodedRoutePoints = routeTemplate?.encoded_polyline
-        ? decodePolyline(routeTemplate.encoded_polyline, 5)
-        : [];
+      const decodedRoutePoints = routeTemplate?.decodedRoutePoints || [];
       const routePoints = decodedRoutePoints.length >= 2
         ? decodedRoutePoints
         : [startPoint, endPoint];
@@ -466,6 +476,52 @@ export function MapView({
               <span>Show Selected Route Path</span>
             </label>
           </div>
+
+          {onScaleFleet ? (
+            <div className="scale-controls">
+              <div className="scale-summary">
+                Fleet size: <strong>{vehicleCount}</strong> trucks
+              </div>
+              <div className="scale-actions">
+                <button
+                  type="button"
+                  className="scale-btn"
+                  disabled={isScalingFleet}
+                  onClick={() => onScaleFleet(60)}
+                >
+                  Regional 60
+                </button>
+                <button
+                  type="button"
+                  className="scale-btn"
+                  disabled={isScalingFleet}
+                  onClick={() => onScaleFleet(140)}
+                >
+                  National 140
+                </button>
+                <button
+                  type="button"
+                  className="scale-btn"
+                  disabled={isScalingFleet}
+                  onClick={() => onScaleFleet(260)}
+                >
+                  Enterprise 260
+                </button>
+                <button
+                  type="button"
+                  className="scale-btn"
+                  disabled={isScalingFleet}
+                  onClick={() => onScaleFleet(1000)}
+                >
+                  Mega Corp 1000
+                </button>
+              </div>
+              <div className="scale-note">
+                Scaling adds trucks and drivers, rebalances objective assignments, and restarts simulation.
+              </div>
+            </div>
+          ) : null}
+
           <div className="route-hint">
             Select a vehicle from the dropdown or click a truck marker to render its routed path geometry. Without selection, truck markers stay visible but paths are hidden to avoid clutter.
           </div>
@@ -510,30 +566,32 @@ export function MapView({
               </Marker>
             ))}
 
-            {visibleRoutes.map((route) => (
-              <Marker
-                key={`vehicle-${route.vehicleId}`}
-                position={route.displayPoint}
-                icon={createVehicleIcon(route.status, route.identifier, String(route.vehicleId) === selectedVehicleId)}
-                eventHandlers={{
-                  click: () => {
-                    setHighlightedVehicleId(String(route.vehicleId));
-                  },
-                }}
-              >
-                <Popup>
-                  <strong>{route.identifier}</strong>
-                  <br />
-                  Status: {route.status}
-                  <br />
-                  {route.objectiveName}
-                  <br />
-                  Progress: {route.progress.toFixed(1)}%
-                  <br />
-                  Route source: {route.routeSource}
-                </Popup>
-              </Marker>
-            ))}
+            <MarkerClusterGroup chunkedLoading={true} maxClusterRadius={50} showCoverageOnHover={false}>
+              {visibleRoutes.map((route) => (
+                <Marker
+                  key={`vehicle-${route.vehicleId}`}
+                  position={route.displayPoint}
+                  icon={createVehicleIcon(route.status, route.identifier, String(route.vehicleId) === selectedVehicleId)}
+                  eventHandlers={{
+                    click: () => {
+                      setHighlightedVehicleId(String(route.vehicleId));
+                    },
+                  }}
+                >
+                  <Popup>
+                    <strong>{route.identifier}</strong>
+                    <br />
+                    Status: {route.status}
+                    <br />
+                    {route.objectiveName}
+                    <br />
+                    Progress: {route.progress.toFixed(1)}%
+                    <br />
+                    Route source: {route.routeSource}
+                  </Popup>
+                </Marker>
+              ))}
+            </MarkerClusterGroup>
           </MapContainer>
         </div>
 

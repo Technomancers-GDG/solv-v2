@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from math import ceil
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -40,6 +41,8 @@ from schemas import (
     FacilityCreate,
     FacilityRead,
     FacilityUpdate,
+    FleetScaleRequest,
+    FleetScaleResult,
     ImportSummary,
     MetricsSummary,
     ObjectiveCreate,
@@ -284,6 +287,136 @@ async def reset_simulation() -> SimulationStatus:
 @app.get("/api/simulation/status", response_model=SimulationStatus)
 def simulation_status() -> SimulationStatus:
     return simulation_engine.snapshot_status()
+
+
+@app.post("/api/demo/scale-fleet", response_model=FleetScaleResult)
+async def scale_demo_fleet(
+    payload: FleetScaleRequest,
+    session: Session = Depends(get_session),
+) -> FleetScaleResult:
+    objectives = session.scalars(
+        select(Objective).where(Objective.active.is_(True)).order_by(Objective.priority.desc(), Objective.id)
+    ).all()
+    if not objectives:
+        raise HTTPException(status_code=400, detail="No active objectives available to scale fleet")
+
+    vehicles = session.scalars(select(Vehicle).order_by(Vehicle.id)).all()
+    drivers = session.scalars(select(DriverProfile).order_by(DriverProfile.id)).all()
+    if not drivers:
+        raise HTTPException(status_code=400, detail="No drivers available")
+
+    previous_vehicle_count = len(vehicles)
+    previous_driver_count = len(drivers)
+    target_vehicle_count = max(previous_vehicle_count, payload.target_vehicle_count)
+    vehicles_to_create = target_vehicle_count - previous_vehicle_count
+
+    desired_driver_count = max(previous_driver_count, ceil(target_vehicle_count * 0.6))
+    existing_driver_names = {driver.name for driver in drivers}
+    driver_seq = 1
+    while len(drivers) < desired_driver_count:
+        while True:
+            candidate_name = f"Ops Driver {driver_seq:03d}"
+            driver_seq += 1
+            if candidate_name not in existing_driver_names:
+                break
+        driver = DriverProfile(
+            name=candidate_name,
+            override_rating=1.0,
+            confidence=0.58,
+            accept_recommendation_bias=0.55,
+            active=True,
+        )
+        session.add(driver)
+        drivers.append(driver)
+        existing_driver_names.add(candidate_name)
+    session.flush()
+
+    objective_vehicle_templates: dict[int, list[Vehicle]] = {objective.id: [] for objective in objectives}
+    for vehicle in vehicles:
+        if vehicle.default_objective_id in objective_vehicle_templates:
+            objective_vehicle_templates[vehicle.default_objective_id].append(vehicle)
+
+    if vehicles:
+        fallback_template = vehicles[0]
+    else:
+        raise HTTPException(status_code=400, detail="No base vehicle available for scaling")
+
+    for objective in objectives:
+        if not objective_vehicle_templates[objective.id]:
+            assigned = set(objective.assigned_vehicle_ids or [])
+            seeded = [vehicle for vehicle in vehicles if vehicle.id in assigned]
+            objective_vehicle_templates[objective.id] = seeded or [fallback_template]
+
+    existing_identifiers = {vehicle.identifier for vehicle in vehicles}
+    identifier_sequence = previous_vehicle_count + 1
+
+    def next_identifier() -> str:
+        nonlocal identifier_sequence
+        while True:
+            candidate = f"OPS-{identifier_sequence:04d}"
+            identifier_sequence += 1
+            if candidate not in existing_identifiers:
+                existing_identifiers.add(candidate)
+                return candidate
+
+    created_vehicles_by_objective: dict[int, list[Vehicle]] = {objective.id: [] for objective in objectives}
+    for index in range(vehicles_to_create):
+        objective = objectives[index % len(objectives)]
+        template_pool = objective_vehicle_templates[objective.id] or [fallback_template]
+        template = template_pool[index % len(template_pool)]
+        driver = drivers[index % len(drivers)]
+
+        capacity_factor = 0.9 + (index % 6) * 0.035
+        speed_factor = 0.92 + (index % 5) * 0.02
+        emission_factor = 0.9 + (index % 4) * 0.03
+
+        vehicle = Vehicle(
+            identifier=next_identifier(),
+            vehicle_type=template.vehicle_type,
+            payload_capacity_units=max(500, int(template.payload_capacity_units * capacity_factor)),
+            home_facility_id=objective.origin_facility_id,
+            current_facility_id=objective.origin_facility_id,
+            driver_profile_id=driver.id,
+            default_objective_id=objective.id,
+            average_speed_kmph=round(max(32.0, template.average_speed_kmph * speed_factor), 2),
+            emission_kg_per_km=round(max(0.9, template.emission_kg_per_km * emission_factor), 3),
+            rest_every_hours=template.rest_every_hours,
+            rest_duration_minutes=template.rest_duration_minutes,
+            status="idle",
+        )
+        session.add(vehicle)
+        created_vehicles_by_objective[objective.id].append(vehicle)
+
+    session.flush()
+
+    objective_assignment_counts: dict[str, int] = {}
+    for objective in objectives:
+        new_ids = [vehicle.id for vehicle in created_vehicles_by_objective[objective.id]]
+        merged_ids = list(dict.fromkeys([*(objective.assigned_vehicle_ids or []), *new_ids]))
+        objective.assigned_vehicle_ids = merged_ids
+        objective_assignment_counts[objective.name] = len(merged_ids)
+
+    session.commit()
+
+    if payload.reset_simulation:
+        await simulation_engine.reset()
+        if payload.auto_start:
+            simulation_status = await simulation_engine.start(speed_multiplier=payload.speed_multiplier)
+        else:
+            simulation_status = simulation_engine.snapshot_status()
+    else:
+        simulation_status = simulation_engine.snapshot_status()
+
+    return FleetScaleResult(
+        previous_vehicle_count=previous_vehicle_count,
+        new_vehicle_count=target_vehicle_count,
+        created_vehicles=vehicles_to_create,
+        previous_driver_count=previous_driver_count,
+        new_driver_count=len(drivers),
+        created_drivers=max(0, len(drivers) - previous_driver_count),
+        objective_assignment_counts=objective_assignment_counts,
+        simulation=simulation_status,
+    )
 
 
 @app.get("/api/scenarios", response_model=list[ScenarioPresetRead])

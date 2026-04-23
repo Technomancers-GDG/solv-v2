@@ -230,6 +230,24 @@ class SimulationStatus(BaseModel):
     queued_events: int
 
 
+class FleetScaleRequest(BaseModel):
+    target_vehicle_count: int = Field(default=80, ge=12, le=2000)
+    reset_simulation: bool = True
+    auto_start: bool = True
+    speed_multiplier: float = 180.0
+
+
+class FleetScaleResult(BaseModel):
+    previous_vehicle_count: int
+    new_vehicle_count: int
+    created_vehicles: int
+    previous_driver_count: int
+    new_driver_count: int
+    created_drivers: int
+    objective_assignment_counts: dict[str, int]
+    simulation: SimulationStatus
+
+
 class FacilityLoadView(BaseModel):
     facility_id: int
     facility_name: str

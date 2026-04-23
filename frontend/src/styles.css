@@ -525,6 +525,43 @@ th {
   padding: 8px 10px;
 }
 
+.scale-controls {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(25, 26, 35, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.scale-summary {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.scale-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+button.scale-btn {
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px;
+  box-shadow: none;
+  font-size: 0.82rem;
+}
+
+button.scale-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.scale-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .map-container {
   height: 520px;
   width: 100%;
