@@ -1,7 +1,9 @@
 import { startTransition, useDeferredValue, useEffect, useState } from "react";
 
+import { MapView } from "./components/views/MapView";
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
-const tabs = ["Network", "Objectives", "Live Ops", "Scenarios", "Driver Mobile", "Events", "Impact"];
+const tabs = ["Map View", "Network", "Objectives", "Live Ops", "Scenarios", "Driver Mobile", "Events", "Impact"];
 
 const initialFacilityForm = {
   name: "",
@@ -81,7 +83,7 @@ async function apiFetch(path, options = {}) {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState("Live Ops");
+  const [activeTab, setActiveTab] = useState("Map View");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -501,6 +503,15 @@ function App() {
       {loading && !dashboard ? <div className="loading">Loading command center...</div> : null}
 
       <main className="view-stack">
+        {activeTab === "Map View" ? (
+          <MapView 
+            facilities={facilities} 
+            vehicles={deferredVehicles} 
+            objectives={objectives} 
+            recommendations={recommendations} 
+          />
+        ) : null}
+
         {activeTab === "Network" ? (
           <section className="grid-two">
             <Panel title="Facilities">
