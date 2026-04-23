@@ -11,6 +11,27 @@ from config import settings
 from models import Facility, RouteTemplate
 
 
+def encode_polyline(points: list[tuple[float, float]]) -> str:
+    """Basic Google Polyline encoding for lat/lng pairs."""
+    def encode_val(val):
+        val = int(round(val * 1e5))
+        val = ~(val << 1) if val < 0 else (val << 1)
+        res = ""
+        while val >= 0x20:
+            res += chr((0x20 | (val & 0x1F)) + 63)
+            val >>= 5
+        res += chr(val + 63)
+        return res
+
+    res = ""
+    last_lat, last_lng = 0, 0
+    for lat, lng in points:
+        res += encode_val(lat - last_lat)
+        res += encode_val(lng - last_lng)
+        last_lat, last_lng = lat, lng
+    return res
+
+
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     radius_km = 6371.0
     delta_lat = radians(lat2 - lat1)
@@ -128,6 +149,10 @@ class RoutePlanner:
         road_distance = max(12.0, straight_line * 1.22)
         average_speed_kmph = 48.0
         duration_minutes = road_distance / average_speed_kmph * 60
+        
+        # Create a simple polyline with just the two points
+        polyline = encode_polyline([(origin.latitude, origin.longitude), (destination.latitude, destination.longitude)])
+        
         steps = [
             {
                 "name": f"Depart {origin.city}",
@@ -148,7 +173,7 @@ class RoutePlanner:
         return {
             "distance_km": round(road_distance, 2),
             "duration_minutes": round(duration_minutes, 2),
-            "encoded_polyline": "",
+            "encoded_polyline": polyline,
             "steps": steps,
             "source": "estimated",
         }

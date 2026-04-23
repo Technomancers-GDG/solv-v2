@@ -560,9 +560,10 @@ export function MapView({
                 <Polyline
                   positions={selectedRoutePath}
                   pathOptions={{
-                    color: selectedRoute?.routeSource === "osrm" ? "#2563eb" : "#dc2626",
-                    weight: 4,
-                    opacity: 0.88,
+                    color: "#2563eb", // Premium blue for all selected routes
+                    weight: 5,
+                    opacity: 0.9,
+                    lineJoin: "round",
                   }}
                 />
               </>
