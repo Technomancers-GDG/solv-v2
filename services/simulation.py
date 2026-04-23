@@ -360,6 +360,7 @@ class SimulationEngine:
         self.decision_engine = DecisionEngine()
         self.connection_manager = ConnectionManager()
         self.status = "idle"
+        self.last_error: str | None = None
         self.simulation_time = datetime.combine(
             settings.simulation_start_date, time(hour=8, minute=0)
         )
@@ -404,6 +405,7 @@ class SimulationEngine:
             simulation_time=self.simulation_time,
             speed_multiplier=self.speed_multiplier,
             queued_events=self.queue_size(),
+            error_message=self.last_error,
         )
 
     def load_state(self, session: Session) -> None:
@@ -439,24 +441,31 @@ class SimulationEngine:
         self._load_event_maps(session)
 
     def _load_event_maps(self, session: Session) -> None:
-        self.weather_map.clear()
-        self.news_map.clear()
+        # Incremental load: do not clear existing maps, just add missing/update higher scores
         for weather in session.scalars(select(WeatherEvent)).all():
-            self.weather_map[(weather.simulation_date.isoformat(), weather.city)] = {
-                "closure_risk": weather.closure_risk,
-                "eta_multiplier": weather.eta_multiplier,
-                "precipitation_mm": weather.precipitation_mm,
-            }
+            self.update_weather_event_map(weather)
         for news in session.scalars(select(NewsEvent).where(NewsEvent.relevant.is_(True))).all():
-            key = (news.simulation_date.isoformat(), news.city)
-            existing = self.news_map.get(key)
-            if existing is None or news.impact_score > existing["impact_score"]:
-                self.news_map[key] = {
-                    "impact_score": news.impact_score,
-                    "impact_type": news.impact_type,
-                    "headline": news.headline,
-                    "category": news.category,
-                }
+            self.update_news_event_map(news)
+
+    def update_news_event_map(self, news: NewsEvent) -> None:
+        if not news.relevant:
+            return
+        key = (news.simulation_date.isoformat(), news.city)
+        existing = self.news_map.get(key)
+        if existing is None or news.impact_score > existing["impact_score"]:
+            self.news_map[key] = {
+                "impact_score": news.impact_score,
+                "impact_type": news.impact_type,
+                "headline": news.headline,
+                "category": news.category,
+            }
+
+    def update_weather_event_map(self, weather: WeatherEvent) -> None:
+        self.weather_map[(weather.simulation_date.isoformat(), weather.city)] = {
+            "closure_risk": weather.closure_risk,
+            "eta_multiplier": weather.eta_multiplier,
+            "precipitation_mm": weather.precipitation_mm,
+        }
 
     def _schedule(
         self,
@@ -502,6 +511,7 @@ class SimulationEngine:
     async def start(self, speed_multiplier: float | None = None) -> SimulationStatus:
         if self.status == "running":
             return self.snapshot_status()
+        self.last_error = None
         if speed_multiplier is not None:
             self.speed_multiplier = speed_multiplier
         with SessionLocal() as session:
@@ -528,6 +538,7 @@ class SimulationEngine:
         self.seed_dispatch_queue()
         self.status = "running"
         self._task = asyncio.create_task(self._run_loop())
+        print(f"[INFO] Simulation started at {self.speed_multiplier}x.", flush=True)
         return self.snapshot_status()
 
     async def pause(self) -> SimulationStatus:
@@ -570,30 +581,42 @@ class SimulationEngine:
         )
         self.seed_dispatch_queue()
         self.beneficiary_location_ids.clear()
+        self.last_error = None
         self.status = "idle"
         return self.snapshot_status()
 
     async def _run_loop(self) -> None:
         loop = asyncio.get_running_loop()
         last_wall = loop.time()
-        while self.status == "running":
-            await asyncio.sleep(0.2)
-            current_wall = loop.time()
-            wall_delta = current_wall - last_wall
-            last_wall = current_wall
-            self.simulation_time += timedelta(seconds=wall_delta * self.speed_multiplier)
-            processed = 0
-            with SessionLocal() as session:
-                while self.event_queue and self.event_queue[0].due_at <= self.simulation_time and processed < 80:
-                    event = heapq.heappop(self.event_queue)
-                    self._process_event(session, event)
-                    processed += 1
-                if processed:
-                    session.commit()
-                    await self._maybe_snapshot(session)
-                    await self.connection_manager.broadcast(
-                        {"type": "simulation_snapshot", "payload": self.dashboard_snapshot(session).model_dump(mode="json")}
-                    )
+        try:
+            while self.status == "running":
+                await asyncio.sleep(0.2)
+                current_wall = loop.time()
+                wall_delta = current_wall - last_wall
+                last_wall = current_wall
+                self.simulation_time += timedelta(seconds=wall_delta * self.speed_multiplier)
+                processed = 0
+                with SessionLocal() as session:
+                    while self.event_queue and self.event_queue[0].due_at <= self.simulation_time and processed < 80:
+                        event = heapq.heappop(self.event_queue)
+                        try:
+                            self._process_event(session, event)
+                            processed += 1
+                        except Exception as exc:
+                            print(f"[ERROR] Event {event.event_type} failed: {exc}", flush=True)
+                            self.last_error = f"{type(exc).__name__}: {exc}"
+                    if processed:
+                        session.commit()
+                        await self._maybe_snapshot(session)
+                        await self.connection_manager.broadcast(
+                            {"type": "simulation_snapshot", "payload": self.dashboard_snapshot(session).model_dump(mode="json")}
+                        )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self.last_error = f"{type(exc).__name__}: {exc}"
+            self.status = "error"
+            print(f"[ERROR] Simulation loop crashed: {self.last_error}", flush=True)
 
     def _process_event(self, session: Session, event: ScheduledEvent) -> None:
         if event.event_type == "dispatch":
@@ -699,6 +722,14 @@ class SimulationEngine:
         chosen_decision = decision
         if decision.action != "continue":
             chosen_decision = self._apply_driver_override(session, vehicle, objective, decision, current_facility)
+
+        if chosen_decision.action.startswith("reroute") and chosen_decision.destination_id is not None:
+            destination = self.facilities.get(chosen_decision.destination_id)
+            destination_name = destination.name if destination else str(chosen_decision.destination_id)
+            print(
+                f"[AI] Reroute suggested for Vehicle {vehicle.identifier} -> {destination_name}",
+                flush=True,
+            )
 
         state.stockout_risk_avoided = (
             chosen_decision.action.startswith("reroute")
@@ -1234,6 +1265,8 @@ class SimulationEngine:
         )
 
     def dashboard_snapshot(self, session: Session) -> DashboardSnapshot:
+        if not self.facilities or not self.vehicles or not self.live_vehicle_states:
+            self.load_state(session)
         recent_alerts = session.scalars(
             select(Recommendation).order_by(Recommendation.created_at.desc()).limit(8)
         ).all()

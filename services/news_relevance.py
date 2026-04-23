@@ -1,14 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import pickle
 import re
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-
 from config import settings
-from services.workbook_reader import WorkbookXmlReader
-
 
 POSITIVE_CATEGORIES = {"Road Blockages", "Finance/Transport"}
 NEGATIVE_CATEGORIES = {"Municipality", "Local Politics", "Geopolitics"}
@@ -45,8 +41,8 @@ class NewsPrediction:
 
 class NewsRelevanceService:
     def __init__(self) -> None:
-        self.vectorizer: TfidfVectorizer | None = None
-        self.model: LogisticRegression | None = None
+        self.vectorizer = None
+        self.model = None
         self.validation_accuracy: float | None = None
         self.validation_samples: int = len(REVIEWED_VALIDATION_SET)
         self._trained = False
@@ -55,31 +51,36 @@ class NewsRelevanceService:
         if self._trained:
             return
 
-        dataset_path = settings.news_dataset_path
-        if not dataset_path.exists():
-            self._trained = True
-            return
+        artifact_path = settings.news_model_artifact_path
+        if artifact_path.exists():
+            try:
+                with artifact_path.open("rb") as file_obj:
+                    artifact = pickle.load(file_obj)
+                from sklearn.feature_extraction.text import TfidfVectorizer
+                from sklearn.linear_model import LogisticRegression
 
-        reader = WorkbookXmlReader(dataset_path)
-        texts: list[str] = []
-        labels: list[int] = []
-        for sheet_name in reader.sheet_names():
-            rows = reader.iter_sheet_rows(sheet_name)
-            sampled_rows = rows[:260]
-            for row in sampled_rows:
-                category = (row.get("Category") or "").strip()
-                headline = (row.get("News") or "").strip()
-                if not headline:
-                    continue
-                texts.append(self._compose_text(category, headline))
-                labels.append(self._weak_label(category, headline))
+                if isinstance(artifact, dict):
+                    self.vectorizer = artifact.get("vectorizer")
+                    self.model = artifact.get("model")
+                    accuracy = artifact.get("validation_accuracy")
+                    if isinstance(accuracy, (int, float)):
+                        self.validation_accuracy = round(float(accuracy), 3)
+                elif isinstance(artifact, tuple) and len(artifact) >= 2:
+                    self.vectorizer = artifact[0]
+                    self.model = artifact[1]
 
-        if texts:
-            self.vectorizer = TfidfVectorizer(max_features=4500, ngram_range=(1, 2))
-            self.model = LogisticRegression(max_iter=400)
-            matrix = self.vectorizer.fit_transform(texts)
-            self.model.fit(matrix, labels)
-            self.validation_accuracy = self._evaluate_validation_set()
+                if self.model is not None and self.vectorizer is not None:
+                    print(f"[INFO] Loaded news relevance model artifact from {artifact_path}.")
+                else:
+                    self.model = None
+                    self.vectorizer = None
+                    print("[INFO] News model artifact missing required objects. Using heuristic fallback.")
+            except Exception as exc:
+                self.model = None
+                self.vectorizer = None
+                print(f"[INFO] Failed to load news model artifact: {exc}. Using heuristic fallback.")
+        else:
+            print("[INFO] News model artifact not found. Using heuristic fallback.")
 
         self._trained = True
 

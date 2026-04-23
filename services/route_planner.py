@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from math import asin, cos, radians, sin, sqrt
 
 import httpx
@@ -46,6 +46,7 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 class RoutePlanner:
     def __init__(self, osrm_base_url: str | None = None) -> None:
         self.osrm_base_url = (osrm_base_url or settings.osrm_base_url).rstrip("/")
+        self.use_osrm = settings.route_use_osrm and not settings.demo_mode
 
     def route_key(self, origin_id: int, destination_id: int) -> str:
         return f"{origin_id}:{destination_id}"
@@ -56,23 +57,11 @@ class RoutePlanner:
         key = self.route_key(origin.id, destination.id)
         existing = session.scalar(select(RouteTemplate).where(RouteTemplate.route_key == key))
         if existing is not None:
-            should_attempt_refresh = (
-                existing.source != "osrm"
-                and existing.refreshed_at <= datetime.utcnow() - timedelta(minutes=5)
-            )
-            if should_attempt_refresh:
-                refreshed_route_data = self._fetch_osrm_route(origin, destination)
-                if refreshed_route_data is not None:
-                    existing.distance_km = refreshed_route_data["distance_km"]
-                    existing.duration_minutes = refreshed_route_data["duration_minutes"]
-                    existing.encoded_polyline = refreshed_route_data["encoded_polyline"]
-                    existing.steps = refreshed_route_data["steps"]
-                    existing.source = refreshed_route_data["source"]
-                    existing.refreshed_at = datetime.utcnow()
-                    session.flush()
             return existing
 
-        route_data = self._fetch_osrm_route(origin, destination)
+        route_data = None
+        if self.use_osrm:
+            route_data = self._fetch_osrm_route(origin, destination)
         if route_data is None:
             route_data = self._estimated_route(origin, destination)
 
@@ -106,6 +95,8 @@ class RoutePlanner:
     def _fetch_osrm_route(
         self, origin: Facility, destination: Facility
     ) -> dict[str, object] | None:
+        if settings.demo_mode:
+            return None
         coordinates = (
             f"{origin.longitude},{origin.latitude};"
             f"{destination.longitude},{destination.latitude}"

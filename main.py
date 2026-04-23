@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from math import ceil
 from pathlib import Path
 from typing import Any, TypeVar
@@ -83,6 +84,7 @@ news_model = NewsRelevanceService()
 route_planner = RoutePlanner()
 event_ingestion_service = EventIngestionService(news_model)
 simulation_engine = SimulationEngine(route_planner)
+demo_disruption_task: asyncio.Task[None] | None = None
 
 ModelType = TypeVar("ModelType")
 
@@ -106,15 +108,67 @@ def normalize_incident_impact_type(incident_type: str) -> str:
     return mapping.get(key, "logistics_disruption")
 
 
+async def _trigger_demo_disruption() -> None:
+    try:
+        await asyncio.sleep(max(1, settings.demo_disruption_delay_seconds))
+        if simulation_engine.status != "running":
+            return
+
+        severity = min(0.99, max(0.0, settings.demo_disruption_severity))
+        event_date = simulation_engine.simulation_time.date()
+        with SessionLocal() as session:
+            event = NewsEvent(
+                original_date=event_date,
+                simulation_date=event_date,
+                city=settings.demo_disruption_city,
+                category="Demo Disruption",
+                headline=f"Automatic disruption: flood pressure in {settings.demo_disruption_city}",
+                relevant=True,
+                impact_type="weather_disruption",
+                impact_score=severity,
+                model_probability=severity,
+            )
+            session.add(event)
+            session.commit()
+            session.refresh(event)
+            simulation_engine.update_news_event_map(event)
+
+        print(
+            f"[EVENT] Disruption triggered: {settings.demo_disruption_city} flood",
+            flush=True,
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        print(f"[ERROR] Demo disruption task failed: {exc}", flush=True)
+
+
 @app.on_event("startup")
 async def startup() -> None:
+    global demo_disruption_task
+
     init_db()
     with SessionLocal() as session:
-        seed_demo_data(session)
-        if session.scalar(select(WeatherEvent.id).limit(1)) is None and settings.weather_dataset_path.exists():
-            event_ingestion_service.import_weather(session)
-        if session.scalar(select(NewsEvent.id).limit(1)) is None and settings.news_dataset_path.exists():
-            event_ingestion_service.import_news(session, full_news_import=False, sample_per_sheet=160)
+        if settings.allow_demo_seed:
+            seed_demo_data(session)
+
+    if settings.demo_mode:
+        await simulation_engine.start(speed_multiplier=settings.simulation_speed)
+        print("[INFO] Demo mode startup completed.", flush=True)
+        if demo_disruption_task is None or demo_disruption_task.done():
+            demo_disruption_task = asyncio.create_task(_trigger_demo_disruption())
+
+
+@app.on_event("shutdown")
+async def shutdown() -> None:
+    global demo_disruption_task
+    if demo_disruption_task is not None and not demo_disruption_task.done():
+        demo_disruption_task.cancel()
+        try:
+            await demo_disruption_task
+        except asyncio.CancelledError:
+            pass
+    demo_disruption_task = None
 
 
 @app.get("/api/health")
@@ -451,7 +505,9 @@ def trigger_scenario(scenario_key: str, session: Session = Depends(get_session))
     )
     session.add(event)
     session.commit()
-    simulation_engine._load_event_maps(session)
+    session.refresh(event)
+    simulation_engine.update_news_event_map(event)
+    print(f"[EVENT] Disruption triggered: {scenario.event_city} {scenario.event_type}", flush=True)
     return {
         "status": "triggered",
         "scenario_key": scenario.scenario_key,
@@ -646,7 +702,9 @@ def report_driver_incident(
     session.add(incident)
     session.commit()
     session.refresh(incident)
-    simulation_engine._load_event_maps(session)
+    session.refresh(news_event)
+    simulation_engine.update_news_event_map(news_event)
+    print(f"[EVENT] Disruption triggered: {payload.city} {payload.incident_type}", flush=True)
     return incident
 
 
@@ -721,3 +779,9 @@ else:
             </html>
             """
         )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

@@ -228,6 +228,7 @@ class SimulationStatus(BaseModel):
     simulation_time: datetime
     speed_multiplier: float
     queued_events: int
+    error_message: str | None = None
 
 
 class FleetScaleRequest(BaseModel):
