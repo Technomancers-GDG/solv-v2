@@ -19,14 +19,14 @@ echo "         NPM version: $(npm --version)"
 # 3. Build Admin Frontend
 echo "[3/5] Building admin frontend..."
 cd frontend
-npm install
+npm install --legacy-peer-deps
 npm run build
 cd ..
 
 # 4. Build Driver Mobile App
 echo "[4/5] Building driver mobile app..."
 cd driver-app-main
-npm install
+npm install --legacy-peer-deps
 npm run build
 cd ..
 
