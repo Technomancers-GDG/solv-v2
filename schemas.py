@@ -360,6 +360,10 @@ class DriverResponseRequest(BaseModel):
     note: str = ""
 
 
+class RecommendationDecisionRequest(BaseModel):
+    decision: str = Field(pattern="^(accept|ignore)$")
+
+
 class DriverIncidentCreate(BaseModel):
     driver_profile_id: int
     vehicle_id: int | None = None

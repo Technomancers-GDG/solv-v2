@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { MapContainer, Marker, Polyline, Popup, TileLayer, Circle } from "react-leaflet";
+import { MapContainer, Marker, Polyline, Popup, TileLayer, Circle, useMapEvents } from "react-leaflet";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
@@ -155,19 +155,14 @@ function getVehicleIcon(status, identifier, selected = false) {
   return __vehicleIconCache[key];
 }
 
-const __vehicleEventHandlers = {};
 function getVehicleEventHandlers(vehicleId, setFilterVehicleId, setHighlightedVehicleId) {
-  const key = `${vehicleId}`;
-  if (!__vehicleEventHandlers[key]) {
-    __vehicleEventHandlers[key] = {
-      click: () => {
-        const id = String(vehicleId);
-        setFilterVehicleId(id);
-        setHighlightedVehicleId(id);
-      },
-    };
-  }
-  return __vehicleEventHandlers[key];
+  return {
+    click: () => {
+      const id = String(vehicleId);
+      setFilterVehicleId(id);
+      setHighlightedVehicleId(id);
+    },
+  };
 }
 
 function eventSeverity(impactScore) {
@@ -185,6 +180,13 @@ function getRiskColor(risk) {
 
 function getRiskRadius(risk) {
   return 8000 + risk * 40000;
+}
+
+function MapClickHandler({ onMapClick }) {
+  useMapEvents({
+    click: onMapClick,
+  });
+  return null;
 }
 
 export function MapView({
@@ -362,11 +364,12 @@ export function MapView({
 
         <div className="map-container">
           <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} scrollWheelZoom maxBounds={INDIA_BOUNDS} maxBoundsViscosity={1.0} minZoom={5} maxZoom={12} worldCopyJump={false}>
+            <MapClickHandler onMapClick={() => { setFilterVehicleId(""); setHighlightedVehicleId(""); }} />
             <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {selectedRoutePath ? (
               <>
-                <Polyline key={`shadow-${selectedVehicleId}`} positions={selectedRoutePath} pathOptions={{ color: "#111827", weight: 8, opacity: 0.25 }} />
-                <Polyline key={`route-${selectedVehicleId}`} positions={selectedRoutePath} pathOptions={{ color: "#2563eb", weight: 5, opacity: 0.9, lineJoin: "round" }} />
+                <Polyline key={`shadow-${selectedVehicleId}`} positions={selectedRoutePath} color="#111827" weight={8} opacity={0.25} />
+                <Polyline key={`route-${selectedVehicleId}`} positions={selectedRoutePath} color="#2563eb" weight={5} opacity={0.9} lineJoin="round" />
               </>
             ) : null}
 

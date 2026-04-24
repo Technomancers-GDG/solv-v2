@@ -58,6 +58,7 @@ from schemas import (
     PortLinkCreate,
     PortLinkRead,
     ProactiveDispatchRead,
+    RecommendationDecisionRequest,
     RecommendationRead,
     RLDecisionRequest,
     RLDecisionResponse,
@@ -261,6 +262,14 @@ def create_vehicle(payload: VehicleCreate, session: Session = Depends(get_sessio
     session.add(vehicle)
     session.commit()
     session.refresh(vehicle)
+    return vehicle
+
+
+@app.get("/api/vehicles/{vehicle_id}", response_model=VehicleRead)
+def get_vehicle(vehicle_id: int, session: Session = Depends(get_session)) -> Vehicle:
+    vehicle = session.get(Vehicle, vehicle_id)
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
     return vehicle
 
 
@@ -599,6 +608,58 @@ def list_recommendations(session: Session = Depends(get_session)) -> list[Recomm
     return session.scalars(
         select(Recommendation).order_by(Recommendation.created_at.desc()).limit(100)
     ).all()
+
+
+@app.post("/api/recommendations/{recommendation_id}/decision", response_model=DriverDecisionRead)
+def recommendation_decision(
+    recommendation_id: int,
+    payload: RecommendationDecisionRequest,
+    session: Session = Depends(get_session),
+) -> DriverDecision:
+    recommendation = session.get(Recommendation, recommendation_id)
+    if recommendation is None:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+
+    existing = session.scalar(
+        select(DriverDecision).where(DriverDecision.recommendation_id == recommendation.id)
+    )
+    if existing is not None:
+        return existing
+
+    vehicle = session.get(Vehicle, recommendation.vehicle_id)
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    driver = session.get(DriverProfile, vehicle.driver_profile_id)
+    if driver is None:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    backend_decision = "accepted" if payload.decision == "accept" else "ignored"
+    recommendation.status = backend_decision
+    rating_delta = 0.05 if backend_decision == "accepted" else -0.08
+    driver.override_rating = round(max(0.2, driver.override_rating + rating_delta), 3)
+    note = (
+        "Driver accepted mobile recommendation."
+        if backend_decision == "accepted"
+        else "Driver ignored mobile recommendation."
+    )
+
+    decision = DriverDecision(
+        recommendation_id=recommendation.id,
+        driver_profile_id=driver.id,
+        vehicle_id=vehicle.id,
+        decision=backend_decision,
+        actual_trip_cost=(
+            recommendation.recommended_cost if backend_decision == "accepted"
+            else recommendation.baseline_cost
+        ),
+        recommended_trip_cost=recommendation.recommended_cost,
+        rating_delta=rating_delta,
+        note=note,
+    )
+    session.add(decision)
+    session.commit()
+    session.refresh(decision)
+    return decision
 
 
 @app.get("/api/driver-decisions", response_model=list[DriverDecisionRead])
