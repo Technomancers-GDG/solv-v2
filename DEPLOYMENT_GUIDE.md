@@ -443,6 +443,71 @@ For issues or questions:
 
 ---
 
-**Last Updated**: April 23, 2026  
+## Hackathon Deployment (Render Free Tier + Cron Job)
+
+For hackathon submissions where judges may visit your link at any time, use this zero-budget setup to keep the app awake 24/7.
+
+### Step 1: Push to GitHub
+
+Make sure your repo includes:
+- `render.yaml` — Render Blueprint (already in repo root)
+- `build.sh` — Build script (already in repo root)
+- All source code, Excel data files, and the `data/` directory
+
+```bash
+git add render.yaml build.sh
+git commit -m "Add Render deployment config"
+git push origin main
+```
+
+### Step 2: Deploy on Render
+
+1. Go to [render.com](https://render.com) and sign up (free, no credit card required)
+2. Click **New +** → **Blueprint**
+3. Connect your GitHub repository
+4. Render reads `render.yaml` and creates the service automatically
+5. Wait for the first deploy to complete (2–3 minutes)
+6. Copy your app's URL: `https://solv-hackathon.onrender.com`
+
+**URLs after deploy:**
+- Admin Panel: `https://solv-hackathon.onrender.com/`
+- Driver App: `https://solv-hackathon.onrender.com/driver`
+- API Health: `https://solv-hackathon.onrender.com/api/health`
+- Swagger Docs: `https://solv-hackathon.onrender.com/docs`
+
+### Step 3: Keep It Awake with cron-job.org
+
+Render's free tier sleeps after 15 minutes of inactivity. Set up a free cron job to ping it every 10 minutes:
+
+1. Go to [cron-job.org](https://cron-job.org) and create a free account
+2. Click **Create cronjob**
+3. Fill in:
+   - **Title**: Solv Hackathon Uptime
+   - **URL**: `https://solv-hackathon.onrender.com/api/health`
+   - **Schedule**: Every 10 minutes
+4. Save and enable the job
+
+Your app will now stay warm and respond instantly when judges click the link.
+
+### Step 4: Share with Judges
+
+Include these in your submission:
+- **Live App**: `https://solv-hackathon.onrender.com`
+- **GitHub Repo**: `https://github.com/Technomancers-GDG/solv-v2`
+- **API Docs**: `https://solv-hackathon.onrender.com/docs`
+
+### Troubleshooting
+
+| Issue | Solution |
+|---|---|
+| Build fails on Render | Check Render dashboard logs; usually a missing dependency in `requirements.txt` |
+| Frontend shows blank page | Ensure `frontend/dist` and `driver-app-main/dist` were built in `build.sh` |
+| API works but UI doesn't | Check browser DevTools → Network for 404s on `/assets/` or `/driver-assets/` |
+| App is slow on first load | This is normal if the cron job hasn't pinged it yet; wait 10–15 seconds |
+| SQLite data resets | Expected on free tier — `DEMO_MODE=true` auto-seeds data on every restart |
+
+---
+
+**Last Updated**: April 25, 2026  
 **Version**: 1.0.0  
 **Status**: Production Ready ✅

@@ -101,6 +101,34 @@ function Sidebar({ active, onNavigate, collapsed, onToggle }) {
 
 function StatusBar({ dashboard, metrics }) {
   const sim = dashboard?.simulation;
+  const [displayTime, setDisplayTime] = useState(sim?.simulation_time);
+
+  useEffect(() => {
+    setDisplayTime(sim?.simulation_time);
+  }, [sim?.simulation_time]);
+
+  useEffect(() => {
+    if (sim?.status !== "running" || !sim?.simulation_time || !sim?.speed_multiplier) return;
+
+    let lastTick = Date.now();
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const dtSec = (now - lastTick) / 1000;
+      lastTick = now;
+
+      setDisplayTime(prev => {
+        if (!prev) return prev;
+        // Parse time robustly by assuming it's UTC so local timezone doesn't shift the hours
+        const d = new Date(prev.endsWith("Z") ? prev : prev + "Z");
+        if (isNaN(d.getTime())) return prev;
+        d.setMilliseconds(d.getMilliseconds() + dtSec * sim.speed_multiplier * 1000);
+        return d.toISOString().replace("Z", "");
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [sim?.status, sim?.simulation_time, sim?.speed_multiplier]);
+
   return (
     <div className="status-bar">
       <div className="status-pill-group">
@@ -109,7 +137,7 @@ function StatusBar({ dashboard, metrics }) {
       </div>
       <div className="status-pill-group">
         <span className="status-label">Sim Time</span>
-        <span className="status-value">{sim?.simulation_time?.slice(0, 19).replace("T", " ") ?? "--"}</span>
+        <span className="status-value">{displayTime?.slice(0, 19).replace("T", " ") ?? "--"}</span>
       </div>
       <div className="status-pill-group">
         <span className="status-label">Speed</span>

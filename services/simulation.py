@@ -1013,9 +1013,9 @@ class SimulationEngine:
         )
         if decision.action.startswith("reroute") and accepted:
             self.current_metrics.reroute_count += 1
-            self.current_metrics.idle_minutes_prevented += max(
-                0.0, decision.breakdown.get("predicted_idle_minutes", 0.0) - 8.0
-            )
+            saved_idle = max(0.0, decision.breakdown.get("predicted_idle_minutes", 0.0) - 8.0)
+            self.current_metrics.idle_minutes_prevented += saved_idle
+            self.current_metrics.co2_saved_kg += saved_idle * 0.14
         return final_decision
 
     def _stable_random_value(self, key: str) -> float:

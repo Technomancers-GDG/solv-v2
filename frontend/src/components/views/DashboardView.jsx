@@ -14,15 +14,15 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
       <div className="dashboard-grid">
         <Panel title="Critical Capacity Watch">
           {criticalFacilities.length === 0 ? <div className="empty">No facility above 70% utilization.</div> : (
-            <div className="util-list">
+            <div className="util-list" style={{ display: "grid", gap: "10px" }}>
               {criticalFacilities.map((f) => (
                 <div className="util-item" key={f.facility_id}>
-                  <div className="util-meta">
+                  <div className="util-meta" style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                     <strong>{f.facility_name}</strong>
                     <span>{f.utilization_pct.toFixed(1)}%</span>
                   </div>
-                  <ProgressBar value={f.utilization_pct} />
-                  <div className="util-foot"><span>{f.city}</span><span>{f.effective_available_units} free</span></div>
+                  <ProgressBar value={Math.min(100, f.utilization_pct)} />
+                  <div className="util-foot" style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85em", color: "var(--muted)", marginTop: "4px" }}><span>{f.city}</span><span>{Math.max(0, f.effective_available_units)} free</span></div>
                 </div>
               ))}
             </div>
