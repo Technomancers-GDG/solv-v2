@@ -1119,7 +1119,7 @@ if FRONTEND_DIST.exists():
         return FileResponse(FRONTEND_DIST / "index.html")
 
 if DRIVER_DIST.exists():
-    app.mount("/driver-assets", StaticFiles(directory=DRIVER_DIST / "assets"), name="driver_assets")
+    app.mount("/driver-assets", StaticFiles(directory=DRIVER_DIST), name="driver_assets")
 
     @app.get("/driver", include_in_schema=False)
     async def driver_index() -> FileResponse:
