@@ -1098,6 +1098,10 @@ def voice_config() -> dict[str, Any]:
 async def operations_socket(websocket: WebSocket) -> None:
     await simulation_engine.connection_manager.connect(websocket)
     try:
+        with SessionLocal() as session:
+            await websocket.send_json(
+                {"type": "simulation_snapshot", "payload": simulation_engine.dashboard_snapshot(session).model_dump(mode="json")}
+            )
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:

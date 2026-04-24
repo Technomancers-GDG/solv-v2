@@ -1227,10 +1227,14 @@ class SimulationEngine:
             facility for facility in self.facilities.values() if facility.facility_type == "warehouse"
         ]
         if warehouse_facilities:
-            utilization = sum(
-                facility.current_inventory_units / max(facility.base_capacity_units, 1)
-                for facility in warehouse_facilities
-            ) / len(warehouse_facilities)
+            utilization = 0.0
+            for facility in warehouse_facilities:
+                effective_avail = self.decision_engine.effective_available_units(
+                    facility.id, self.facilities, self.port_links, self.inbound_reserved
+                )
+                used_units = facility.base_capacity_units - effective_avail
+                utilization += used_units / max(facility.base_capacity_units, 1)
+            utilization /= len(warehouse_facilities)
             self.current_metrics.warehouse_utilization_pct = round(utilization * 100, 2)
         self.current_metrics.active_trucks = sum(
             1 for state in self.live_vehicle_states.values() if state.status == "in_transit"
@@ -1268,23 +1272,25 @@ class SimulationEngine:
             select(Recommendation).order_by(Recommendation.created_at.desc()).limit(8)
         ).all()
         active_events = self._active_event_feed()
-        facility_views = [
-            FacilityLoadView(
-                facility_id=facility.id,
-                facility_name=facility.name,
-                facility_type=facility.facility_type,
-                city=facility.city,
-                utilization_pct=round(
-                    facility.current_inventory_units / max(facility.base_capacity_units, 1) * 100, 2
-                ),
-                effective_available_units=self.decision_engine.effective_available_units(
-                    facility.id, self.facilities, self.port_links, self.inbound_reserved
-                ),
-                queue_capacity_units=facility.queue_capacity_units,
-                current_inventory_units=facility.current_inventory_units,
+        facility_views = []
+        for facility in self.facilities.values():
+            effective_avail = self.decision_engine.effective_available_units(
+                facility.id, self.facilities, self.port_links, self.inbound_reserved
             )
-            for facility in self.facilities.values()
-        ]
+            used_units = facility.base_capacity_units - effective_avail
+            util_pct = round((used_units / max(facility.base_capacity_units, 1)) * 100, 2)
+            facility_views.append(
+                FacilityLoadView(
+                    facility_id=facility.id,
+                    facility_name=facility.name,
+                    facility_type=facility.facility_type,
+                    city=facility.city,
+                    utilization_pct=util_pct,
+                    effective_available_units=effective_avail,
+                    queue_capacity_units=facility.queue_capacity_units,
+                    current_inventory_units=facility.current_inventory_units,
+                )
+            )
         vehicle_views = []
         for state in self.live_vehicle_states.values():
             vehicle_views.append(

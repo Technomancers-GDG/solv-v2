@@ -101,9 +101,9 @@ class PredictiveForecastService:
         slope = np.polyfit(x, y, 1)[0]
         return float(slope)
 
-    def forecast_city(self, session: Session, city: str, forecast_hours: int = 12) -> RiskForecast | None:
-        now = datetime.utcnow()
-        history = self.get_city_history(session, city, now.date())
+    def forecast_city(self, session: Session, city: str, forecast_hours: int = 12, reference_date: date | None = None) -> RiskForecast | None:
+        ref_dt = reference_date or datetime.utcnow().date()
+        history = self.get_city_history(session, city, ref_dt)
         if len(history) < 3:
             return None
 
@@ -135,7 +135,7 @@ class PredictiveForecastService:
 
         return RiskForecast(
             city=city,
-            forecast_time=now + timedelta(hours=forecast_hours),
+            forecast_time=datetime.combine(ref_dt, datetime.min.time()) + timedelta(hours=forecast_hours),
             predicted_route_risk=round(predicted_risk, 3),
             predicted_eta_multiplier=round(predicted_eta, 3),
             predicted_closure_risk=round(predicted_closure, 3),
@@ -143,17 +143,17 @@ class PredictiveForecastService:
             contributing_factors=factors or ["stable conditions"],
         )
 
-    def forecast_all_cities(self, session: Session, cities: set[str], forecast_hours: int = 12) -> list[RiskForecast]:
+    def forecast_all_cities(self, session: Session, cities: set[str], forecast_hours: int = 12, reference_date: date | None = None) -> list[RiskForecast]:
         forecasts = []
         for city in cities:
-            fc = self.forecast_city(session, city, forecast_hours)
+            fc = self.forecast_city(session, city, forecast_hours, reference_date=reference_date)
             if fc:
                 forecasts.append(fc)
         forecasts.sort(key=lambda f: f.predicted_route_risk, reverse=True)
         return forecasts
 
-    def get_heatmap_data(self, session: Session, cities: set[str], forecast_hours: int = 12) -> list[dict[str, Any]]:
-        forecasts = self.forecast_all_cities(session, cities, forecast_hours)
+    def get_heatmap_data(self, session: Session, cities: set[str], forecast_hours: int = 12, reference_date: date | None = None) -> list[dict[str, Any]]:
+        forecasts = self.forecast_all_cities(session, cities, forecast_hours, reference_date=reference_date)
         return [
             {
                 "city": f.city,

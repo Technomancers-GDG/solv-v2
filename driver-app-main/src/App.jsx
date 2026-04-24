@@ -54,16 +54,20 @@ function App() {
 
   async function refreshAll() {
     try {
-      const [facilityData, objectiveData, routeData, recData] = await Promise.all([
+      const [facilityData, objectiveData, routeData, recData, simState] = await Promise.all([
         apiFetch("/api/facilities"),
         apiFetch("/api/objectives"),
         apiFetch("/api/routes"),
         apiFetch("/api/recommendations"),
+        apiFetch("/api/dashboard").catch(() => null),
       ]);
       setFacilities(facilityData);
       setObjectives(objectiveData);
       setRouteTemplates(routeData);
       setRecommendations(recData);
+      if (simState) {
+        setWsSnapshot(simState);
+      }
       setError("");
     } catch (fetchError) {
       setError(fetchError.message);
