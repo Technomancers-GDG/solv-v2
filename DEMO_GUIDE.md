@@ -4,28 +4,15 @@
 
 ---
 
-## Pre-Demo Setup (2 min)
+## Pre-Demo Setup (30 seconds)
 
-Run these in **3 separate terminals**:
+**Double-click `DEMO.bat`** in the project root.
 
-```bash
-# Terminal 1: Backend
-.\.venv\Scripts\Activate.ps1
-python -m uvicorn main:app --reload
+This starts the backend server and auto-opens two browser tabs:
+- **Admin Dashboard** → http://localhost:8000
+- **Driver Mobile** → http://localhost:8000/driver
 
-# Terminal 2: Admin Frontend
-cd frontend
-npm run dev
-
-# Terminal 3: Driver App
-cd driver-app-main
-npm run dev
-```
-
-Open:
-- **Admin Dashboard** → http://localhost:5173
-- **Driver Mobile** → http://localhost:5174
-- **Swagger API** → http://127.0.0.1:8000/docs
+> That's it. No multiple terminals. Both frontends are served by the same FastAPI backend.
 
 ---
 
@@ -52,7 +39,7 @@ Open:
   - Justification appears in the ops log
 
 ### 4. Driver Responds (1 min)
-**Screen:** Driver Mobile (localhost:5174)
+**Screen:** Driver Mobile (localhost:8000/driver)
 - Show the pending instruction card the driver received.
 - Driver taps **Accept** — the vehicle executes the AI decision.
 - Driver can also **Report Incident** manually.
@@ -84,7 +71,27 @@ Open:
 
 | If this breaks… | Do this instead |
 |----------------|-----------------|
+| Port 8000 busy | The batch file auto-kills the old process; if not, run `DEMO.bat` again |
 | OSRM offline | App auto-falls back to estimated routes — mention it |
-| Driver app won't load | Show driver actions via Swagger `/driver/{id}/instructions` |
 | Simulation stutters | Pause → Reset → Start again with speed = 1x |
-| No data visible | Run `python seed_data.py` then restart backend |
+| No data visible | Run `python seed_data.py` then restart `DEMO.bat` |
+
+---
+
+## Dev Mode (Optional)
+
+If you want hot-reload during development instead of the static build:
+
+```bash
+# Terminal 1: Backend
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
+
+# Terminal 2: Admin Frontend
+cd frontend
+npm run dev       # http://localhost:5173
+
+# Terminal 3: Driver App
+cd driver-app-main
+npm run dev       # http://localhost:5174
+```

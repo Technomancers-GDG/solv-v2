@@ -905,13 +905,15 @@ def risk_forecast(
     session: Session = Depends(get_session),
 ) -> list[dict[str, Any]]:
     cities = {f.city for f in session.scalars(select(Facility)).all()}
-    data = forecast_service.get_heatmap_data(session, cities, forecast_hours=hours)
+    sim_date = simulation_engine.simulation_time.date()
+    data = forecast_service.get_heatmap_data(session, cities, forecast_hours=hours, reference_date=sim_date)
     return [RiskForecastRead(**d).model_dump() for d in data]
 
 
 @app.get("/api/forecast/city/{city}")
 def city_forecast(city: str, hours: int = Query(default=12, ge=1, le=72), session: Session = Depends(get_session)) -> dict[str, Any] | None:
-    fc = forecast_service.forecast_city(session, city, forecast_hours=hours)
+    sim_date = simulation_engine.simulation_time.date()
+    fc = forecast_service.forecast_city(session, city, forecast_hours=hours, reference_date=sim_date)
     if fc is None:
         raise HTTPException(status_code=404, detail=f"No forecast data for {city}")
     return {
@@ -1103,6 +1105,7 @@ async def operations_socket(websocket: WebSocket) -> None:
 
 
 FRONTEND_DIST = Path("frontend/dist")
+DRIVER_DIST = Path("driver-app-main/dist")
 
 if FRONTEND_DIST.exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
@@ -1110,6 +1113,13 @@ if FRONTEND_DIST.exists():
     @app.get("/", include_in_schema=False)
     async def frontend_index() -> FileResponse:
         return FileResponse(FRONTEND_DIST / "index.html")
+
+if DRIVER_DIST.exists():
+    app.mount("/driver-assets", StaticFiles(directory=DRIVER_DIST / "assets"), name="driver_assets")
+
+    @app.get("/driver", include_in_schema=False)
+    async def driver_index() -> FileResponse:
+        return FileResponse(DRIVER_DIST / "index.html")
 
 else:
 

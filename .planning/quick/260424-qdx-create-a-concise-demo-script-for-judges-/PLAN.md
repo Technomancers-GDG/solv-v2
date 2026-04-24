@@ -27,6 +27,8 @@ Create a short, easy-to-follow demo guide that helps judges experience the Resil
    - Write DEMO_GUIDE.md to project root
 
 ## Definition of Done
-- [ ] DEMO_GUIDE.md exists in project root
-- [ ] Script covers setup, demo flow, pitch, and fallbacks
-- [ ] Total demo time ≤ 10 minutes
+- [x] DEMO_GUIDE.md exists in project root
+- [x] Script covers setup, demo flow, pitch, and fallbacks
+- [x] DEMO.bat one-click launcher exists
+- [x] Driver app served from backend at /driver
+- [x] Total demo time ≤ 10 minutes
