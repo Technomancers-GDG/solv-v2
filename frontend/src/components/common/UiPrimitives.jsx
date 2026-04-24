@@ -1,27 +1,26 @@
-export function Panel({ title, children }) {
+export function Panel({ title, children, className = "" }) {
   return (
-    <section className="panel">
-      <div className="panel-head">
-        <h2>{title}</h2>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-export function MetricCard({ label, value, tone }) {
-  return (
-    <div className={`metric-card ${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className={`panel ${className}`}>
+      {title && <div className="panel-header"><h3>{title}</h3></div>}
+      <div className="panel-body">{children}</div>
     </div>
   );
 }
 
-export function ProgressBar({ value, compact = false }) {
+export function MetricCard({ label, value, tone = "neutral", trend }) {
   return (
-    <div className={compact ? "progress compact" : "progress"}>
-      <div className="progress-fill" style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+    <div className={`metric-card tone-${tone}`}>
+      <div className="metric-label">{label}</div>
+      <div className="metric-value">{value}</div>
+      {trend !== undefined && <div className="metric-trend">{trend > 0 ? "\u2191" : "\u2193"} {Math.abs(trend).toFixed(1)}%</div>}
+    </div>
+  );
+}
+
+export function ProgressBar({ value, compact }) {
+  return (
+    <div className={`progress-bar ${compact ? "compact" : ""}`}>
+      <div className="progress-fill" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
     </div>
   );
 }

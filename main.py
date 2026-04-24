@@ -373,17 +373,50 @@ async def scale_demo_fleet(
     if not objectives:
         raise HTTPException(status_code=400, detail="No active objectives available to scale fleet")
 
-    vehicles = session.scalars(select(Vehicle).order_by(Vehicle.id)).all()
-    drivers = session.scalars(select(DriverProfile).order_by(DriverProfile.id)).all()
+    vehicles = list(session.scalars(select(Vehicle).order_by(Vehicle.id)).all())
+    drivers = list(session.scalars(select(DriverProfile).order_by(DriverProfile.id)).all())
     if not drivers:
         raise HTTPException(status_code=400, detail="No drivers available")
 
     previous_vehicle_count = len(vehicles)
     previous_driver_count = len(drivers)
-    target_vehicle_count = max(previous_vehicle_count, payload.target_vehicle_count)
-    vehicles_to_create = target_vehicle_count - previous_vehicle_count
+    target_vehicle_count = payload.target_vehicle_count
 
-    desired_driver_count = max(previous_driver_count, ceil(target_vehicle_count * 0.6))
+    # --- SCALE DOWN: remove excess vehicles and orphaned drivers ---
+    if target_vehicle_count < previous_vehicle_count:
+        vehicles_to_remove = vehicles[target_vehicle_count:]
+        removed_vehicle_ids = {v.id for v in vehicles_to_remove}
+        removed_driver_ids = {v.driver_profile_id for v in vehicles_to_remove}
+
+        for v in vehicles_to_remove:
+            session.delete(v)
+
+        # Clean up objective assignments
+        for objective in objectives:
+            if objective.assigned_vehicle_ids:
+                objective.assigned_vehicle_ids = [
+                    vid for vid in objective.assigned_vehicle_ids if vid not in removed_vehicle_ids
+                ]
+
+        # Remove drivers that no longer have any vehicles
+        for driver in drivers:
+            if driver.id in removed_driver_ids:
+                still_has = session.scalar(
+                    select(Vehicle).where(Vehicle.driver_profile_id == driver.id).limit(1)
+                )
+                if still_has is None:
+                    session.delete(driver)
+
+        session.commit()
+        # Refresh lists after deletion
+        vehicles = list(session.scalars(select(Vehicle).order_by(Vehicle.id)).all())
+        drivers = list(session.scalars(select(DriverProfile).order_by(DriverProfile.id)).all())
+
+    new_vehicle_count = len(vehicles)
+    new_driver_count = len(drivers)
+    vehicles_to_create = max(0, target_vehicle_count - new_vehicle_count)
+
+    desired_driver_count = max(new_driver_count, ceil(target_vehicle_count * 0.6))
     existing_driver_names = {driver.name for driver in drivers}
     driver_seq = 1
     while len(drivers) < desired_driver_count:
@@ -421,7 +454,7 @@ async def scale_demo_fleet(
             objective_vehicle_templates[objective.id] = seeded or [fallback_template]
 
     existing_identifiers = {vehicle.identifier for vehicle in vehicles}
-    identifier_sequence = previous_vehicle_count + 1
+    identifier_sequence = new_vehicle_count + 1
 
     def next_identifier() -> str:
         nonlocal identifier_sequence

@@ -42,6 +42,7 @@ class LiveVehicleState:
     objective_id: int | None = None
     route_template_id: int | None = None
     route_distance_km: float = 0.0
+    baseline_route_distance_km: float = 0.0
     eta: datetime | None = None
     payload_units: int = 0
     progress_pct: float = 0.0
@@ -769,11 +770,13 @@ class SimulationEngine:
             return
 
         route = route_data[chosen_decision.destination_id]
+        baseline_route = route_data[objective.destination_facility_id]
         state.status = "loading"
         state.objective_id = objective.id
         state.payload_units = vehicle.payload_capacity_units
         state.route_template_id = route.id
         state.route_distance_km = route.distance_km
+        state.baseline_route_distance_km = baseline_route.distance_km
         vehicle.status = "loading"
         vehicle.current_facility_id = current_facility.id
         load_complete_time = self.simulation_time + timedelta(
@@ -879,6 +882,11 @@ class SimulationEngine:
         state.status = "queued_return"
         vehicle.status = "queued_return"
 
+        # Compute CO2 saved when reroute resulted in shorter distance
+        distance_saved_km = max(0.0, state.baseline_route_distance_km - state.route_distance_km)
+        co2_saved_this_trip = distance_saved_km * vehicle.emission_kg_per_km
+        self.current_metrics.co2_saved_kg += round(co2_saved_this_trip, 3)
+
         self.completed_trips += 1
         trip_minutes = self._estimate_trip_minutes(objective)
         arrived_on_time = trip_minutes <= objective.sla_minutes
@@ -978,14 +986,6 @@ class SimulationEngine:
                 "Driver ignored the reroute suggestion; rating updated from actual trip versus "
                 "recommended trip cost."
             )
-            self.current_metrics.co2_saved_kg += max(
-                0.0, decision.baseline_cost - decision.recommended_cost
-            ) * 0.05
-            self.current_metrics.idle_minutes_prevented += max(
-                0.0,
-                decision.breakdown.get("predicted_idle_minutes", 0.0)
-                - (15.0 if within_tolerance else 0.0),
-            )
             final_decision = CandidateDecision(
                 action="continue",
                 destination_id=objective.destination_facility_id,
@@ -1011,11 +1011,8 @@ class SimulationEngine:
                 note=note,
             )
         )
-        if decision.action.startswith("reroute"):
+        if decision.action.startswith("reroute") and accepted:
             self.current_metrics.reroute_count += 1
-            self.current_metrics.co2_saved_kg += max(
-                0.0, decision.baseline_cost - decision.recommended_cost
-            ) * 0.05
             self.current_metrics.idle_minutes_prevented += max(
                 0.0, decision.breakdown.get("predicted_idle_minutes", 0.0) - 8.0
             )

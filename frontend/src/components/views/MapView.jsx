@@ -7,6 +7,10 @@ import { Panel, Select } from "../common/UiPrimitives";
 
 const DEFAULT_CENTER = [22.5937, 78.9629];
 const DEFAULT_ZOOM = 5;
+const INDIA_BOUNDS = [
+  [6.5, 68.0],
+  [37.0, 97.5],
+];
 const VEHICLE_SPREAD_DEGREES = 0.04;
 const MARKER_GROUP_PRECISION = 3;
 
@@ -152,11 +156,18 @@ function getVehicleIcon(status, identifier, selected = false) {
 }
 
 const __vehicleEventHandlers = {};
-function getVehicleEventHandlers(vehicleId, setHighlightedVehicleId) {
-  if (!__vehicleEventHandlers[vehicleId]) {
-    __vehicleEventHandlers[vehicleId] = { click: () => setHighlightedVehicleId(String(vehicleId)) };
+function getVehicleEventHandlers(vehicleId, setFilterVehicleId, setHighlightedVehicleId) {
+  const key = `${vehicleId}`;
+  if (!__vehicleEventHandlers[key]) {
+    __vehicleEventHandlers[key] = {
+      click: () => {
+        const id = String(vehicleId);
+        setFilterVehicleId(id);
+        setHighlightedVehicleId(id);
+      },
+    };
   }
-  return __vehicleEventHandlers[vehicleId];
+  return __vehicleEventHandlers[key];
 }
 
 function eventSeverity(impactScore) {
@@ -287,7 +298,7 @@ export function MapView({
     return spreadRoutes;
   }, [vehicles, objectiveLookup, facilityLookup, routeTemplateLookup]);
 
-  const selectedVehicleId = filterVehicleId || highlightedVehicleId;
+  const selectedVehicleId = highlightedVehicleId || filterVehicleId;
   const visibleRoutes = useMemo(() => liveRoutes.filter((route) => {
     if (filterVehicleId && String(route.vehicleId) !== filterVehicleId) return false;
     if (filterObjectiveId && String(route.objectiveId) !== filterObjectiveId) return false;
@@ -301,7 +312,10 @@ export function MapView({
 
   const selectedRoutePath = useMemo(() => {
     if (!showRoutePaths || !selectedRoute) return null;
-    return selectedRoute.routePoints.length >= 2 ? selectedRoute.routePoints : null;
+    const points = selectedRoute.routePoints.filter(
+      (p) => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1])
+    );
+    return points.length >= 2 ? points : null;
   }, [showRoutePaths, selectedRoute]);
 
   const disruptionEvents = useMemo(() => activeEvents.filter((e) => Number(e.impact_score ?? 0) >= 0.2).sort((a, b) => Number(b.impact_score ?? 0) - Number(a.impact_score ?? 0)).slice(0, 8), [activeEvents]);
@@ -323,7 +337,7 @@ export function MapView({
       <Panel title="Route & Facility Map with Risk Heatmap">
         <div className="map-controls">
           <div className="control-row">
-            <Select label="Filter Vehicle" value={filterVehicleId} options={[["", "All Vehicles"], ...liveRoutes.map((r) => [String(r.vehicleId), r.identifier])]} onChange={(value) => { setFilterVehicleId(value); setHighlightedVehicleId(value); }} />
+            <Select label="Filter Vehicle" value={filterVehicleId} options={[["", "All Vehicles"], ...liveRoutes.map((r) => [String(r.vehicleId), r.identifier])]} onChange={(value) => { setFilterVehicleId(value); setHighlightedVehicleId(value ? String(value) : ""); }} />
             <Select label="Filter Objective" value={filterObjectiveId} options={[["", "All Objectives"], ...objectives.map((o) => [String(o.id), o.name])]} onChange={setFilterObjectiveId} />
           </div>
           <div className="control-row checkbox-row">
@@ -347,12 +361,12 @@ export function MapView({
         </div>
 
         <div className="map-container">
-          <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} scrollWheelZoom>
+          <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} scrollWheelZoom maxBounds={INDIA_BOUNDS} maxBoundsViscosity={1.0} minZoom={5} maxZoom={12} worldCopyJump={false}>
             <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {selectedRoutePath ? (
               <>
-                <Polyline positions={selectedRoutePath} pathOptions={{ color: "#111827", weight: 8, opacity: 0.25 }} />
-                <Polyline positions={selectedRoutePath} pathOptions={{ color: "#2563eb", weight: 5, opacity: 0.9, lineJoin: "round" }} />
+                <Polyline key={`shadow-${selectedVehicleId}`} positions={selectedRoutePath} pathOptions={{ color: "#111827", weight: 8, opacity: 0.25 }} />
+                <Polyline key={`route-${selectedVehicleId}`} positions={selectedRoutePath} pathOptions={{ color: "#2563eb", weight: 5, opacity: 0.9, lineJoin: "round" }} />
               </>
             ) : null}
 
@@ -391,7 +405,7 @@ export function MapView({
             {visibleRoutes.map((route) => {
               const isSelected = String(route.vehicleId) === selectedVehicleId;
               return (
-                <Marker key={`vehicle-${route.vehicleId}`} position={route.displayPoint} icon={getVehicleIcon(route.status, route.identifier, isSelected)} eventHandlers={getVehicleEventHandlers(route.vehicleId, setHighlightedVehicleId)}>
+                <Marker key={`vehicle-${route.vehicleId}`} position={route.displayPoint} icon={getVehicleIcon(route.status, route.identifier, isSelected)} eventHandlers={getVehicleEventHandlers(route.vehicleId, setFilterVehicleId, setHighlightedVehicleId)}>
                   <Popup>
                     <strong>{route.identifier}</strong><br />
                     Status: {route.status}<br />
@@ -421,7 +435,7 @@ export function MapView({
         {visibleRoutes.length === 0 ? <div className="empty">No active routes to display.</div> : (
           <div className="routes-list">
             {visibleRoutes.map((route) => (
-              <div key={`active-route-${route.vehicleId}`} className="route-card" role="button" tabIndex={0} onClick={() => setHighlightedVehicleId(String(route.vehicleId))} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHighlightedVehicleId(String(route.vehicleId)); } }}>
+              <div key={`active-route-${route.vehicleId}`} className="route-card" role="button" tabIndex={0} onClick={() => { setFilterVehicleId(String(route.vehicleId)); setHighlightedVehicleId(String(route.vehicleId)); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFilterVehicleId(String(route.vehicleId)); setHighlightedVehicleId(String(route.vehicleId)); } }}>
                 <div className="route-header"><strong>{route.identifier}</strong><span className={`route-status ${route.status.replaceAll("_", "-")}`}>{route.status.replaceAll("_", " ").toUpperCase()}</span></div>
                 <div className="route-details"><span className="route-objective">{route.objectiveName}</span><span>{route.payloadUnits} units</span></div>
                 <div className="route-details"><span className="route-source">Route source: {route.routeSource}</span></div>

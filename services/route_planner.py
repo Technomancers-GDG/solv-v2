@@ -46,7 +46,7 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 class RoutePlanner:
     def __init__(self, osrm_base_url: str | None = None) -> None:
         self.osrm_base_url = (osrm_base_url or settings.osrm_base_url).rstrip("/")
-        self.use_osrm = settings.route_use_osrm and not settings.demo_mode
+        self.use_osrm = settings.route_use_osrm
 
     def route_key(self, origin_id: int, destination_id: int) -> str:
         return f"{origin_id}:{destination_id}"
@@ -90,7 +90,10 @@ class RoutePlanner:
             origin = facilities[origin_id]
             for destination_id in destinations:
                 destination = facilities[destination_id]
+                # outbound
                 self.get_or_create_template(session, origin, destination)
+                # return (common case for round-trip objectives)
+                self.get_or_create_template(session, destination, origin)
 
     def _fetch_osrm_route(
         self, origin: Facility, destination: Facility
@@ -141,24 +144,47 @@ class RoutePlanner:
         average_speed_kmph = 48.0
         duration_minutes = road_distance / average_speed_kmph * 60
         
-        # Create a simple polyline with just the two points
-        polyline = encode_polyline([(origin.latitude, origin.longitude), (destination.latitude, destination.longitude)])
+        # Generate a more realistic multi-point polyline for better map rendering
+        mid_lat = (origin.latitude + destination.latitude) / 2
+        mid_lon = (origin.longitude + destination.longitude) / 2
+        # Add slight curve offset for visual realism
+        offset_lat = (destination.longitude - origin.longitude) * 0.05
+        offset_lon = -(destination.latitude - origin.latitude) * 0.05
+        
+        points = [
+            (origin.latitude, origin.longitude),
+            (origin.latitude + (mid_lat - origin.latitude) * 0.3 + offset_lat * 0.5, origin.longitude + (mid_lon - origin.longitude) * 0.3 + offset_lon * 0.5),
+            (mid_lat + offset_lat, mid_lon + offset_lon),
+            (mid_lat + (destination.latitude - mid_lat) * 0.7 + offset_lat * 0.5, mid_lon + (destination.longitude - mid_lon) * 0.7 + offset_lon * 0.5),
+            (destination.latitude, destination.longitude),
+        ]
+        polyline = encode_polyline(points)
         
         steps = [
             {
                 "name": f"Depart {origin.city}",
-                "distance_km": round(road_distance * 0.2, 2),
+                "distance_km": round(road_distance * 0.15, 2),
+                "duration_minutes": round(duration_minutes * 0.18, 2),
+            },
+            {
+                "name": "Highway merge",
+                "distance_km": round(road_distance * 0.25, 2),
                 "duration_minutes": round(duration_minutes * 0.22, 2),
             },
             {
                 "name": "National highway corridor",
-                "distance_km": round(road_distance * 0.6, 2),
-                "duration_minutes": round(duration_minutes * 0.56, 2),
+                "distance_km": round(road_distance * 0.35, 2),
+                "duration_minutes": round(duration_minutes * 0.32, 2),
             },
             {
                 "name": f"Approach {destination.city}",
-                "distance_km": round(road_distance * 0.2, 2),
-                "duration_minutes": round(duration_minutes * 0.22, 2),
+                "distance_km": round(road_distance * 0.15, 2),
+                "duration_minutes": round(duration_minutes * 0.18, 2),
+            },
+            {
+                "name": f"Arrive {destination.city}",
+                "distance_km": round(road_distance * 0.1, 2),
+                "duration_minutes": round(duration_minutes * 0.1, 2),
             },
         ]
         return {
