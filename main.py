@@ -5,12 +5,21 @@ from math import ceil
 from pathlib import Path
 from typing import Any, TypeVar
 
-from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+try:
+    import firebase_admin
+    from firebase_admin import auth as firebase_auth
+    from firebase_admin import credentials
+    _firebase_available = True
+except Exception:
+    _firebase_available = False
+    firebase_auth = None  # type: ignore[assignment]
 
 from config import settings
 from database import SessionLocal, get_session, init_db
@@ -30,9 +39,6 @@ from models import (
     WeatherEvent,
 )
 from schemas import (
-    BlockchainBlockRead,
-    BlockchainVerifyRead,
-    CloudHealthRead,
     DashboardSnapshot,
     DriverDecisionRead,
     DriverIncidentCreate,
@@ -42,7 +48,6 @@ from schemas import (
     DriverResponseRequest,
     DriverProfileCreate,
     DriverProfileRead,
-    EdgeSyncStatusRead,
     FacilityCreate,
     FacilityRead,
     FacilityUpdate,
@@ -76,10 +81,7 @@ from schemas import (
     NewsEventRead,
 )
 from seed_data import seed_demo_data
-from services.blockchain_audit import AuditBlock, get_ledger
-from services.edge_sync import get_edge_sync_manager
 from services.event_ingestion import EventIngestionService
-from services.google_cloud_integration import get_gcp_integration
 from services.inventory_optimizer import InventoryOptimizer
 from services.multi_objective_optimizer import NSGA2Optimizer
 from services.news_relevance import NewsRelevanceService
@@ -92,7 +94,7 @@ from services.simulation import SimulationEngine
 app = FastAPI(title=settings.app_name, version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://localhost:8000", "http://127.0.0.1:5173", "http://127.0.0.1:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -191,9 +193,46 @@ async def shutdown() -> None:
     demo_disruption_task = None
 
 
+def _init_firebase() -> None:
+    if not _firebase_available:
+        return
+    try:
+        firebase_admin.get_app()
+    except ValueError:
+        try:
+            cred = credentials.Certificate("firebase-service-account.json")
+            firebase_admin.initialize_app(cred)
+        except Exception:
+            # Fallback: initialize without credentials for demo/development
+            firebase_admin.initialize_app()
+
+
+def verify_firebase_token(request: Request) -> dict[str, Any] | None:
+    if not _firebase_available:
+        return None
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header.replace("Bearer ", "")
+    try:
+        _init_firebase()
+        decoded = firebase_auth.verify_id_token(token, clock_skew_seconds=60)
+        return decoded
+    except Exception:
+        return None
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "app": settings.app_name}
+
+
+@app.get("/api/auth/me")
+def auth_me(request: Request) -> dict[str, Any]:
+    user = verify_firebase_token(request)
+    if user is None:
+        return {"authenticated": False, "message": "No valid Firebase token provided. Demo mode active."}
+    return {"authenticated": True, "uid": user.get("uid"), "email": user.get("email"), "name": user.get("name")}
 
 
 @app.get("/api/facilities", response_model=list[FacilityRead])
@@ -569,11 +608,186 @@ def trigger_scenario(scenario_key: str, session: Session = Depends(get_session))
     session.refresh(event)
     simulation_engine.update_news_event_map(event)
     print(f"[EVENT] Disruption triggered: {scenario.event_city} {scenario.event_type}", flush=True)
+
+    # Cascade propagation: find linked warehouses/ports affected
+    cascade = []
+    affected_city = str(scenario.event_city).strip().lower()
+    for facility in session.scalars(select(Facility)).all():
+        if str(facility.city).strip().lower() == affected_city:
+            # Find port links where this facility is involved
+            for link in session.scalars(select(PortLink)).all():
+                if link.warehouse_id == facility.id or link.port_id == facility.id:
+                    other = session.get(Facility, link.port_id if link.warehouse_id == facility.id else link.warehouse_id)
+                    if other:
+                        cascade.append({
+                            "from_facility_id": facility.id,
+                            "from_facility_name": facility.name,
+                            "to_facility_id": other.id,
+                            "to_facility_name": other.name,
+                            "link_type": "port_spillover",
+                            "severity": scenario.severity,
+                        })
+    # Auto-trigger proactive dispatches for affected region
+    proactive = []
+    if cascade:
+        affected_ids = {link["from_facility_id"] for link in cascade} | {link["to_facility_id"] for link in cascade}
+        all_recs = inventory_optimizer.recommend_proactive_dispatches(session)
+        for rec in all_recs:
+            if rec.origin_facility_id in affected_ids or rec.destination_facility_id in affected_ids:
+                proactive.append({
+                    "origin": rec.origin_facility_id,
+                    "destination": rec.destination_facility_id,
+                    "units": rec.recommended_units,
+                    "urgency": rec.urgency,
+                    "reason": rec.reason,
+                })
     return {
         "status": "triggered",
         "scenario_key": scenario.scenario_key,
         "event_city": scenario.event_city,
         "severity": scenario.severity,
+        "cascade_affected_links": cascade,
+        "cascade_count": len(cascade),
+        "proactive_dispatches": proactive,
+        "proactive_count": len(proactive),
+    }
+
+
+@app.post("/api/demo/judge-mode")
+async def judge_demo_mode(session: Session = Depends(get_session)) -> dict[str, Any]:
+    """One-click demo for judges: scale fleet, trigger disruption, start simulation."""
+    # Scale fleet to 60
+    scale_payload = FleetScaleRequest(target_vehicle_count=60, reset_simulation=True, auto_start=True, speed_multiplier=180)
+    # Use the scale logic inline to avoid circular call issues
+    objectives = session.scalars(
+        select(Objective).where(Objective.active.is_(True)).order_by(Objective.priority.desc(), Objective.id)
+    ).all()
+    if not objectives:
+        raise HTTPException(status_code=400, detail="No active objectives")
+    vehicles = list(session.scalars(select(Vehicle).order_by(Vehicle.id)).all())
+    drivers = list(session.scalars(select(DriverProfile).order_by(DriverProfile.id)).all())
+    if not drivers:
+        raise HTTPException(status_code=400, detail="No drivers")
+    from math import ceil
+    previous_vehicle_count = len(vehicles)
+    previous_driver_count = len(drivers)
+    target_vehicle_count = 60
+    if target_vehicle_count < previous_vehicle_count:
+        vehicles_to_remove = vehicles[target_vehicle_count:]
+        removed_vehicle_ids = {v.id for v in vehicles_to_remove}
+        removed_driver_ids = {v.driver_profile_id for v in vehicles_to_remove}
+        for v in vehicles_to_remove:
+            session.delete(v)
+        for objective in objectives:
+            if objective.assigned_vehicle_ids:
+                objective.assigned_vehicle_ids = [vid for vid in objective.assigned_vehicle_ids if vid not in removed_vehicle_ids]
+        for driver in drivers:
+            if driver.id in removed_driver_ids:
+                still_has = session.scalar(select(Vehicle).where(Vehicle.driver_profile_id == driver.id).limit(1))
+                if still_has is None:
+                    session.delete(driver)
+        session.commit()
+        vehicles = list(session.scalars(select(Vehicle).order_by(Vehicle.id)).all())
+        drivers = list(session.scalars(select(DriverProfile).order_by(DriverProfile.id)).all())
+    new_vehicle_count = len(vehicles)
+    new_driver_count = len(drivers)
+    vehicles_to_create = max(0, target_vehicle_count - new_vehicle_count)
+    desired_driver_count = max(new_driver_count, ceil(target_vehicle_count * 0.6))
+    existing_driver_names = {driver.name for driver in drivers}
+    driver_seq = 1
+    while len(drivers) < desired_driver_count:
+        while True:
+            candidate_name = f"Ops Driver {driver_seq:03d}"
+            driver_seq += 1
+            if candidate_name not in existing_driver_names:
+                break
+        driver = DriverProfile(name=candidate_name, override_rating=1.0, confidence=0.58, accept_recommendation_bias=0.55, active=True)
+        session.add(driver)
+        drivers.append(driver)
+        existing_driver_names.add(candidate_name)
+    session.flush()
+    objective_vehicle_templates: dict[int, list[Vehicle]] = {objective.id: [] for objective in objectives}
+    for vehicle in vehicles:
+        if vehicle.default_objective_id in objective_vehicle_templates:
+            objective_vehicle_templates[vehicle.default_objective_id].append(vehicle)
+    fallback_template = vehicles[0] if vehicles else None
+    if fallback_template is None:
+        raise HTTPException(status_code=400, detail="No base vehicle")
+    for objective in objectives:
+        if not objective_vehicle_templates[objective.id]:
+            assigned = set(objective.assigned_vehicle_ids or [])
+            seeded = [vehicle for vehicle in vehicles if vehicle.id in assigned]
+            objective_vehicle_templates[objective.id] = seeded or [fallback_template]
+    existing_identifiers = {vehicle.identifier for vehicle in vehicles}
+    identifier_sequence = new_vehicle_count + 1
+    def next_identifier() -> str:
+        nonlocal identifier_sequence
+        while True:
+            candidate = f"OPS-{identifier_sequence:04d}"
+            identifier_sequence += 1
+            if candidate not in existing_identifiers:
+                existing_identifiers.add(candidate)
+                return candidate
+    created_vehicles_by_objective: dict[int, list[Vehicle]] = {objective.id: [] for objective in objectives}
+    for index in range(vehicles_to_create):
+        objective = objectives[index % len(objectives)]
+        template_pool = objective_vehicle_templates[objective.id] or [fallback_template]
+        template = template_pool[index % len(template_pool)]
+        driver = drivers[index % len(drivers)]
+        capacity_factor = 0.9 + (index % 6) * 0.035
+        speed_factor = 0.92 + (index % 5) * 0.02
+        emission_factor = 0.9 + (index % 4) * 0.03
+        vehicle = Vehicle(
+            identifier=next_identifier(),
+            vehicle_type=template.vehicle_type,
+            payload_capacity_units=max(500, int(template.payload_capacity_units * capacity_factor)),
+            home_facility_id=objective.origin_facility_id,
+            current_facility_id=objective.origin_facility_id,
+            driver_profile_id=driver.id,
+            default_objective_id=objective.id,
+            average_speed_kmph=round(max(32.0, template.average_speed_kmph * speed_factor), 2),
+            emission_kg_per_km=round(max(0.9, template.emission_kg_per_km * emission_factor), 3),
+            rest_every_hours=template.rest_every_hours,
+            rest_duration_minutes=template.rest_duration_minutes,
+            status="idle",
+        )
+        session.add(vehicle)
+        created_vehicles_by_objective[objective.id].append(vehicle)
+    session.flush()
+    for objective in objectives:
+        new_ids = [vehicle.id for vehicle in created_vehicles_by_objective[objective.id]]
+        merged_ids = list(dict.fromkeys([*(objective.assigned_vehicle_ids or []), *new_ids]))
+        objective.assigned_vehicle_ids = merged_ids
+    session.commit()
+    await simulation_engine.reset()
+    await simulation_engine.start(speed_multiplier=180)
+    # Trigger Chennai flood scenario if it exists
+    scenario = session.scalar(select(ScenarioPreset).where(ScenarioPreset.scenario_key == "chennai_flood", ScenarioPreset.active.is_(True)))
+    if scenario is None:
+        scenario = session.scalar(select(ScenarioPreset).where(ScenarioPreset.active.is_(True)).order_by(ScenarioPreset.severity.desc()))
+    if scenario:
+        event_date = simulation_engine.simulation_time.date()
+        event = NewsEvent(
+            original_date=event_date,
+            simulation_date=event_date,
+            city=scenario.event_city,
+            category="Scenario Trigger",
+            headline=f"Judge Demo: {scenario.name}",
+            relevant=True,
+            impact_type=scenario.event_type,
+            impact_score=min(0.99, max(0.0, scenario.severity)),
+            model_probability=min(0.99, max(0.0, scenario.severity)),
+        )
+        session.add(event)
+        session.commit()
+        session.refresh(event)
+        simulation_engine.update_news_event_map(event)
+    return {
+        "status": "judge_demo_started",
+        "fleet_size": target_vehicle_count,
+        "simulation_speed": 180,
+        "scenario_triggered": scenario.name if scenario else None,
+        "scenario_city": scenario.event_city if scenario else None,
     }
 
 
@@ -980,31 +1194,7 @@ def optimize_dispatch(session: Session = Depends(get_session)) -> list[ParetoFro
 
 
 # ===========================
-# NEW: Blockchain Audit Trail
-# ===========================
-@app.get("/api/audit/chain", response_model=list[BlockchainBlockRead])
-def audit_chain(limit: int = Query(default=50, ge=1, le=200)) -> list[dict[str, Any]]:
-    ledger = get_ledger()
-    blocks = ledger.get_chain(limit)
-    for b in blocks:
-        b["hash"] = AuditBlock(**b).compute_hash() if "hash" not in b else b.get("hash")
-    return blocks
-
-
-@app.get("/api/audit/entity/{entity_id}")
-def audit_entity_history(entity_id: int, decision_type: str | None = None) -> list[dict[str, Any]]:
-    ledger = get_ledger()
-    return ledger.get_entity_history(entity_id, decision_type)
-
-
-@app.get("/api/audit/verify", response_model=BlockchainVerifyRead)
-def audit_verify() -> BlockchainVerifyRead:
-    result = get_ledger().verify_integrity()
-    return BlockchainVerifyRead(**result)
-
-
-# ===========================
-# NEW: Inventory Optimization
+# Inventory Optimization
 # ===========================
 @app.get("/api/inventory/forecasts", response_model=list[InventoryForecastRead])
 def inventory_forecasts(session: Session = Depends(get_session)) -> list[InventoryForecastRead]:
@@ -1039,59 +1229,6 @@ def proactive_dispatches(session: Session = Depends(get_session)) -> list[Proact
         )
         for r in recs
     ]
-
-
-# ===========================
-# NEW: Edge Sync / Offline-First
-# ===========================
-@app.get("/api/edge/sync/{driver_id}", response_model=EdgeSyncStatusRead)
-def edge_sync_status(driver_id: int) -> EdgeSyncStatusRead:
-    status = get_edge_sync_manager().get_sync_status(driver_id)
-    return EdgeSyncStatusRead(**status)
-
-
-@app.post("/api/edge/sync/{driver_id}")
-def edge_sync_operations(driver_id: int) -> dict[str, Any]:
-    return get_edge_sync_manager().sync_operations(driver_id)
-
-
-@app.post("/api/edge/queue/{driver_id}")
-def edge_queue_operation(
-    driver_id: int,
-    op_type: str = Query(...),
-    payload: dict[str, Any] | None = None,
-    vehicle_id: int | None = None,
-) -> dict[str, Any]:
-    op = get_edge_sync_manager().queue_operation(driver_id, op_type, payload or {}, vehicle_id)
-    return {"status": "queued", "op_id": op.op_id, "checksum": op.checksum}
-
-
-# ===========================
-# NEW: Google Cloud Integration Health
-# ===========================
-@app.get("/api/cloud/health", response_model=CloudHealthRead)
-def cloud_health() -> CloudHealthRead:
-    health = get_gcp_integration().health_check()
-    return CloudHealthRead(**health)
-
-
-# ===========================
-# NEW: Voice Decision Stub (returns config for frontend)
-# ===========================
-@app.get("/api/driver/voice-config")
-def voice_config() -> dict[str, Any]:
-    return {
-        "enabled": True,
-        "languages": ["en-IN", "hi-IN", "ta-IN", "te-IN", "bn-IN"],
-        "incident_types": [
-            {"key": "road_blockage", "label": "Road Blockage"},
-            {"key": "strike", "label": "Strike"},
-            {"key": "delay", "label": "Delay"},
-            {"key": "port_congestion", "label": "Port Congestion"},
-            {"key": "weather", "label": "Weather"},
-        ],
-        "note": "Frontend should use Web Speech API for voice input",
-    }
 
 
 @app.websocket("/ws/operations")

@@ -12,6 +12,8 @@ from fastapi import WebSocket
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+import random
+
 from config import settings
 from database import SessionLocal
 from models import (
@@ -30,6 +32,12 @@ from models import (
 )
 from schemas import DashboardSnapshot, FacilityLoadView, MetricsSummary, SimulationStatus, VehicleStateView
 from services.route_planner import RoutePlanner
+
+if settings.use_rl_engine:
+    from services.rl_decision_engine import get_rl_engine, StateVector
+else:
+    get_rl_engine = None  # type: ignore[assignment]
+    StateVector = None  # type: ignore[assignment]
 
 
 @dataclass(slots=True)
@@ -708,14 +716,11 @@ class SimulationEngine:
             route = self.route_planner.get_or_create_template(session, current_facility, destination)
             route_data[destination_id] = route
             risk_lookup[destination_id] = self._route_risk(current_facility.city, destination.city)
-        decision = self.decision_engine.score_dispatch_options(
-            sim_time=self.simulation_time,
+        decision = self._select_dispatch_decision(
+            session=session,
             vehicle=vehicle,
             objective=objective,
             current_facility=current_facility,
-            facilities=self.facilities,
-            port_links=self.port_links,
-            inbound_reserved=self.inbound_reserved,
             route_data=route_data,
             risk_lookup=risk_lookup,
         )
@@ -933,6 +938,84 @@ class SimulationEngine:
             payload={"leg": event.payload.get("leg", "outbound"), "facility_id": event.payload.get("facility_id")},
             priority=1,
         )
+
+    def _select_dispatch_decision(
+        self,
+        session: Session,
+        vehicle: Vehicle,
+        objective: Objective,
+        current_facility: Facility,
+        route_data: dict[int, RouteTemplate],
+        risk_lookup: dict[int, dict[str, float]],
+    ) -> CandidateDecision:
+        """Choose between rule-based and RL-driven dispatch decision."""
+        rule_decision = self.decision_engine.score_dispatch_options(
+            sim_time=self.simulation_time,
+            vehicle=vehicle,
+            objective=objective,
+            current_facility=current_facility,
+            facilities=self.facilities,
+            port_links=self.port_links,
+            inbound_reserved=self.inbound_reserved,
+            route_data=route_data,
+            risk_lookup=risk_lookup,
+        )
+        if not settings.use_rl_engine or get_rl_engine is None:
+            return rule_decision
+
+        try:
+            engine = get_rl_engine()
+            dest = self.facilities.get(objective.destination_facility_id)
+            facility_capacity = dest.base_capacity_units if dest else 1
+            facility_util = dest.current_inventory_units / max(facility_capacity, 1) if dest else 0.0
+            port_pressure = 0.0
+            for link in self.port_links:
+                if link.warehouse_id == objective.destination_facility_id and link.active:
+                    port = self.facilities.get(link.port_id)
+                    if port:
+                        threshold = port.base_capacity_units * (link.spillover_threshold_pct / 100)
+                        port_pressure = max(port_pressure, (port.current_inventory_units - threshold) / max(port.base_capacity_units, 1))
+            risk = risk_lookup.get(objective.destination_facility_id, {"route_risk": 0.0, "eta_multiplier": 1.0})
+            state_vec = StateVector.from_sim_context(
+                facility_utilization=facility_util,
+                route_risk=risk["route_risk"],
+                eta_multiplier=risk["eta_multiplier"],
+                sla_remaining_minutes=max(0, objective.sla_minutes - rule_decision.travel_minutes),
+                sla_total_minutes=objective.sla_minutes,
+                payload_capacity=vehicle.payload_capacity_units,
+                facility_capacity=facility_capacity,
+                priority=objective.priority,
+                port_pressure=port_pressure,
+                weather_severity=risk["route_risk"],
+                news_severity=risk["route_risk"],
+                simulation_hour=self.simulation_time.hour,
+            )
+            valid = ["continue", "reroute_warehouse", "reroute_port", "wait", "defer_dispatch"]
+            rl_action, rl_confidence = engine.select_action(state_vec, valid)
+            # Only trust RL if confidence is decent; otherwise fallback to rule
+            if rl_confidence >= 0.5 and rl_action != rule_decision.action:
+                # Map RL action back to a CandidateDecision by finding matching candidate
+                for cand in [
+                    rule_decision,
+                    CandidateDecision(
+                        action=rl_action,
+                        destination_id=rule_decision.destination_id,
+                        score=rule_decision.score,
+                        baseline_cost=rule_decision.baseline_cost,
+                        recommended_cost=rule_decision.recommended_cost,
+                        explanation=f"RL agent chose {rl_action} (confidence {rl_confidence:.2f}).",
+                        breakdown=rule_decision.breakdown,
+                        travel_minutes=rule_decision.travel_minutes,
+                        route_risk=rule_decision.route_risk,
+                        eta_multiplier=rule_decision.eta_multiplier,
+                    ),
+                ]:
+                    if cand.action == rl_action:
+                        print(f"[RL] Vehicle {vehicle.identifier} -> {rl_action} (conf={rl_confidence:.2f})")
+                        return cand
+        except Exception as exc:
+            print(f"[RL] Decision fallback due to error: {exc}")
+        return rule_decision
 
     def _apply_driver_override(
         self,
@@ -1233,7 +1316,7 @@ class SimulationEngine:
                     facility.id, self.facilities, self.port_links, self.inbound_reserved
                 )
                 used_units = facility.base_capacity_units - effective_avail
-                utilization += used_units / max(facility.base_capacity_units, 1)
+                utilization += min(1.0, max(0.0, used_units / max(facility.base_capacity_units, 1)))
             utilization /= len(warehouse_facilities)
             self.current_metrics.warehouse_utilization_pct = round(utilization * 100, 2)
         self.current_metrics.active_trucks = sum(
@@ -1278,7 +1361,7 @@ class SimulationEngine:
                 facility.id, self.facilities, self.port_links, self.inbound_reserved
             )
             used_units = facility.base_capacity_units - effective_avail
-            util_pct = round((used_units / max(facility.base_capacity_units, 1)) * 100, 2)
+            util_pct = round(min(100.0, max(0.0, (used_units / max(facility.base_capacity_units, 1)) * 100)), 2)
             facility_views.append(
                 FacilityLoadView(
                     facility_id=facility.id,

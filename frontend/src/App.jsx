@@ -12,6 +12,7 @@ import { NetworkView } from "./components/views/NetworkView";
 import { ObjectivesView } from "./components/views/ObjectivesView";
 import { EventsView } from "./components/views/EventsView";
 import { ImpactView } from "./components/views/ImpactView";
+import { SettingsView } from "./components/views/SettingsView";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -28,43 +29,133 @@ async function apiFetch(path, options = {}) {
   return response.json();
 }
 
-const NAV_SECTIONS = [
-  {
-    label: "Operations",
-    items: [
-      { key: "dashboard", label: "Dashboard", icon: "\uE80F" },
-      { key: "map", label: "Live Map", icon: "\uE81D" },
-      { key: "liveOps", label: "Live Ops", icon: "\uE8B5" },
-      { key: "driverMobile", label: "Driver Mobile", icon: "\uE8CC" },
-    ],
+const TRANSLATIONS = {
+  en: {
+    operations: "Operations",
+    intelligence: "Intelligence",
+    network: "Network",
+    analytics: "Analytics",
+    settings: "Settings",
+    dashboard: "Dashboard",
+    liveMap: "Live Map",
+    liveOps: "Live Ops",
+    driverMobile: "Driver Mobile",
+    forecast: "Risk Forecast",
+    inventory: "Inventory AI",
+    scenarios: "Scenarios",
+    blockchain: "Blockchain",
+    networkView: "Network",
+    objectives: "Objectives",
+    events: "Events",
+    impact: "Impact & SDG",
+    cloud: "Cloud",
+    commandCenter: "Command Center",
+    prototypeBadge: "Hackathon Prototype",
+    simTime: "Sim Time",
+    speed: "Speed",
+    active: "Active",
+    onTime: "On-Time",
+    co2Saved: "CO₂ Saved",
+    start: "Start",
+    pause: "Pause",
+    resume: "Resume",
+    reset: "Reset",
+    language: "Language",
+    english: "English",
+    hindi: "Hindi",
+    version: "Google Solution Challenge 2026",
   },
-  {
-    label: "Intelligence",
-    items: [
-      { key: "forecast", label: "Risk Forecast", icon: "\uE8B1" },
-      { key: "inventory", label: "Inventory AI", icon: "\uE8F8" },
-      { key: "scenarios", label: "Scenarios", icon: "\uE8B8" },
-      { key: "blockchain", label: "Audit Chain", icon: "\uE88F" },
-    ],
+  hi: {
+    operations: "संचालन",
+    intelligence: "खुफिया",
+    network: "नेटवर्क",
+    analytics: "विश्लेषण",
+    settings: "सेटिंग्स",
+    dashboard: "डैशबोर्ड",
+    liveMap: "लाइव मानचित्र",
+    liveOps: "लाइव संचालन",
+    driverMobile: "ड्राइवर मोबाइल",
+    forecast: "जोखिम पूर्वानुमान",
+    inventory: "इन्वेंटरी AI",
+    scenarios: "परिदृश्य",
+    blockchain: "ब्लॉकचेन",
+    networkView: "नेटवर्क",
+    objectives: "उद्देश्य",
+    events: "घटनाएँ",
+    impact: "प्रभाव और SDG",
+    cloud: "क्लाउड",
+    commandCenter: "कमांड केंद्र",
+    prototypeBadge: "हैकथॉन प्रोटोटाइप",
+    simTime: "सिम समय",
+    speed: "गति",
+    active: "सक्रिय",
+    onTime: "समय पर",
+    co2Saved: "CO₂ बचत",
+    start: "प्रारंभ",
+    pause: "रोकें",
+    resume: "फिर से शुरू",
+    reset: "रीसेट",
+    language: "भाषा",
+    english: "अंग्रेज़ी",
+    hindi: "हिंदी",
+    version: "Google Solution Challenge 2026",
   },
-  {
-    label: "Network",
-    items: [
-      { key: "network", label: "Network", icon: "\uE8B4" },
-      { key: "objectives", label: "Objectives", icon: "\uE8E5" },
-      { key: "events", label: "Events", icon: "\uE8B0" },
-    ],
-  },
-  {
-    label: "Analytics",
-    items: [
-      { key: "impact", label: "Impact & SDG", icon: "\uE8E4" },
-      { key: "cloud", label: "Cloud Health", icon: "\uE8BD" },
-    ],
-  },
-];
+};
 
-function Sidebar({ active, onNavigate, collapsed, onToggle }) {
+function useLanguage() {
+  const [lang, setLang] = useState(() => localStorage.getItem("solv-lang") || "en");
+  const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
+  const switchLang = (next) => {
+    setLang(next);
+    localStorage.setItem("solv-lang", next);
+  };
+  return { lang, t, switchLang };
+}
+
+function getNavSections(t) {
+  return [
+    {
+      label: t.operations,
+      items: [
+        { key: "dashboard", label: t.dashboard, icon: "📊" },
+        { key: "map", label: t.liveMap, icon: "🗺️" },
+        { key: "liveOps", label: t.liveOps, icon: "⚡" },
+        { key: "driverMobile", label: t.driverMobile, icon: "📱" },
+      ],
+    },
+    {
+      label: t.intelligence,
+      items: [
+        { key: "forecast", label: t.forecast, icon: "🔮" },
+        { key: "inventory", label: t.inventory, icon: "📦" },
+        { key: "scenarios", label: t.scenarios, icon: "🎬" },
+      ],
+    },
+    {
+      label: t.network,
+      items: [
+        { key: "network", label: t.networkView, icon: "🌐" },
+        { key: "objectives", label: t.objectives, icon: "🎯" },
+        { key: "events", label: t.events, icon: "📡" },
+      ],
+    },
+    {
+      label: t.analytics,
+      items: [
+        { key: "impact", label: t.impact, icon: "🌍" },
+      ],
+    },
+    {
+      label: t.settings,
+      items: [
+        { key: "settings", label: t.settings, icon: "⚙️" },
+      ],
+    },
+  ];
+}
+
+function Sidebar({ active, onNavigate, collapsed, onToggle, t }) {
+  const sections = getNavSections(t);
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
       <div className="sidebar-header">
@@ -75,7 +166,7 @@ function Sidebar({ active, onNavigate, collapsed, onToggle }) {
         </button>
       </div>
       <nav className="sidebar-nav">
-        {NAV_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <div key={section.label} className="nav-section">
             {!collapsed && <div className="nav-section-label">{section.label}</div>}
             {section.items.map((item) => (
@@ -93,13 +184,13 @@ function Sidebar({ active, onNavigate, collapsed, onToggle }) {
         ))}
       </nav>
       <div className="sidebar-footer">
-        {!collapsed && <div className="version">Google Solution Challenge 2026</div>}
+        {!collapsed && <div className="version">{t.version}</div>}
       </div>
     </aside>
   );
 }
 
-function StatusBar({ dashboard, metrics }) {
+function StatusBar({ dashboard, metrics, t }) {
   const sim = dashboard?.simulation;
   const [displayTime, setDisplayTime] = useState(sim?.simulation_time);
 
@@ -118,7 +209,6 @@ function StatusBar({ dashboard, metrics }) {
 
       setDisplayTime(prev => {
         if (!prev) return prev;
-        // Parse time robustly by assuming it's UTC so local timezone doesn't shift the hours
         const d = new Date(prev.endsWith("Z") ? prev : prev + "Z");
         if (isNaN(d.getTime())) return prev;
         d.setMilliseconds(d.getMilliseconds() + dtSec * sim.speed_multiplier * 1000);
@@ -136,36 +226,36 @@ function StatusBar({ dashboard, metrics }) {
         <span className="status-text">{sim?.status ?? "idle"}</span>
       </div>
       <div className="status-pill-group">
-        <span className="status-label">Sim Time</span>
+        <span className="status-label">{t.simTime}</span>
         <span className="status-value">{displayTime?.slice(0, 19).replace("T", " ") ?? "--"}</span>
       </div>
       <div className="status-pill-group">
-        <span className="status-label">Speed</span>
+        <span className="status-label">{t.speed}</span>
         <span className="status-value">{sim?.speed_multiplier ?? 0}x</span>
       </div>
       <div className="status-pill-group">
-        <span className="status-label">Active</span>
+        <span className="status-label">{t.active}</span>
         <span className="status-value">{metrics?.active_trucks ?? 0} trucks</span>
       </div>
       <div className="status-pill-group">
-        <span className="status-label">On-Time</span>
+        <span className="status-label">{t.onTime}</span>
         <span className="status-value">{metrics?.on_time_delivery_pct ?? 0}%</span>
       </div>
       <div className="status-pill-group">
-        <span className="status-label">CO₂ Saved</span>
+        <span className="status-label">{t.co2Saved}</span>
         <span className="status-value">{(metrics?.co2_saved_kg ?? 0).toFixed(1)} kg</span>
       </div>
     </div>
   );
 }
 
-function SimControls({ onAction }) {
+function SimControls({ onAction, t }) {
   return (
     <div className="sim-controls">
-      <button className="sim-btn primary" onClick={() => onAction("/api/simulation/start", { speed_multiplier: 180 }, "Started")}>Start</button>
-      <button className="sim-btn" onClick={() => onAction("/api/simulation/pause", {}, "Paused")}>Pause</button>
-      <button className="sim-btn" onClick={() => onAction("/api/simulation/resume", {}, "Resumed")}>Resume</button>
-      <button className="sim-btn danger" onClick={() => onAction("/api/simulation/reset", {}, "Reset")}>Reset</button>
+      <button className="sim-btn primary" onClick={() => onAction("/api/simulation/start", { speed_multiplier: 180 }, t.start)}>{t.start}</button>
+      <button className="sim-btn" onClick={() => onAction("/api/simulation/pause", {}, t.pause)}>{t.pause}</button>
+      <button className="sim-btn" onClick={() => onAction("/api/simulation/resume", {}, t.resume)}>{t.resume}</button>
+      <button className="sim-btn danger" onClick={() => onAction("/api/simulation/reset", {}, t.reset)}>{t.reset}</button>
     </div>
   );
 }
@@ -198,6 +288,7 @@ function useVoiceInput() {
 }
 
 export default function App() {
+  const { lang, t, switchLang } = useLanguage();
   const [activeView, setActiveView] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -235,7 +326,7 @@ export default function App() {
     if (showSpinner) setLoading(true);
     try {
       const [
-        d, f, v, dr, o, r, s, rec, m, e, rf, inv, pd, bc, ch, bv, vc
+        d, f, v, dr, o, r, s, rec, m, e, rf, inv, pd
       ] = await Promise.all([
         apiFetch("/api/dashboard"),
         apiFetch("/api/facilities"),
@@ -250,10 +341,6 @@ export default function App() {
         apiFetch("/api/forecast/risk?hours=12").catch(() => []),
         apiFetch("/api/inventory/forecasts").catch(() => []),
         apiFetch("/api/inventory/proactive-dispatches").catch(() => []),
-        apiFetch("/api/audit/chain?limit=20").catch(() => []),
-        apiFetch("/api/cloud/health").catch(() => null),
-        apiFetch("/api/audit/verify").catch(() => null),
-        apiFetch("/api/driver/voice-config").catch(() => null),
       ]);
       startTransition(() => {
         setDashboard(d);
@@ -269,10 +356,6 @@ export default function App() {
         setRiskForecast(rf);
         setInventoryForecast(inv);
         setProactiveDispatches(pd);
-        setAuditChain(bc);
-        setCloudHealth(ch);
-        setBlockchainVerify(bv);
-        setVoiceConfig(vc);
         setError("");
       });
     } catch (err) {
@@ -352,6 +435,8 @@ export default function App() {
         return <ImpactView metrics={metrics} />;
       case "cloud":
         return <CloudView cloudHealth={cloudHealth} />;
+      case "settings":
+        return <SettingsView lang={lang} onSwitchLang={switchLang} t={t} />;
       default:
         return <DashboardView metrics={metrics} criticalFacilities={criticalFacilities} proactiveDispatches={proactiveDispatches} riskForecast={riskForecast} auditChain={auditChain} blockchainVerify={blockchainVerify} facilityLookup={facilityLookup} />;
     }
@@ -359,17 +444,18 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar active={activeView} onNavigate={setActiveView} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)} />
+      <Sidebar active={activeView} onNavigate={setActiveView} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)} t={t} />
       <div className={`main-content ${sidebarCollapsed ? "expanded" : ""}`}>
-        <header className="top-bar">
+        <header className="top-bar" lang={lang}>
           <div className="top-bar-left">
-            <h1>Command Center</h1>
+            <h1>{t.commandCenter}</h1>
+            <span className="prototype-badge">{t.prototypeBadge}</span>
           </div>
           <div className="top-bar-right">
-            <SimControls onAction={runAction} />
+            <SimControls onAction={runAction} t={t} />
           </div>
         </header>
-        <StatusBar dashboard={dashboard} metrics={metrics} />
+        <StatusBar dashboard={dashboard} metrics={metrics} t={t} />
         {message && <div className="banner success">{message}</div>}
         {error && <div className="banner error">{error}</div>}
         {loading && !dashboard ? <div className="loading">Loading intelligence layer...</div> : (
