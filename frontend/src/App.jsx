@@ -1,4 +1,6 @@
 import { startTransition, useDeferredValue, useEffect, useState, useCallback, useRef } from "react";
+import { onAuthChange, logout } from "./firebase";
+import { LoginView } from "./components/views/LoginView";
 import { MapView } from "./components/views/MapView";
 import { DashboardView } from "./components/views/DashboardView";
 import { LiveOpsView } from "./components/views/LiveOpsView";
@@ -64,6 +66,10 @@ const TRANSLATIONS = {
     english: "English",
     hindi: "Hindi",
     version: "Google Solution Challenge 2026",
+    welcome: "Welcome to SOLV",
+    loginTagline: "Intelligent Essential Goods Logistics",
+    signInWithGoogle: "Sign in with Google",
+    logout: "Logout",
   },
   hi: {
     operations: "संचालन",
@@ -99,6 +105,10 @@ const TRANSLATIONS = {
     english: "अंग्रेज़ी",
     hindi: "हिंदी",
     version: "Google Solution Challenge 2026",
+    welcome: "SOLV में आपका स्वागत है",
+    loginTagline: "बुद्धिमान आवश्यक वस्तु लॉजिस्टिक्स",
+    signInWithGoogle: "Google से साइन इन करें",
+    logout: "लॉग आउट",
   },
 };
 
@@ -294,6 +304,26 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    const unsub = onAuthChange((u) => {
+      setUser(u);
+      setAuthReady(true);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setUser(null);
+      setActiveView("dashboard");
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
+  };
 
   const [dashboard, setDashboard] = useState(null);
   const [metrics, setMetrics] = useState(null);
@@ -442,6 +472,21 @@ export default function App() {
     }
   };
 
+  if (!authReady) {
+    return (
+      <div className="login-view">
+        <div className="login-card" style={{ textAlign: "center" }}>
+          <div className="logo-mark large" style={{ margin: "0 auto 16px" }}>SOLV</div>
+          <p style={{ color: "#8b8d93" }}>Loading authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginView t={t} onLogin={setUser} lang={lang} onSwitchLang={switchLang} />;
+  }
+
   return (
     <div className="app-shell">
       <Sidebar active={activeView} onNavigate={setActiveView} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)} t={t} />
@@ -452,6 +497,15 @@ export default function App() {
             <span className="prototype-badge">{t.prototypeBadge}</span>
           </div>
           <div className="top-bar-right">
+            <div className="user-chip">
+              {user.photoURL && (
+                <img src={user.photoURL} alt="" className="user-avatar" referrerPolicy="no-referrer" />
+              )}
+              <span className="user-name">{user.displayName || user.email || "User"}</span>
+              <button className="logout-btn" onClick={handleLogout} title={t.logout}>
+                {t.logout}
+              </button>
+            </div>
             <SimControls onAction={runAction} t={t} />
           </div>
         </header>
