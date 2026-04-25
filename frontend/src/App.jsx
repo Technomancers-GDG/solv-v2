@@ -1,4 +1,6 @@
 import { startTransition, useDeferredValue, useEffect, useState, useCallback, useRef } from "react";
+import { useAuth } from "./context/AuthContext";
+import LoginView from "./components/LoginView";
 import { MapView } from "./components/views/MapView";
 import { DashboardView } from "./components/views/DashboardView";
 import { LiveOpsView } from "./components/views/LiveOpsView";
@@ -15,9 +17,19 @@ import { ImpactView } from "./components/views/ImpactView";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL ?? "";
 
+let _authToken = null;
+
+export function setAuthToken(token) {
+  _authToken = token;
+}
+
 async function apiFetch(path, options = {}) {
+  const headers = { "Content-Type": "application/json", ...(options.headers ?? {}) };
+  if (_authToken) {
+    headers["Authorization"] = `Bearer ${_authToken}`;
+  }
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers ?? {}) },
+    headers,
     ...options,
   });
   if (!response.ok) {
@@ -198,6 +210,8 @@ function useVoiceInput() {
 }
 
 export default function App() {
+  const { currentUser, idToken, authEnabled, isAuthenticated, logout, loading: authLoading } = useAuth();
+
   const [activeView, setActiveView] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -230,6 +244,16 @@ export default function App() {
 
   const deferredVehicles = useDeferredValue(dashboard?.vehicles ?? []);
   const voice = useVoiceInput();
+
+  // Sync Firebase token with apiFetch so all requests are authenticated
+  useEffect(() => {
+    setAuthToken(idToken);
+  }, [idToken]);
+
+  // Show login screen when auth is enabled and user is not authenticated
+  if (authEnabled && !authLoading && !isAuthenticated) {
+    return <LoginView />;
+  }
 
   const refreshAll = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
@@ -366,6 +390,12 @@ export default function App() {
             <h1>Command Center</h1>
           </div>
           <div className="top-bar-right">
+            {authEnabled && isAuthenticated && (
+              <div className="user-pill">
+                <span className="user-email">{currentUser?.email}</span>
+                <button className="logout-btn" onClick={logout}>Log Out</button>
+              </div>
+            )}
             <SimControls onAction={runAction} />
           </div>
         </header>

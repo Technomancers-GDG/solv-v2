@@ -11,6 +11,29 @@ from models import NewsEvent, WeatherEvent
 from schemas import ImportSummary
 from services.news_relevance import NewsRelevanceService
 from services.workbook_reader import WorkbookXmlReader
+from services.google_sheets_reader import get_news_reader, get_weather_reader
+
+
+def _get_news_reader():
+    """Return a reader for news data. Prefers local Excel files; falls back to Google Sheets."""
+    path = settings.news_dataset_path
+    if path.exists():
+        return WorkbookXmlReader(path)
+    sheets_reader = get_news_reader()
+    if sheets_reader is not None:
+        return sheets_reader
+    return None
+
+
+def _get_weather_reader():
+    """Return a reader for weather data. Prefers local Excel files; falls back to Google Sheets."""
+    path = settings.weather_dataset_path
+    if path.exists():
+        return WorkbookXmlReader(path)
+    sheets_reader = get_weather_reader()
+    if sheets_reader is not None:
+        return sheets_reader
+    return None
 
 
 def normalize_simulation_date(
@@ -66,12 +89,11 @@ class EventIngestionService:
     def import_news(
         self, session: Session, full_news_import: bool = False, sample_per_sheet: int = 500
     ) -> int:
-        path = settings.news_dataset_path
-        if not path.exists():
+        reader = _get_news_reader()
+        if reader is None:
             return 0
 
         self.news_model.ensure_trained()
-        reader = WorkbookXmlReader(path)
         session.execute(delete(NewsEvent))
         session.commit()
 
@@ -118,11 +140,10 @@ class EventIngestionService:
         return imported
 
     def import_weather(self, session: Session) -> int:
-        path = settings.weather_dataset_path
-        if not path.exists():
+        reader = _get_weather_reader()
+        if reader is None:
             return 0
 
-        reader = WorkbookXmlReader(path)
         session.execute(delete(WeatherEvent))
         session.commit()
 

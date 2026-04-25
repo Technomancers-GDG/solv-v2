@@ -37,6 +37,14 @@ class Settings:
     bigquery_enabled: bool
     bigquery_dataset: str
     fcm_enabled: bool
+    # Google Sheets
+    google_sheets_credentials_path: str
+    news_sheet_id: str
+    weather_sheet_id: str
+    # Firebase Auth
+    firebase_api_key: str
+    firebase_auth_domain: str
+    firebase_credentials_path: str
 
 
 def _get_env(name: str, default: str) -> str:
@@ -83,6 +91,14 @@ def load_settings() -> Settings:
         bigquery_enabled=_get_bool_env("BIGQUERY_ENABLED", "false"),
         bigquery_dataset=_get_env("BIGQUERY_DATASET", "supply_chain"),
         fcm_enabled=_get_bool_env("FCM_ENABLED", "false"),
+        # Google Sheets
+        google_sheets_credentials_path=_get_env("GOOGLE_SHEETS_CREDENTIALS_PATH", ""),
+        news_sheet_id=_get_env("NEWS_SHEET_ID", ""),
+        weather_sheet_id=_get_env("WEATHER_SHEET_ID", ""),
+        # Firebase Auth
+        firebase_api_key=_get_env("FIREBASE_API_KEY", ""),
+        firebase_auth_domain=_get_env("FIREBASE_AUTH_DOMAIN", ""),
+        firebase_credentials_path=_get_env("FIREBASE_CREDENTIALS_PATH", ""),
     )
 
 

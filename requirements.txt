@@ -6,3 +6,6 @@ pandas==3.0.2
 numpy==2.2.5
 scikit-learn==1.8.0
 pytest==8.3.5
+gspread==6.2.0
+google-auth==2.38.0
+firebase-admin==6.7.0

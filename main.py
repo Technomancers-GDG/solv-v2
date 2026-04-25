@@ -5,10 +5,11 @@ from math import ceil
 from pathlib import Path
 from typing import Any, TypeVar
 
-from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -109,6 +110,32 @@ demo_disruption_task: asyncio.Task[None] | None = None
 ModelType = TypeVar("ModelType")
 
 
+# ===========================
+# Firebase Auth
+# ===========================
+from services.firebase_auth import verify_firebase_token
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def require_auth(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> dict[str, Any]:
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    try:
+        return verify_firebase_token(credentials.credentials)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+
+def optional_auth(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> dict[str, Any] | None:
+    if credentials is None:
+        return None
+    try:
+        return verify_firebase_token(credentials.credentials)
+    except Exception:
+        return None
+
+
 def apply_updates(instance: ModelType, updates: dict[str, Any]) -> ModelType:
     for field_name, value in updates.items():
         setattr(instance, field_name, value)
@@ -194,6 +221,28 @@ async def shutdown() -> None:
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "app": settings.app_name}
+
+
+# ===========================
+# Auth endpoints
+# ===========================
+@app.get("/api/auth/me")
+def auth_me(user: dict[str, Any] = Depends(require_auth)) -> dict[str, Any]:
+    return {
+        "uid": user.get("uid"),
+        "email": user.get("email"),
+        "name": user.get("name") or user.get("email"),
+        "picture": user.get("picture"),
+    }
+
+
+@app.get("/api/auth/config")
+def auth_config() -> dict[str, Any]:
+    return {
+        "enabled": bool(settings.firebase_api_key and settings.firebase_auth_domain),
+        "api_key": settings.firebase_api_key,
+        "auth_domain": settings.firebase_auth_domain,
+    }
 
 
 @app.get("/api/facilities", response_model=list[FacilityRead])
