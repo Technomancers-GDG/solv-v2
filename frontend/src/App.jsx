@@ -4,7 +4,6 @@ import { LoginView } from "./components/views/LoginView";
 import { MapView } from "./components/views/MapView";
 import { DashboardView } from "./components/views/DashboardView";
 import { LiveOpsView } from "./components/views/LiveOpsView";
-import { DriverMobileView } from "./components/views/DriverMobileView";
 import { ForecastView } from "./components/views/ForecastView";
 import { InventoryView } from "./components/views/InventoryView";
 import { ScenariosView } from "./components/views/ScenariosView";
@@ -41,7 +40,6 @@ const TRANSLATIONS = {
     dashboard: "Dashboard",
     liveMap: "Live Map",
     liveOps: "Live Ops",
-    driverMobile: "Driver Mobile",
     forecast: "Risk Forecast",
     inventory: "Inventory AI",
     scenarios: "Scenarios",
@@ -80,7 +78,6 @@ const TRANSLATIONS = {
     dashboard: "डैशबोर्ड",
     liveMap: "लाइव मानचित्र",
     liveOps: "लाइव संचालन",
-    driverMobile: "ड्राइवर मोबाइल",
     forecast: "जोखिम पूर्वानुमान",
     inventory: "इन्वेंटरी AI",
     scenarios: "परिदृश्य",
@@ -130,7 +127,6 @@ function getNavSections(t) {
         { key: "dashboard", label: t.dashboard, icon: "📊" },
         { key: "map", label: t.liveMap, icon: "🗺️" },
         { key: "liveOps", label: t.liveOps, icon: "⚡" },
-        { key: "driverMobile", label: t.driverMobile, icon: "📱" },
       ],
     },
     {
@@ -344,8 +340,6 @@ export default function App() {
   const [voiceConfig, setVoiceConfig] = useState(null);
   const [scenarioKey, setScenarioKey] = useState("");
   const [scenarioComparison, setScenarioComparison] = useState(null);
-  const [selectedDriverId, setSelectedDriverId] = useState("");
-  const [driverMobile, setDriverMobile] = useState(null);
   const [voiceIncidentType, setVoiceIncidentType] = useState("road_blockage");
   const [voiceNote, setVoiceNote] = useState("");
 
@@ -398,11 +392,6 @@ export default function App() {
   useEffect(() => { refreshAll(true); const id = setInterval(() => refreshAll(false), 15000); return () => clearInterval(id); }, [refreshAll]);
 
   useEffect(() => {
-    if (!selectedDriverId) return;
-    apiFetch(`/api/driver/${selectedDriverId}/mobile`).then(setDriverMobile).catch(() => setDriverMobile(null));
-  }, [selectedDriverId, recommendations]);
-
-  useEffect(() => {
     if (voice.transcript) {
       const text = voice.transcript.toLowerCase();
       const matched = voiceConfig?.incident_types?.find((t) => text.includes(t.label.toLowerCase()) || text.includes(t.key.toLowerCase()));
@@ -445,8 +434,6 @@ export default function App() {
         return <MapView facilities={facilities} vehicles={dashboard?.vehicles ?? []} objectives={objectives} recommendations={recommendations} activeEvents={dashboard?.active_events ?? []} routeTemplates={routes} riskForecast={riskForecast} vehicleCount={dashboard?.vehicles?.length ?? vehicles.length} onScaleFleet={(n) => runAction("/api/demo/scale-fleet", { target_vehicle_count: n, reset_simulation: true, auto_start: true, speed_multiplier: 180 })} />;
       case "liveOps":
         return <LiveOpsView metrics={metrics} deferredVehicles={deferredVehicles} objectiveLookup={objectiveLookup} />;
-      case "driverMobile":
-        return <DriverMobileView drivers={drivers} selectedDriverId={selectedDriverId} setSelectedDriverId={setSelectedDriverId} driverMobile={driverMobile} voice={voice} voiceConfig={voiceConfig} voiceIncidentType={voiceIncidentType} setVoiceIncidentType={setVoiceIncidentType} voiceNote={voiceNote} setVoiceNote={setVoiceNote} onMessage={setMessage} onError={setError} refreshAll={refreshAll} apiFetch={apiFetch} />;
       case "forecast":
         return <ForecastView riskForecast={riskForecast} />;
       case "inventory":
