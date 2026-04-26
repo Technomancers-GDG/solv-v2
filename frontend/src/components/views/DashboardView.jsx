@@ -1,6 +1,11 @@
 import { Panel, MetricCard, ProgressBar } from "../common/UiPrimitives";
 
-export function DashboardView({ metrics, criticalFacilities, proactiveDispatches, riskForecast, auditChain, blockchainVerify, facilityLookup }) {
+export function DashboardView({ metrics, criticalFacilities, proactiveDispatches, riskForecast, auditChain, blockchainVerify, facilityLookup, aiActivity }) {
+  const rl = aiActivity?.rl_engine;
+  const actionBreakdown = aiActivity?.recent_action_breakdown ?? {};
+  const explorationPct = rl ? Math.round((rl.epsilon ?? 1) * 100) : 100;
+  const exploitationPct = 100 - explorationPct;
+
   return (
     <div className="view-dashboard">
       <div className="metrics-grid">
@@ -12,6 +17,85 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
         <MetricCard label="On-Time Delivery" value={`${metrics?.on_time_delivery_pct ?? 0}%`} tone="blue" />
       </div>
       <div className="dashboard-grid">
+        {/* AI Decisions Panel — shows judges what the AI is doing */}
+        <Panel title="🧠 AI Decision Engine — Live" className="ai-panel">
+          {aiActivity ? (
+            <div className="ai-activity-panel">
+              <div className="ai-stats-grid">
+                <div className="ai-stat">
+                  <span className="ai-stat-value">{aiActivity.reroute_count}</span>
+                  <span className="ai-stat-label">Reroutes Executed</span>
+                </div>
+                <div className="ai-stat">
+                  <span className="ai-stat-value">{aiActivity.cascade_detections_today}</span>
+                  <span className="ai-stat-label">Cascades Detected</span>
+                </div>
+                <div className="ai-stat">
+                  <span className="ai-stat-value">{aiActivity.driver_acceptance_rate}%</span>
+                  <span className="ai-stat-label">Driver Acceptance</span>
+                </div>
+                <div className="ai-stat">
+                  <span className="ai-stat-value">{aiActivity.completed_trips}</span>
+                  <span className="ai-stat-label">Trips Completed</span>
+                </div>
+              </div>
+
+              {rl?.enabled && (
+                <div className="rl-engine-section">
+                  <h5>Reinforcement Learning Agent</h5>
+                  <div className="rl-stats-row">
+                    <div className="rl-metric">
+                      <span className="rl-label">Training Steps</span>
+                      <span className="rl-value">{rl.train_step}</span>
+                    </div>
+                    <div className="rl-metric">
+                      <span className="rl-label">Replay Buffer</span>
+                      <span className="rl-value">{rl.replay_buffer_size} / 8000</span>
+                    </div>
+                    <div className="rl-metric">
+                      <span className="rl-label">Exploration</span>
+                      <span className="rl-value">{explorationPct}%</span>
+                    </div>
+                  </div>
+                  <div className="epsilon-bar-wrap">
+                    <div className="epsilon-bar">
+                      <div className="epsilon-exploit" style={{ width: `${exploitationPct}%` }} />
+                      <div className="epsilon-explore" style={{ width: `${explorationPct}%` }} />
+                    </div>
+                    <div className="epsilon-labels">
+                      <span>🎯 Exploit ({exploitationPct}%)</span>
+                      <span>🔍 Explore ({explorationPct}%)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {Object.keys(actionBreakdown).length > 0 && (
+                <div className="action-breakdown-section">
+                  <h5>Recent AI Actions (Last 50 Decisions)</h5>
+                  <div className="action-bars">
+                    {Object.entries(actionBreakdown).sort((a, b) => b[1] - a[1]).map(([action, count]) => {
+                      const total = Object.values(actionBreakdown).reduce((s, v) => s + v, 0);
+                      const pct = total > 0 ? (count / total) * 100 : 0;
+                      return (
+                        <div className="action-bar-row" key={action}>
+                          <span className="action-name">{action.replace(/_/g, " ")}</span>
+                          <div className="action-bar-track">
+                            <div className={`action-bar-fill action-${action.replace(/_/g, "-")}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="action-count">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="empty">AI activity data loading...</div>
+          )}
+        </Panel>
+
         <Panel title="Critical Capacity Watch">
           {criticalFacilities.length === 0 ? <div className="empty">No facility above 70% utilization.</div> : (
             <div className="util-list" style={{ display: "grid", gap: "10px" }}>
@@ -49,6 +133,10 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
                 <div className="risk-city">{rf.city}</div>
                 <div className="risk-value">{(rf.risk * 100).toFixed(0)}%</div>
                 <div className="risk-factors">{rf.factors?.join(", ")}</div>
+                {rf.prediction_interval && (
+                  <div className="risk-interval">Range: {(rf.prediction_interval[0] * 100).toFixed(0)}–{(rf.prediction_interval[1] * 100).toFixed(0)}%</div>
+                )}
+                {rf.trend && <div className={`risk-trend trend-${rf.trend}`}>{rf.trend === "rising" ? "📈" : rf.trend === "declining" ? "📉" : "➡️"} {rf.trend}</div>}
               </div>
             ))}
           </div>

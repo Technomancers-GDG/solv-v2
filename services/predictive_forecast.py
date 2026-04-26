@@ -1,5 +1,6 @@
 """
-Predictive Disruption Forecasting using time-series analysis of weather and news patterns.
+Predictive Disruption Forecasting using Holt's Double Exponential Smoothing
+with trend detection on weather and news patterns.
 Forecasts route risk 6-24 hours ahead per city.
 """
 from __future__ import annotations
@@ -25,12 +26,15 @@ class RiskForecast:
     predicted_closure_risk: float
     confidence: float
     contributing_factors: list[str]
+    prediction_interval_low: float = 0.0
+    prediction_interval_high: float = 1.0
+    trend_direction: str = "stable"
 
 
 class PredictiveForecastService:
     """
-    Lightweight forecasting using exponential smoothing + trend detection
-    on historical weather/news patterns per city.
+    Forecasting using Holt's Double Exponential Smoothing (additive trend)
+    with weekly seasonality detection on historical weather/news patterns per city.
     """
 
     def __init__(self, history_window_days: int = 14) -> None:
@@ -82,24 +86,70 @@ class PredictiveForecastService:
                 "eta_multiplier": d["eta_multiplier"],
                 "precip": d["precip"],
                 "impact_score": d["impact_score"],
+                "day_of_week": sim_date.weekday(),
             })
         return result
 
-    def _exponential_smooth(self, values: list[float], alpha: float = 0.3) -> list[float]:
+    def _holts_double_exponential(
+        self,
+        values: list[float],
+        alpha: float = 0.35,
+        beta: float = 0.15,
+    ) -> tuple[list[float], list[float]]:
+        """
+        Holt's Double Exponential Smoothing (additive trend).
+        Returns (levels, trends) for each time step.
+        """
         if not values:
-            return []
-        smoothed = [values[0]]
-        for v in values[1:]:
-            smoothed.append(alpha * v + (1 - alpha) * smoothed[-1])
-        return smoothed
+            return [], []
+        if len(values) == 1:
+            return [values[0]], [0.0]
 
-    def _linear_trend(self, values: list[float]) -> float:
-        if len(values) < 2:
-            return 0.0
-        x = np.arange(len(values))
-        y = np.array(values)
-        slope = np.polyfit(x, y, 1)[0]
-        return float(slope)
+        # Initialize
+        level = values[0]
+        trend = values[1] - values[0]
+        levels = [level]
+        trends = [trend]
+
+        for t in range(1, len(values)):
+            new_level = alpha * values[t] + (1 - alpha) * (level + trend)
+            new_trend = beta * (new_level - level) + (1 - beta) * trend
+            level = new_level
+            trend = new_trend
+            levels.append(level)
+            trends.append(trend)
+
+        return levels, trends
+
+    def _detect_weekly_seasonality(self, history: list[dict[str, Any]]) -> dict[int, float]:
+        """Detect day-of-week seasonality pattern from historical data."""
+        day_sums: dict[int, list[float]] = defaultdict(list)
+        for h in history:
+            day_sums[h["day_of_week"]].append(h["combined_risk"])
+
+        overall_mean = np.mean([h["combined_risk"] for h in history]) if history else 0.0
+        seasonal: dict[int, float] = {}
+        for dow in range(7):
+            if day_sums[dow]:
+                seasonal[dow] = float(np.mean(day_sums[dow]) - overall_mean)
+            else:
+                seasonal[dow] = 0.0
+        return seasonal
+
+    def _prediction_interval(
+        self,
+        residuals: list[float],
+        steps_ahead: float,
+        confidence_level: float = 0.90,
+    ) -> float:
+        """Compute prediction interval half-width from forecast residuals."""
+        if len(residuals) < 2:
+            return 0.3  # wide default
+        std = float(np.std(residuals, ddof=1))
+        # Approximate z-score for 90% interval
+        z = 1.645
+        # Widen interval for further-ahead forecasts
+        return z * std * (1.0 + 0.1 * steps_ahead)
 
     def forecast_city(self, session: Session, city: str, forecast_hours: int = 12, reference_date: date | None = None) -> RiskForecast | None:
         ref_dt = reference_date or datetime.utcnow().date()
@@ -109,29 +159,65 @@ class PredictiveForecastService:
 
         risks = [h["combined_risk"] for h in history]
         etas = [h["eta_multiplier"] for h in history]
-        smoothed_risks = self._exponential_smooth(risks)
-        smoothed_etas = self._exponential_smooth(etas)
 
-        risk_trend = self._linear_trend(smoothed_risks[-7:] if len(smoothed_risks) >= 7 else smoothed_risks)
-        eta_trend = self._linear_trend(smoothed_etas[-7:] if len(smoothed_etas) >= 7 else smoothed_etas)
+        # Apply Holt's double exponential smoothing
+        risk_levels, risk_trends = self._holts_double_exponential(risks, alpha=0.35, beta=0.15)
+        eta_levels, eta_trends = self._holts_double_exponential(etas, alpha=0.30, beta=0.10)
 
+        # Weekly seasonality adjustment
+        seasonal = self._detect_weekly_seasonality(history)
+        forecast_date = ref_dt + timedelta(hours=forecast_hours)
+        forecast_dow = forecast_date.weekday() if isinstance(forecast_date, date) else ref_dt.weekday()
+        seasonal_adj = seasonal.get(forecast_dow, 0.0)
+
+        # Forecast: level + trend * steps + seasonal
         steps = forecast_hours / 24.0
-        predicted_risk = min(1.0, max(0.0, smoothed_risks[-1] + risk_trend * steps))
-        predicted_eta = max(1.0, smoothed_etas[-1] + eta_trend * steps)
+        predicted_risk = min(1.0, max(0.0,
+            risk_levels[-1] + risk_trends[-1] * steps + seasonal_adj
+        ))
+        predicted_eta = max(1.0, eta_levels[-1] + eta_trends[-1] * steps)
         predicted_closure = predicted_risk * 0.9
 
-        # Confidence based on data volume
-        confidence = min(0.95, 0.4 + len(history) * 0.03)
+        # Compute residuals for prediction interval
+        residuals = []
+        for i in range(1, len(risks)):
+            one_step_forecast = risk_levels[i - 1] + risk_trends[i - 1]
+            residuals.append(risks[i] - one_step_forecast)
 
+        interval_hw = self._prediction_interval(residuals, steps)
+        pi_low = max(0.0, predicted_risk - interval_hw)
+        pi_high = min(1.0, predicted_risk + interval_hw)
+
+        # Confidence based on data volume + residual tightness
+        residual_std = float(np.std(residuals, ddof=1)) if len(residuals) >= 2 else 0.5
+        data_conf = min(0.5, len(history) * 0.025)
+        residual_conf = max(0.0, 0.5 - residual_std)
+        confidence = min(0.95, data_conf + residual_conf)
+
+        # Trend direction
+        recent_trend = risk_trends[-1] if risk_trends else 0.0
+        if recent_trend > 0.015:
+            trend_direction = "rising"
+        elif recent_trend < -0.015:
+            trend_direction = "declining"
+        else:
+            trend_direction = "stable"
+
+        # Contributing factors
         factors = []
-        if risk_trend > 0.02:
-            factors.append("rising risk trend")
-        elif risk_trend < -0.02:
-            factors.append("declining risk trend")
+        if trend_direction == "rising":
+            factors.append(f"rising trend (+{recent_trend:.3f}/day)")
+        elif trend_direction == "declining":
+            factors.append(f"declining trend ({recent_trend:.3f}/day)")
+        if seasonal_adj > 0.03:
+            day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            factors.append(f"elevated {day_names[forecast_dow]} pattern")
         if history[-1].get("precip", 0) > 20:
             factors.append("heavy precipitation")
         if history[-1].get("impact_score", 0) > 0.5:
             factors.append("recent high-impact event")
+        if residual_std > 0.3:
+            factors.append("high volatility")
 
         return RiskForecast(
             city=city,
@@ -141,6 +227,9 @@ class PredictiveForecastService:
             predicted_closure_risk=round(predicted_closure, 3),
             confidence=round(confidence, 3),
             contributing_factors=factors or ["stable conditions"],
+            prediction_interval_low=round(pi_low, 3),
+            prediction_interval_high=round(pi_high, 3),
+            trend_direction=trend_direction,
         )
 
     def forecast_all_cities(self, session: Session, cities: set[str], forecast_hours: int = 12, reference_date: date | None = None) -> list[RiskForecast]:
@@ -163,6 +252,8 @@ class PredictiveForecastService:
                 "confidence": f.confidence,
                 "factors": f.contributing_factors,
                 "forecast_time": f.forecast_time.isoformat(),
+                "prediction_interval": [f.prediction_interval_low, f.prediction_interval_high],
+                "trend": f.trend_direction,
             }
             for f in forecasts
         ]

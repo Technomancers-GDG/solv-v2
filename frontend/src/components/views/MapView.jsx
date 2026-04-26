@@ -207,6 +207,7 @@ export function MapView({
   const [showDisruptions, setShowDisruptions] = useState(true);
   const [showRoutePaths, setShowRoutePaths] = useState(true);
   const [showRiskHeatmap, setShowRiskHeatmap] = useState(true);
+  const [showAllRoutes, setShowAllRoutes] = useState(true);
 
   const objectiveLookup = useMemo(() => Object.fromEntries(objectives.map((o) => [o.id, o])), [objectives]);
 
@@ -346,6 +347,7 @@ export function MapView({
             <label className="checkbox-label"><input type="checkbox" checked={showDisruptions} onChange={(e) => setShowDisruptions(e.target.checked)} /><span>Show Disruption Zones</span></label>
             <label className="checkbox-label"><input type="checkbox" checked={showRoutePaths} onChange={(e) => setShowRoutePaths(e.target.checked)} /><span>Show Selected Route Path</span></label>
             <label className="checkbox-label"><input type="checkbox" checked={showRiskHeatmap} onChange={(e) => setShowRiskHeatmap(e.target.checked)} /><span>Show Risk Heatmap</span></label>
+            <label className="checkbox-label"><input type="checkbox" checked={showAllRoutes} onChange={(e) => setShowAllRoutes(e.target.checked)} /><span>Show All Routes</span></label>
           </div>
           {onScaleFleet ? (
             <div className="scale-controls">
@@ -359,7 +361,7 @@ export function MapView({
               <div className="scale-note">Scaling adds trucks and drivers, rebalances objective assignments, and restarts simulation.</div>
             </div>
           ) : null}
-          <div className="route-hint">Select a vehicle from the dropdown or click a truck marker to render its routed path geometry. Without selection, truck markers stay visible but paths are hidden to avoid clutter.</div>
+          <div className="route-hint">Toggle "Show All Routes" to see all active route paths on the map. Click a truck marker or use the dropdown to highlight a specific route.</div>
         </div>
 
         <div className="map-container">
@@ -372,6 +374,15 @@ export function MapView({
                 <Polyline key={`route-${selectedVehicleId}`} positions={selectedRoutePath} color="#2563eb" weight={5} opacity={0.9} lineJoin="round" />
               </>
             ) : null}
+
+            {/* All in-transit routes at low opacity */}
+            {showAllRoutes && !selectedVehicleId && liveRoutes.filter((r) => r.status === "in_transit" && r.routePoints.length >= 2).slice(0, 120).map((route) => {
+              const pts = route.routePoints.filter((p) => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]));
+              if (pts.length < 2) return null;
+              return (
+                <Polyline key={`all-route-${route.vehicleId}`} positions={pts} color="#6366f1" weight={2.5} opacity={0.2} dashArray="6 4" />
+              );
+            })}
 
             {/* Active Disruption Circles */}
             {showDisruptions && disruptionEvents.map((event, i) => {

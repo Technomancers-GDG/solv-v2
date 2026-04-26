@@ -59,6 +59,8 @@ class LiveVehicleState:
     stockout_risk_avoided: bool = False
     critical_payload: bool = False
     perishable_payload: bool = False
+    last_rl_state: Any = None
+    last_rl_action: str | None = None
 
 
 @dataclass(slots=True, order=True)
@@ -404,6 +406,7 @@ class SimulationEngine:
         self.on_time_trips = 0
         self.beneficiary_location_ids: set[int] = set()
         self.last_metrics_snapshot_hour: tuple[int, int, int, int] | None = None
+        self._last_cascade_check: datetime | None = None
 
     def queue_size(self) -> int:
         return len(self.event_queue)
@@ -616,6 +619,7 @@ class SimulationEngine:
                             self.last_error = f"{type(exc).__name__}: {exc}"
                     if processed:
                         session.commit()
+                        self._check_autonomous_cascade(session)
                         await self._maybe_snapshot(session)
                         await self.connection_manager.broadcast(
                             {"type": "simulation_snapshot", "payload": self.dashboard_snapshot(session).model_dump(mode="json")}
@@ -626,6 +630,85 @@ class SimulationEngine:
             self.last_error = f"{type(exc).__name__}: {exc}"
             self.status = "error"
             print(f"[ERROR] Simulation loop crashed: {self.last_error}", flush=True)
+
+    def _check_autonomous_cascade(self, session: Session) -> None:
+        """Autonomous cascade detection: check every 5 sim-minutes for capacity overload."""
+        if self._last_cascade_check is not None:
+            elapsed = (self.simulation_time - self._last_cascade_check).total_seconds()
+            if elapsed < 300:  # 5 simulation minutes
+                return
+        self._last_cascade_check = self.simulation_time
+
+        cascade_triggered = False
+        for facility in self.facilities.values():
+            utilization = facility.current_inventory_units / max(facility.base_capacity_units, 1)
+            if utilization < 0.85:
+                continue
+            # Check if we already have a recent event for this city today
+            sim_key = self.simulation_time.date().isoformat()
+            existing = self.news_map.get((sim_key, facility.city))
+            if existing and existing["impact_score"] >= utilization * 0.8:
+                continue  # Already have a sufficiently severe event
+
+            severity = min(0.95, utilization * 0.9)
+            event_date = self.simulation_time.date()
+            event = NewsEvent(
+                original_date=event_date,
+                simulation_date=event_date,
+                city=facility.city,
+                category="Autonomous Cascade Detection",
+                headline=(
+                    f"AI detected capacity overload at {facility.name} "
+                    f"({utilization:.0%} utilization) — cascade risk elevated"
+                ),
+                relevant=True,
+                impact_type="logistics_disruption",
+                impact_score=severity,
+                model_probability=severity,
+            )
+            session.add(event)
+            session.flush()
+            self.update_news_event_map(event)
+
+            # Cascade to linked facilities via PortLinks
+            for link in self.port_links:
+                linked_id = None
+                if link.warehouse_id == facility.id and link.active:
+                    linked_id = link.port_id
+                elif link.port_id == facility.id and link.active:
+                    linked_id = link.warehouse_id
+                if linked_id is None:
+                    continue
+                linked = self.facilities.get(linked_id)
+                if linked is None:
+                    continue
+                cascade_severity = min(0.85, severity * 0.7)
+                cascade_event = NewsEvent(
+                    original_date=event_date,
+                    simulation_date=event_date,
+                    city=linked.city,
+                    category="Cascade Propagation",
+                    headline=(
+                        f"Cascade from {facility.city} → {linked.name}: "
+                        f"spillover pressure detected"
+                    ),
+                    relevant=True,
+                    impact_type="port_congestion" if linked.facility_type == "port" else "logistics_disruption",
+                    impact_score=cascade_severity,
+                    model_probability=cascade_severity,
+                )
+                session.add(cascade_event)
+                self.update_news_event_map(cascade_event)
+
+            cascade_triggered = True
+
+        if cascade_triggered:
+            session.commit()
+            print(
+                f"[CASCADE] Autonomous cascade detection triggered at "
+                f"{self.simulation_time.isoformat()}",
+                flush=True,
+            )
 
     def _process_event(self, session: Session, event: ScheduledEvent) -> None:
         if event.event_type == "dispatch":
@@ -909,6 +992,17 @@ class SimulationEngine:
             self.current_metrics.beneficiary_locations_served = len(self.beneficiary_location_ids)
         if state.perishable_payload and (state.stockout_risk_avoided or arrived_on_time):
             self.current_metrics.spoilage_or_wastage_prevented += vehicle.payload_capacity_units
+
+        # --- RL feedback loop: store transition and train ---
+        self._record_rl_transition(
+            state=state,
+            vehicle=vehicle,
+            objective=objective,
+            destination=destination,
+            arrived_on_time=arrived_on_time,
+            co2_saved=co2_saved_this_trip,
+        )
+
         state.stockout_risk_avoided = False
         state.critical_payload = False
         state.perishable_payload = False
@@ -938,6 +1032,69 @@ class SimulationEngine:
             payload={"leg": event.payload.get("leg", "outbound"), "facility_id": event.payload.get("facility_id")},
             priority=1,
         )
+
+    def _record_rl_transition(
+        self,
+        state: LiveVehicleState,
+        vehicle: Vehicle,
+        objective: Objective,
+        destination: Facility,
+        arrived_on_time: bool,
+        co2_saved: float,
+    ) -> None:
+        """Record completed trip as RL transition and trigger a training step."""
+        if not settings.use_rl_engine or get_rl_engine is None:
+            return
+        if state.last_rl_state is None or state.last_rl_action is None:
+            return
+        try:
+            engine = get_rl_engine()
+            overflow_avoided = (
+                destination.current_inventory_units <= destination.base_capacity_units
+            )
+            reward = engine.compute_reward(
+                sla_met=arrived_on_time,
+                overflow_avoided=overflow_avoided,
+                co2_delta=max(0.0, state.route_distance_km * vehicle.emission_kg_per_km - co2_saved),
+                idle_minutes=state.duty_minutes_since_rest * 0.1,
+                stockout_prevented=state.stockout_risk_avoided,
+                reroute_successful=state.last_rl_action.startswith("reroute") and arrived_on_time,
+            )
+            # Build next-state from current post-delivery context
+            facility_util = destination.current_inventory_units / max(destination.base_capacity_units, 1)
+            next_state = StateVector.from_sim_context(
+                facility_utilization=facility_util,
+                route_risk=0.0,
+                eta_multiplier=1.0,
+                sla_remaining_minutes=float(objective.sla_minutes),
+                sla_total_minutes=float(objective.sla_minutes),
+                payload_capacity=vehicle.payload_capacity_units,
+                facility_capacity=destination.base_capacity_units,
+                priority=objective.priority,
+                port_pressure=0.0,
+                weather_severity=0.0,
+                news_severity=0.0,
+                simulation_hour=self.simulation_time.hour,
+            )
+            engine.store_transition(
+                state=state.last_rl_state,
+                action=state.last_rl_action,
+                reward=reward,
+                next_state=next_state,
+                done=True,
+            )
+            train_result = engine.train_step_update()
+            if train_result and train_result["train_step"] % 50 == 0:
+                engine.save_weights()
+                print(
+                    f"[RL] Train step {train_result['train_step']}: "
+                    f"loss={train_result['loss']:.4f}, epsilon={train_result['epsilon']:.3f}"
+                )
+        except Exception as exc:
+            print(f"[RL] Transition recording failed: {exc}")
+        finally:
+            state.last_rl_state = None
+            state.last_rl_action = None
 
     def _select_dispatch_decision(
         self,
@@ -1011,6 +1168,9 @@ class SimulationEngine:
                     ),
                 ]:
                     if cand.action == rl_action:
+                        # Save state+action for RL feedback on trip completion
+                        self.live_vehicle_states[vehicle.id].last_rl_state = state_vec
+                        self.live_vehicle_states[vehicle.id].last_rl_action = rl_action
                         print(f"[RL] Vehicle {vehicle.identifier} -> {rl_action} (conf={rl_confidence:.2f})")
                         return cand
         except Exception as exc:

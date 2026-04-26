@@ -338,6 +338,7 @@ export default function App() {
   const [cloudHealth, setCloudHealth] = useState(null);
   const [blockchainVerify, setBlockchainVerify] = useState(null);
   const [voiceConfig, setVoiceConfig] = useState(null);
+  const [aiActivity, setAiActivity] = useState(null);
   const [scenarioKey, setScenarioKey] = useState("");
   const [scenarioComparison, setScenarioComparison] = useState(null);
   const [scalingFleet, setScalingFleet] = useState(false);
@@ -351,7 +352,7 @@ export default function App() {
     if (showSpinner) setLoading(true);
     try {
       const [
-        d, f, v, dr, o, r, s, rec, m, e, rf, inv, pd
+        d, f, v, dr, o, r, s, rec, m, e, rf, inv, pd, ai
       ] = await Promise.all([
         apiFetch("/api/dashboard"),
         apiFetch("/api/facilities"),
@@ -366,6 +367,7 @@ export default function App() {
         apiFetch("/api/forecast/risk?hours=12").catch(() => []),
         apiFetch("/api/inventory/forecasts").catch(() => []),
         apiFetch("/api/inventory/proactive-dispatches").catch(() => []),
+        apiFetch("/api/metrics/ai-activity").catch(() => null),
       ]);
       startTransition(() => {
         setDashboard(d);
@@ -381,6 +383,7 @@ export default function App() {
         setRiskForecast(rf);
         setInventoryForecast(inv);
         setProactiveDispatches(pd);
+        setAiActivity(ai);
         setError("");
       });
     } catch (err) {
@@ -430,7 +433,7 @@ export default function App() {
   const renderView = () => {
     switch (activeView) {
       case "dashboard":
-        return <DashboardView metrics={metrics} criticalFacilities={criticalFacilities} proactiveDispatches={proactiveDispatches} riskForecast={riskForecast} auditChain={auditChain} blockchainVerify={blockchainVerify} facilityLookup={facilityLookup} />;
+        return <DashboardView metrics={metrics} criticalFacilities={criticalFacilities} proactiveDispatches={proactiveDispatches} riskForecast={riskForecast} auditChain={auditChain} blockchainVerify={blockchainVerify} facilityLookup={facilityLookup} aiActivity={aiActivity} />;
       case "map":
         return <MapView facilities={facilities} vehicles={dashboard?.vehicles ?? []} objectives={objectives} recommendations={recommendations} activeEvents={dashboard?.active_events ?? []} routeTemplates={routes} riskForecast={riskForecast} vehicleCount={dashboard?.vehicles?.length ?? vehicles.length} onScaleFleet={async (n) => { setScalingFleet(true); try { await runAction("/api/demo/scale-fleet", { target_vehicle_count: n, reset_simulation: true, auto_start: true, speed_multiplier: 180 }); } finally { setScalingFleet(false); } }} isScalingFleet={scalingFleet} />;
       case "liveOps":

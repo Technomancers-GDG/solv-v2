@@ -1098,6 +1098,59 @@ def rl_decision(payload: RLDecisionRequest) -> RLDecisionResponse:
     return RLDecisionResponse(action=action, confidence=confidence, action_probs=probs)
 
 
+@app.get("/api/metrics/ai-activity")
+def ai_activity_metrics(session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Live AI activity metrics for the AI Decisions dashboard panel."""
+    metrics = simulation_engine.current_metrics
+
+    # RL engine stats
+    rl_stats: dict[str, Any] = {"enabled": settings.use_rl_engine, "train_step": 0, "epsilon": 1.0, "replay_buffer_size": 0}
+    if settings.use_rl_engine:
+        try:
+            engine = get_rl_engine()
+            rl_stats["train_step"] = engine.train_step
+            rl_stats["epsilon"] = round(engine.epsilon, 4)
+            rl_stats["replay_buffer_size"] = len(engine.replay_buffer)
+        except Exception:
+            pass
+
+    # Recent recommendations breakdown
+    recent_recs = session.scalars(
+        select(Recommendation).order_by(Recommendation.created_at.desc()).limit(50)
+    ).all()
+    action_counts: dict[str, int] = {}
+    accepted_count = 0
+    ignored_count = 0
+    for rec in recent_recs:
+        action_counts[rec.action] = action_counts.get(rec.action, 0) + 1
+        if rec.status == "accepted":
+            accepted_count += 1
+        elif rec.status == "ignored":
+            ignored_count += 1
+
+    # Cascade event count
+    cascade_events = session.scalars(
+        select(NewsEvent).where(
+            NewsEvent.category.in_(["Autonomous Cascade Detection", "Cascade Propagation"]),
+            NewsEvent.simulation_date >= simulation_engine.simulation_time.date(),
+        )
+    ).all()
+
+    return {
+        "reroute_count": metrics.reroute_count,
+        "co2_saved_kg": round(metrics.co2_saved_kg, 2),
+        "idle_minutes_prevented": round(metrics.idle_minutes_prevented, 1),
+        "stockouts_prevented": metrics.stockouts_prevented,
+        "on_time_delivery_pct": metrics.on_time_delivery_pct,
+        "rl_engine": rl_stats,
+        "recent_action_breakdown": action_counts,
+        "driver_acceptance_rate": round(
+            accepted_count / max(accepted_count + ignored_count, 1) * 100, 1
+        ),
+        "cascade_detections_today": len(cascade_events),
+        "completed_trips": simulation_engine.completed_trips,
+    }
+
 @app.post("/api/ai/rl-train")
 def rl_train() -> dict[str, Any]:
     if not settings.use_rl_engine:

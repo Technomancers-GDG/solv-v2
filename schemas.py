@@ -425,6 +425,8 @@ class RiskForecastRead(BaseModel):
     confidence: float
     factors: list[str]
     forecast_time: str
+    prediction_interval: list[float] | None = None
+    trend: str | None = None
 
 
 class BlockchainBlockRead(BaseModel):
