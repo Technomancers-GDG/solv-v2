@@ -963,6 +963,14 @@ DRIVER_SEEDS = [
     {"name": "Ritu Sharma", "override_rating": 0.95, "confidence": 0.57, "accept_recommendation_bias": 0.48},
     {"name": "Manoj Das", "override_rating": 1.05, "confidence": 0.71, "accept_recommendation_bias": 0.55},
     {"name": "Kiran Patel", "override_rating": 1.0, "confidence": 0.68, "accept_recommendation_bias": 0.57},
+] + [
+    {
+        "name": f"Ops Driver {i:03d}",
+        "override_rating": round(0.85 + (i % 7) * 0.05, 2),
+        "confidence": round(0.52 + (i % 5) * 0.06, 2),
+        "accept_recommendation_bias": round(0.48 + (i % 6) * 0.04, 2),
+    }
+    for i in range(1, 155)
 ]
 
 
@@ -1029,7 +1037,7 @@ def seed_demo_data(session: Session) -> None:
     drivers = session.scalars(select(DriverProfile)).all()
 
     vehicles = []
-    vehicle_specs = [
+    legacy_vehicle_specs = [
         ("DL-MED", "Delhi National Medical Reserve", 1000, 0),
         ("DL-MED", "Delhi National Medical Reserve", 1000, 1),
         ("DL-MED", "Delhi National Medical Reserve", 1000, 2),
@@ -1043,7 +1051,7 @@ def seed_demo_data(session: Session) -> None:
         ("NG-AID", "Nagpur Central Emergency Depot", 950, 4),
         ("BG-VAX", "Bengaluru Emergency Distribution Campus", 800, 5),
     ]
-    for index, (prefix, home_name, payload, driver_idx) in enumerate(vehicle_specs, start=1):
+    for index, (prefix, home_name, payload, driver_idx) in enumerate(legacy_vehicle_specs, start=1):
         home = facilities[home_name]
         vehicles.append(
             Vehicle(
@@ -1056,6 +1064,55 @@ def seed_demo_data(session: Session) -> None:
                 emission_kg_per_km=1.35 + (index % 3) * 0.15,
             )
         )
+
+    hub_facilities = [
+        "Delhi National Medical Reserve",
+        "Hosur Mobility Support Hub",
+        "Surat Community Food Reserve",
+        "Nagpur Central Emergency Depot",
+        "Bengaluru Emergency Distribution Campus",
+        "Chennai Public Health Warehouse",
+        "Mumbai Coastal Relief Warehouse",
+        "Kolkata Humanitarian Gateway",
+        "Hyderabad Health Supply Connector",
+        "Ahmedabad Vaccine Cold Store",
+        "Jaipur Relief Consolidation Hub",
+        "Pune Oxygen Buffer Center",
+        "Lucknow Regional Depot",
+        "Kanpur Logistics Hub",
+        "Patna Emergency Store",
+        "Ranchi Aid Center",
+        "Bhubaneswar Food Buffer",
+        "Guwahati Northeast Hub",
+        "Chandigarh Northern Gateway",
+        "Varanasi Distribution Hub",
+    ]
+
+    existing_identifiers = {v.identifier for v in vehicles}
+    for index in range(13, 261):
+        home_name = hub_facilities[index % len(hub_facilities)]
+        home = facilities[home_name]
+        capacity = 700 + (index % 8) * 75
+        speed = 40 + (index % 6) * 4
+        emission = 1.1 + (index % 5) * 0.12
+        identifier = f"OPS-{index:04d}"
+        while identifier in existing_identifiers:
+            index += 1
+            identifier = f"OPS-{index:04d}"
+        existing_identifiers.add(identifier)
+
+        vehicles.append(
+            Vehicle(
+                identifier=identifier,
+                payload_capacity_units=capacity,
+                home_facility_id=home.id,
+                current_facility_id=home.id,
+                driver_profile_id=drivers[index % len(drivers)].id,
+                average_speed_kmph=speed,
+                emission_kg_per_km=round(emission, 2),
+            )
+        )
+
     session.add_all(vehicles)
     session.flush()
 
