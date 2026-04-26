@@ -4,6 +4,7 @@ from collections.abc import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from config import settings
 
@@ -16,7 +17,12 @@ connect_args: dict[str, object] = {}
 if settings.database_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
 
-engine = create_engine(settings.database_url, future=True, connect_args=connect_args)
+# Use NullPool for SQLite to avoid connection pool exhaustion on Render
+pool_kwargs = {}
+if settings.database_url.startswith("sqlite"):
+    pool_kwargs["poolclass"] = NullPool
+
+engine = create_engine(settings.database_url, future=True, connect_args=connect_args, **pool_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 

@@ -163,7 +163,7 @@ function getNavSections(t) {
 function Sidebar({ active, onNavigate, collapsed, onToggle, t }) {
   const sections = getNavSections(t);
   return (
-    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
+    <aside className={`sidebar ${collapsed ? "collapsed" : "open"}`}>
       <div className="sidebar-header">
         <div className="logo-mark">SOLV</div>
         {!collapsed && <span className="logo-text">Intelligent Logistics</span>}
@@ -480,6 +480,13 @@ export default function App() {
       <div className={`main-content ${sidebarCollapsed ? "expanded" : ""}`}>
         <header className="top-bar" lang={lang}>
           <div className="top-bar-left">
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setSidebarCollapsed((c) => !c)}
+              aria-label="Toggle sidebar"
+            >
+              ☰
+            </button>
             <h1>{t.commandCenter}</h1>
             <span className="prototype-badge">{t.prototypeBadge}</span>
           </div>
