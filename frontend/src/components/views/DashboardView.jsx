@@ -5,10 +5,13 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
   const actionBreakdown = aiActivity?.recent_action_breakdown ?? {};
   const explorationPct = rl ? Math.round((rl.epsilon ?? 1) * 100) : 100;
   const exploitationPct = 100 - explorationPct;
+  const formatUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val || 0);
 
   return (
     <div className="view-dashboard">
       <div className="metrics-grid">
+        <MetricCard label="Financial Costs Saved (AI)" value={formatUSD(metrics?.financial_costs_saved_usd)} tone="green" />
+        <MetricCard label="Operational Costs" value={formatUSD(metrics?.financial_costs_incurred_usd)} tone="coral" />
         <MetricCard label="Critical Deliveries Saved" value={metrics?.critical_deliveries_saved ?? 0} tone="teal" />
         <MetricCard label="Stockouts Prevented" value={metrics?.stockouts_prevented ?? 0} tone="amber" />
         <MetricCard label="Beneficiary Locations" value={metrics?.beneficiary_locations_served ?? 0} tone="steel" />

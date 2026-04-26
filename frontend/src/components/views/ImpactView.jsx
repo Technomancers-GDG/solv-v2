@@ -1,9 +1,13 @@
 import { Panel, MetricCard } from "../common/UiPrimitives";
 
 export function ImpactView({ metrics }) {
+  const formatUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val || 0);
+
   return (
     <div className="view-impact">
       <div className="metrics-grid">
+        <MetricCard label="Financial Costs Saved (AI)" value={formatUSD(metrics?.financial_costs_saved_usd)} tone="green" />
+        <MetricCard label="Operational Costs Incurred" value={formatUSD(metrics?.financial_costs_incurred_usd)} tone="coral" />
         <MetricCard label="CO₂ Saved" value={`${(metrics?.co2_saved_kg ?? 0).toFixed(1)} kg`} tone="green" />
         <MetricCard label="Idle Minutes Prevented" value={`${(metrics?.idle_minutes_prevented ?? 0).toFixed(0)}`} tone="blue" />
         <MetricCard label="On-Time Delivery" value={`${metrics?.on_time_delivery_pct ?? 0}%`} tone="teal" />

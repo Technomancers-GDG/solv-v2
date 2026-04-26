@@ -1,6 +1,6 @@
 """
 Reinforcement Learning Decision Engine for Supply Chain Optimization.
-Implements a lightweight DQN-style agent using numpy that learns optimal
+Implements a DQN-style agent using PyTorch that learns optimal
 reroute policies from simulation outcomes.
 """
 from __future__ import annotations
@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
 from config import settings
 
@@ -94,125 +97,93 @@ class ReplayBuffer:
             self.buffer[self.position] = (state, action, reward, next_state, done)
         self.position = (self.position + 1) % self.capacity
 
-    def sample(self, batch_size: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
+    def sample(self, batch_size: int, device: torch.device) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor] | None:
         if len(self.buffer) < batch_size:
             return None
         batch = random.sample(self.buffer, batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
         return (
-            np.stack(states),
-            np.array(actions, dtype=np.int64),
-            np.array(rewards, dtype=np.float32),
-            np.stack(next_states),
-            np.array(dones, dtype=np.float32),
+            torch.tensor(np.stack(states), dtype=torch.float32, device=device),
+            torch.tensor(actions, dtype=torch.long, device=device),
+            torch.tensor(rewards, dtype=torch.float32, device=device),
+            torch.tensor(np.stack(next_states), dtype=torch.float32, device=device),
+            torch.tensor(dones, dtype=torch.float32, device=device),
         )
 
     def __len__(self) -> int:
         return len(self.buffer)
 
 
-class QNetwork:
-    """Simple feed-forward Q-network using numpy."""
-
+class QNetwork(nn.Module):
     def __init__(self, input_dim: int = 10, hidden_dim: int = 64, output_dim: int = 5) -> None:
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-        self.output_dim = output_dim
-        # Xavier-ish init
-        self.W1 = np.random.randn(input_dim, hidden_dim).astype(np.float32) * np.sqrt(2.0 / input_dim)
-        self.b1 = np.zeros(hidden_dim, dtype=np.float32)
-        self.W2 = np.random.randn(hidden_dim, hidden_dim).astype(np.float32) * np.sqrt(2.0 / hidden_dim)
-        self.b2 = np.zeros(hidden_dim, dtype=np.float32)
-        self.W3 = np.random.randn(hidden_dim, output_dim).astype(np.float32) * np.sqrt(2.0 / hidden_dim)
-        self.b3 = np.zeros(output_dim, dtype=np.float32)
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim)
+        )
 
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        # x: (batch, input_dim) or (input_dim,)
-        single = x.ndim == 1
-        if single:
-            x = x.reshape(1, -1)
-        h1 = np.maximum(0, x @ self.W1 + self.b1)
-        h2 = np.maximum(0, h1 @ self.W2 + self.b2)
-        q = h2 @ self.W3 + self.b3
-        return q[0] if single else q
-
-    def copy_from(self, other: "QNetwork") -> None:
-        self.W1 = other.W1.copy()
-        self.b1 = other.b1.copy()
-        self.W2 = other.W2.copy()
-        self.b2 = other.b2.copy()
-        self.W3 = other.W3.copy()
-        self.b3 = other.b3.copy()
-
-    def get_params(self) -> dict[str, Any]:
-        return {
-            "W1": self.W1.tolist(),
-            "b1": self.b1.tolist(),
-            "W2": self.W2.tolist(),
-            "b2": self.b2.tolist(),
-            "W3": self.W3.tolist(),
-            "b3": self.b3.tolist(),
-        }
-
-    def set_params(self, params: dict[str, Any]) -> None:
-        self.W1 = np.array(params["W1"], dtype=np.float32)
-        self.b1 = np.array(params["b1"], dtype=np.float32)
-        self.W2 = np.array(params["W2"], dtype=np.float32)
-        self.b2 = np.array(params["b2"], dtype=np.float32)
-        self.W3 = np.array(params["W3"], dtype=np.float32)
-        self.b3 = np.array(params["b3"], dtype=np.float32)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
 
 
 class RLDecisionEngine:
     """
-    DQN-based decision engine that learns optimal dispatch decisions.
+    DQN-based decision engine that learns optimal dispatch decisions using PyTorch.
     Actions: 0=continue, 1=reroute_warehouse, 2=reroute_port, 3=wait, 4=defer
     """
 
     ACTIONS = ["continue", "reroute_warehouse", "reroute_port", "wait", "defer_dispatch"]
 
     def __init__(self, model_path: Path | None = None) -> None:
-        self.q_network = QNetwork(input_dim=10, hidden_dim=64, output_dim=5)
-        self.target_network = QNetwork(input_dim=10, hidden_dim=64, output_dim=5)
-        self.target_network.copy_from(self.q_network)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.q_network = QNetwork(input_dim=10, hidden_dim=64, output_dim=5).to(self.device)
+        self.target_network = QNetwork(input_dim=10, hidden_dim=64, output_dim=5).to(self.device)
+        self.target_network.load_state_dict(self.q_network.state_dict())
+        self.optimizer = optim.Adam(self.q_network.parameters(), lr=0.001)
+        self.loss_fn = nn.MSELoss()
+        
         self.replay_buffer = ReplayBuffer(capacity=8000)
         self.gamma = 0.95
         self.epsilon = 1.0
         self.epsilon_min = 0.05
         self.epsilon_decay = 0.995
-        self.learning_rate = 0.001
         self.batch_size = 32
         self.target_update_freq = 200
         self.train_step = 0
+        
+        # Keep original extension but we load as torch now
         self.model_path = model_path or Path(settings.rl_model_path)
         self._load_weights()
 
     def _load_weights(self) -> None:
         if self.model_path.exists():
             try:
-                with self.model_path.open("r", encoding="utf-8") as f:
-                    data = json.load(f)
-                self.q_network.set_params(data["q_network"])
-                self.target_network.set_params(data["target_network"])
-                self.epsilon = max(self.epsilon_min, data.get("epsilon", 1.0))
-                self.train_step = data.get("train_step", 0)
-                print(f"[RL] Loaded weights from {self.model_path}")
+                checkpoint = torch.load(self.model_path, map_location=self.device, weights_only=True)
+                self.q_network.load_state_dict(checkpoint["q_network_state_dict"])
+                self.target_network.load_state_dict(checkpoint["target_network_state_dict"])
+                self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+                self.epsilon = max(self.epsilon_min, checkpoint.get("epsilon", 1.0))
+                self.train_step = checkpoint.get("train_step", 0)
+                print(f"[RL] Loaded PyTorch weights from {self.model_path}")
             except Exception as exc:
-                print(f"[RL] Could not load weights: {exc}. Starting fresh.")
+                print(f"[RL] Could not load PyTorch weights: {exc}. Starting fresh.")
 
     def save_weights(self) -> None:
-        data = {
-            "q_network": self.q_network.get_params(),
-            "target_network": self.target_network.get_params(),
+        checkpoint = {
+            "q_network_state_dict": self.q_network.state_dict(),
+            "target_network_state_dict": self.target_network.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
             "epsilon": float(self.epsilon),
             "train_step": self.train_step,
         }
         self.model_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.model_path.open("w", encoding="utf-8") as f:
-            json.dump(data, f)
+        torch.save(checkpoint, self.model_path)
 
     def select_action(self, state: StateVector, valid_actions: list[str] | None = None) -> tuple[str, float]:
-        state_arr = state.to_array()
+        state_tensor = torch.tensor(state.to_array(), dtype=torch.float32, device=self.device).unsqueeze(0)
         valid = valid_actions or self.ACTIONS
         valid_indices = [self.ACTIONS.index(a) for a in valid if a in self.ACTIONS]
         if not valid_indices:
@@ -220,13 +191,17 @@ class RLDecisionEngine:
 
         if random.random() < self.epsilon:
             action_idx = random.choice(valid_indices)
+            with torch.no_grad():
+                q_value = self.q_network(state_tensor)[0, action_idx].item()
         else:
-            q_values = self.q_network.forward(state_arr)
-            masked = np.full_like(q_values, -1e9)
-            masked[valid_indices] = q_values[valid_indices]
-            action_idx = int(np.argmax(masked))
+            with torch.no_grad():
+                q_values = self.q_network(state_tensor)[0]
+                masked = torch.full_like(q_values, -1e9)
+                masked[valid_indices] = q_values[valid_indices]
+                action_idx = int(torch.argmax(masked).item())
+                q_value = q_values[action_idx].item()
 
-        return self.ACTIONS[action_idx], float(self.q_network.forward(state_arr)[action_idx])
+        return self.ACTIONS[action_idx], float(q_value)
 
     def compute_reward(
         self,
@@ -254,49 +229,34 @@ class RLDecisionEngine:
         return reward
 
     def train_step_update(self) -> dict[str, float] | None:
-        batch = self.replay_buffer.sample(self.batch_size)
+        batch = self.replay_buffer.sample(self.batch_size, self.device)
         if batch is None:
             return None
         states, actions, rewards, next_states, dones = batch
 
         # Forward pass
-        h1 = np.maximum(0, states @ self.q_network.W1 + self.q_network.b1)
-        h2 = np.maximum(0, h1 @ self.q_network.W2 + self.q_network.b2)
-        q_pred = h2 @ self.q_network.W3 + self.q_network.b3
+        q_values = self.q_network(states)
+        q_pred = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
         # Target Q-values
-        h1_t = np.maximum(0, next_states @ self.target_network.W1 + self.target_network.b1)
-        h2_t = np.maximum(0, h1_t @ self.target_network.W2 + self.target_network.b2)
-        q_next = h2_t @ self.target_network.W3 + self.target_network.b3
-        max_q_next = np.max(q_next, axis=1)
-        targets = rewards + self.gamma * max_q_next * (1.0 - dones)
+        with torch.no_grad():
+            q_next = self.target_network(next_states)
+            max_q_next = q_next.max(1)[0]
+            targets = rewards + self.gamma * max_q_next * (1.0 - dones)
 
-        # MSE loss gradient w.r.t Q-values
-        q_target_full = q_pred.copy()
-        q_target_full[np.arange(self.batch_size), actions] = targets
-        loss_grad = 2 * (q_pred - q_target_full) / self.batch_size
+        loss = self.loss_fn(q_pred, targets)
 
         # Backprop through network
-        grad_h2 = loss_grad @ self.q_network.W3.T
-        grad_h2[h2 <= 0] = 0
-        grad_h1 = grad_h2 @ self.q_network.W2.T
-        grad_h1[h1 <= 0] = 0
-
-        # Weight updates
-        self.q_network.W3 -= self.learning_rate * (h2.T @ loss_grad)
-        self.q_network.b3 -= self.learning_rate * np.sum(loss_grad, axis=0)
-        self.q_network.W2 -= self.learning_rate * (h1.T @ grad_h2)
-        self.q_network.b2 -= self.learning_rate * np.sum(grad_h2, axis=0)
-        self.q_network.W1 -= self.learning_rate * (states.T @ grad_h1)
-        self.q_network.b1 -= self.learning_rate * np.sum(grad_h1, axis=0)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
         self.train_step += 1
         if self.train_step % self.target_update_freq == 0:
-            self.target_network.copy_from(self.q_network)
+            self.target_network.load_state_dict(self.q_network.state_dict())
 
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-        loss = float(np.mean((q_pred - q_target_full) ** 2))
-        return {"loss": loss, "epsilon": self.epsilon, "train_step": self.train_step}
+        return {"loss": loss.item(), "epsilon": self.epsilon, "train_step": self.train_step}
 
     def store_transition(self, state: StateVector, action: str, reward: float, next_state: StateVector, done: bool) -> None:
         self.replay_buffer.push(
@@ -308,10 +268,12 @@ class RLDecisionEngine:
         )
 
     def get_action_confidence(self, state: StateVector) -> dict[str, float]:
-        q_values = self.q_network.forward(state.to_array())
-        exp_q = np.exp(q_values - np.max(q_values))
-        probs = exp_q / np.sum(exp_q)
-        return {action: float(probs[i]) for i, action in enumerate(self.ACTIONS)}
+        state_tensor = torch.tensor(state.to_array(), dtype=torch.float32, device=self.device).unsqueeze(0)
+        with torch.no_grad():
+            q_values = self.q_network(state_tensor)[0]
+            exp_q = torch.exp(q_values - torch.max(q_values))
+            probs = exp_q / torch.sum(exp_q)
+        return {action: float(probs[i].item()) for i, action in enumerate(self.ACTIONS)}
 
 
 # Singleton instance

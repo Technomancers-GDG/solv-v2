@@ -212,6 +212,7 @@ class Recommendation(Base):
     score_breakdown: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     baseline_cost: Mapped[float] = mapped_column(Float, default=0.0)
     recommended_cost: Mapped[float] = mapped_column(Float, default=0.0)
+    financial_impact_usd: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[str] = mapped_column(String(40), default="suggested")
 
 
@@ -269,3 +270,5 @@ class MetricsSnapshot(Base):
     reroute_count: Mapped[int] = mapped_column(Integer, default=0)
     active_trucks: Mapped[int] = mapped_column(Integer, default=0)
     queued_trucks: Mapped[int] = mapped_column(Integer, default=0)
+    financial_costs_saved_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    financial_costs_incurred_usd: Mapped[float] = mapped_column(Float, default=0.0)

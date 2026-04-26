@@ -327,23 +327,24 @@ class DecisionEngine:
         risk: dict[str, float],
         original_duration: float,
     ) -> float:
-        overload_penalty = max(0.0, vehicle.payload_capacity_units - max(effective_available, 0)) * 1.4
-        added_travel = max(0.0, route.duration_minutes * risk["eta_multiplier"] - original_duration) * 0.42
+        overload_penalty = max(0.0, vehicle.payload_capacity_units - max(effective_available, 0)) * 5.0
+        added_travel = max(0.0, route.duration_minutes * risk["eta_multiplier"] - original_duration) * 1.50
         congestion_penalty = (
             facility.current_inventory_units / max(facility.base_capacity_units, 1)
-        ) * 28
-        co2_penalty = route.distance_km * vehicle.emission_kg_per_km * 0.18
-        sla_penalty = max(
+        ) * 150.0
+        co2_penalty = route.distance_km * vehicle.emission_kg_per_km * 0.05
+        minutes_late = max(
             0.0,
             route.duration_minutes * risk["eta_multiplier"]
             + objective.loading_duration_minutes
             + objective.unloading_duration_minutes
             - objective.sla_minutes,
-        ) * 0.12
-        event_penalty = risk["route_risk"] * 36
+        )
+        sla_penalty = (500.0 if minutes_late > 0 else 0.0) + (minutes_late * 2.0)
+        event_penalty = risk["route_risk"] * 1000.0
         return round(
             overload_penalty + added_travel + congestion_penalty + co2_penalty + sla_penalty + event_penalty,
-            3,
+            2,
         )
 
     def _explain(
@@ -543,6 +544,8 @@ class SimulationEngine:
             critical_deliveries_saved=0,
             beneficiary_locations_served=0,
             spoilage_or_wastage_prevented=0,
+            financial_costs_saved_usd=0.0,
+            financial_costs_incurred_usd=0.0,
         )
         self.completed_trips = 0
         self.on_time_trips = 0
@@ -811,6 +814,8 @@ class SimulationEngine:
         chosen_decision = decision
         if decision.action != "continue":
             chosen_decision = self._apply_driver_override(session, vehicle, objective, decision, current_facility)
+        else:
+            self.current_metrics.financial_costs_incurred_usd += decision.baseline_cost
 
         if chosen_decision.action.startswith("reroute") and chosen_decision.destination_id is not None:
             destination = self.facilities.get(chosen_decision.destination_id)
@@ -1197,6 +1202,7 @@ class SimulationEngine:
             score_breakdown=decision.breakdown,
             baseline_cost=decision.baseline_cost,
             recommended_cost=decision.recommended_cost,
+            financial_impact_usd=decision.baseline_cost - decision.recommended_cost,
             status="suggested",
         )
         session.add(recommendation)
@@ -1219,6 +1225,8 @@ class SimulationEngine:
             actual_trip_cost = decision.recommended_cost
             rating_delta = 0.0
             final_decision = decision
+            self.current_metrics.financial_costs_saved_usd += max(0.0, decision.baseline_cost - decision.recommended_cost)
+            self.current_metrics.financial_costs_incurred_usd += decision.recommended_cost
         else:
             recommendation.status = "ignored"
             actual_trip_cost = decision.baseline_cost
@@ -1241,6 +1249,7 @@ class SimulationEngine:
                 route_risk=decision.route_risk,
                 eta_multiplier=1.0,
             )
+            self.current_metrics.financial_costs_incurred_usd += decision.baseline_cost
 
         session.add(
             DriverDecision(

@@ -171,6 +171,7 @@ class RecommendationRead(ORMModel):
     score_breakdown: dict[str, Any]
     baseline_cost: float
     recommended_cost: float
+    financial_impact_usd: float
     status: str
 
 
@@ -283,6 +284,8 @@ class MetricsSnapshotRead(ORMModel):
     reroute_count: int
     active_trucks: int
     queued_trucks: int
+    financial_costs_saved_usd: float
+    financial_costs_incurred_usd: float
     stockouts_prevented: int = 0
     critical_deliveries_saved: int = 0
     beneficiary_locations_served: int = 0
@@ -297,6 +300,8 @@ class MetricsSummary(BaseModel):
     reroute_count: int
     active_trucks: int
     queued_trucks: int
+    financial_costs_saved_usd: float = 0.0
+    financial_costs_incurred_usd: float = 0.0
     stockouts_prevented: int = 0
     critical_deliveries_saved: int = 0
     beneficiary_locations_served: int = 0
