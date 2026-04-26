@@ -86,6 +86,8 @@ class CandidateDecision:
     travel_minutes: float
     route_risk: float
     eta_multiplier: float
+    ai_confidence: float = 0.85
+    ai_engine: str = "Deterministic_Heuristics"
 
 
 class ConnectionManager:
@@ -815,7 +817,7 @@ class SimulationEngine:
         if decision.action != "continue":
             chosen_decision = self._apply_driver_override(session, vehicle, objective, decision, current_facility)
         else:
-            self.current_metrics.financial_costs_incurred_usd += decision.baseline_cost
+            self.current_metrics.financial_costs_incurred_usd += decision.baseline_cost * settings.cost_point_to_inr
 
         if chosen_decision.action.startswith("reroute") and chosen_decision.destination_id is not None:
             destination = self.facilities.get(chosen_decision.destination_id)
@@ -1127,6 +1129,9 @@ class SimulationEngine:
 
         try:
             engine = get_rl_engine()
+            # Only trust RL after it has seen enough experiences
+            if len(engine.replay_buffer) < 500:
+                return rule_decision
             dest = self.facilities.get(objective.destination_facility_id)
             facility_capacity = dest.base_capacity_units if dest else 1
             facility_util = dest.current_inventory_units / max(facility_capacity, 1) if dest else 0.0
@@ -1170,6 +1175,8 @@ class SimulationEngine:
                         travel_minutes=rule_decision.travel_minutes,
                         route_risk=rule_decision.route_risk,
                         eta_multiplier=rule_decision.eta_multiplier,
+                        ai_confidence=float(rl_confidence),
+                        ai_engine="RL_Agent",
                     ),
                 ]:
                     if cand.action == rl_action:
@@ -1198,12 +1205,13 @@ class SimulationEngine:
             original_destination_id=objective.destination_facility_id,
             recommended_destination_id=decision.destination_id,
             action=decision.action,
-            explanation=decision.explanation,
-            score_breakdown=decision.breakdown,
+            explanation=f"[{decision.ai_engine}] " + decision.explanation,
+            score_breakdown={**decision.breakdown, "ai_confidence": decision.ai_confidence, "ai_engine": decision.ai_engine},
             baseline_cost=decision.baseline_cost,
             recommended_cost=decision.recommended_cost,
             financial_impact_usd=decision.baseline_cost - decision.recommended_cost,
             status="suggested",
+            confidence=decision.ai_confidence,
         )
         session.add(recommendation)
         session.flush()
@@ -1225,8 +1233,8 @@ class SimulationEngine:
             actual_trip_cost = decision.recommended_cost
             rating_delta = 0.0
             final_decision = decision
-            self.current_metrics.financial_costs_saved_usd += max(0.0, decision.baseline_cost - decision.recommended_cost)
-            self.current_metrics.financial_costs_incurred_usd += decision.recommended_cost
+            self.current_metrics.financial_costs_saved_usd += max(0.0, decision.baseline_cost - decision.recommended_cost) * settings.cost_point_to_inr
+            self.current_metrics.financial_costs_incurred_usd += decision.recommended_cost * settings.cost_point_to_inr
         else:
             recommendation.status = "ignored"
             actual_trip_cost = decision.baseline_cost
@@ -1249,7 +1257,7 @@ class SimulationEngine:
                 route_risk=decision.route_risk,
                 eta_multiplier=1.0,
             )
-            self.current_metrics.financial_costs_incurred_usd += decision.baseline_cost
+            self.current_metrics.financial_costs_incurred_usd += decision.baseline_cost * settings.cost_point_to_inr
 
         session.add(
             DriverDecision(

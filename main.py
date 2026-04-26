@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+
 try:
     import firebase_admin
     from firebase_admin import auth as firebase_auth
@@ -641,6 +642,43 @@ def trigger_scenario(scenario_key: str, session: Session = Depends(get_session))
                     "urgency": rec.urgency,
                     "reason": rec.reason,
                 })
+
+    # Demand-shock cascade: tighten dispatch intervals for objectives linked to affected city
+    demand_shock = []
+    affected_cities = {scenario.event_city.lower()}
+    for facility in session.scalars(select(Facility)).all():
+        if str(facility.city).strip().lower() == scenario.event_city.lower():
+            affected_cities.add(str(facility.city).strip().lower())
+    for objective in session.scalars(select(Objective).where(Objective.active.is_(True))).all():
+        origin = session.get(Facility, objective.origin_facility_id)
+        dest = session.get(Facility, objective.destination_facility_id)
+        if origin and str(origin.city).strip().lower() in affected_cities:
+            old_interval = objective.dispatch_interval_minutes
+            new_interval = max(30, int(old_interval * (1.0 - scenario.severity * 0.35)))
+            objective.dispatch_interval_minutes = new_interval
+            demand_shock.append({
+                "objective_id": objective.id,
+                "objective_name": objective.name,
+                "city": origin.city,
+                "old_interval": old_interval,
+                "new_interval": new_interval,
+                "pressure": "origin",
+            })
+        if dest and str(dest.city).strip().lower() in affected_cities:
+            old_interval = objective.dispatch_interval_minutes
+            new_interval = max(30, int(old_interval * (1.0 - scenario.severity * 0.25)))
+            objective.dispatch_interval_minutes = new_interval
+            demand_shock.append({
+                "objective_id": objective.id,
+                "objective_name": objective.name,
+                "city": dest.city,
+                "old_interval": old_interval,
+                "new_interval": new_interval,
+                "pressure": "destination",
+            })
+    if demand_shock:
+        session.commit()
+
     return {
         "status": "triggered",
         "scenario_key": scenario.scenario_key,
@@ -650,6 +688,8 @@ def trigger_scenario(scenario_key: str, session: Session = Depends(get_session))
         "cascade_count": len(cascade),
         "proactive_dispatches": proactive,
         "proactive_count": len(proactive),
+        "demand_shock": demand_shock,
+        "demand_shock_count": len(demand_shock),
     }
 
 
@@ -1197,6 +1237,73 @@ def city_forecast(city: str, hours: int = Query(default=12, ge=1, le=72), sessio
 # ===========================
 # NEW: Multi-Objective Optimization (NSGA-II)
 # ===========================
+@app.get("/api/optimizer/pareto-front")
+def get_pareto_front(session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Return current dispatch candidate decisions as Pareto-front points for visualization."""
+    simulation_engine.load_state(session)
+    points: list[dict[str, Any]] = []
+    active_objectives = [o for o in simulation_engine.objectives.values() if o.active]
+    for objective in active_objectives[:25]:
+        vehicle_id = objective.assigned_vehicle_ids[0] if objective.assigned_vehicle_ids else None
+        if vehicle_id is None:
+            continue
+        vehicle = simulation_engine.vehicles.get(vehicle_id)
+        if vehicle is None:
+            continue
+        current_facility = simulation_engine.facilities.get(vehicle.current_facility_id or objective.origin_facility_id)
+        if current_facility is None:
+            continue
+        destination_ids = [objective.destination_facility_id, *objective.fallback_facility_ids]
+        route_data: dict[int, RouteTemplate] = {}
+        risk_lookup: dict[int, dict[str, float]] = {}
+        for dest_id in destination_ids:
+            dest = simulation_engine.facilities.get(dest_id)
+            if dest is None:
+                continue
+            route = route_planner.get_or_create_template(session, current_facility, dest)
+            route_data[dest_id] = route
+            risk_lookup[dest_id] = simulation_engine._route_risk(current_facility.city, dest.city)
+        if not route_data:
+            continue
+        decision = simulation_engine.decision_engine.score_dispatch_options(
+            sim_time=simulation_engine.simulation_time,
+            vehicle=vehicle,
+            objective=objective,
+            current_facility=current_facility,
+            facilities=simulation_engine.facilities,
+            port_links=simulation_engine.port_links,
+            inbound_reserved=simulation_engine.inbound_reserved,
+            route_data=route_data,
+            risk_lookup=risk_lookup,
+        )
+        points.append({
+            "co2": decision.breakdown.get("co2_delta_kg", 0.0),
+            "delivery_time": decision.travel_minutes * decision.eta_multiplier,
+            "cost": decision.score,
+            "action": decision.action,
+            "objective": objective.name,
+            "vehicle": vehicle.identifier,
+            "overload_risk": decision.breakdown.get("overload_risk", 0.0),
+            "sla_penalty": decision.breakdown.get("sla_penalty", 0.0),
+        })
+    # Mark Pareto-optimal points (non-dominated in cost+delay+co2 space)
+    pareto_indices = set()
+    for i, p in enumerate(points):
+        dominated = False
+        for j, q in enumerate(points):
+            if i == j:
+                continue
+            if q["cost"] <= p["cost"] and q["delivery_time"] <= p["delivery_time"] and q["co2"] <= p["co2"]:
+                if q["cost"] < p["cost"] or q["delivery_time"] < p["delivery_time"] or q["co2"] < p["co2"]:
+                    dominated = True
+                    break
+        if not dominated:
+            pareto_indices.add(i)
+    for i, p in enumerate(points):
+        p["is_pareto"] = i in pareto_indices
+    return {"points": points, "pareto_count": len(pareto_indices), "total": len(points)}
+
+
 @app.post("/api/ai/optimize-dispatch", response_model=list[ParetoFrontRead])
 def optimize_dispatch(session: Session = Depends(get_session)) -> list[ParetoFrontRead]:
     if not settings.use_nsga2_optimizer:

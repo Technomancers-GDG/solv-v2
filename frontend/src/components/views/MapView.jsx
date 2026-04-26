@@ -172,7 +172,8 @@ function eventSeverity(impactScore) {
   return "low";
 }
 
-function getRiskColor(risk) {
+function getRiskColor(risk, category) {
+  if (category && String(category).toLowerCase().includes("cascade")) return "#8b5cf6"; // Purple AI cascade
   if (risk >= 0.6) return "#dc2626";
   if (risk >= 0.3) return "#f59e0b";
   return "#22c55e";
@@ -388,25 +389,44 @@ export function MapView({
             {showDisruptions && disruptionEvents.map((event, i) => {
               const facility = facilities.find((f) => String(f.city).trim().toLowerCase() === String(event.city).trim().toLowerCase() && hasCoordinates(f));
               if (!facility) return null;
+              
+              const cascadeMatch = event.headline?.match(/Cascade from (.+?) → (.+?):/);
+              let cascadeDest = null;
+              if (cascadeMatch) {
+                cascadeDest = facilities.find((f) => f.name === cascadeMatch[2].trim() && hasCoordinates(f));
+              }
+
               return (
-                <Circle
-                  key={`disruption-${i}`}
-                  center={[Number(facility.latitude), Number(facility.longitude)]}
-                  radius={getRiskRadius(event.impact_score)}
-                  color={getRiskColor(event.impact_score)}
-                  fillColor={getRiskColor(event.impact_score)}
-                  fillOpacity={0.3}
-                  weight={3}
-                  opacity={0.8}
-                  className="pulse-risk-circle"
-                >
-                  <Popup>
-                    <strong>{event.city} Disruption</strong><br />
-                    Impact: {(event.impact_score * 100).toFixed(1)}%<br />
-                    Type: {event.kind}<br />
-                    Headline: {event.headline}
-                  </Popup>
-                </Circle>
+                <React.Fragment key={`disruption-group-${i}`}>
+                  <Circle
+                    center={[Number(facility.latitude), Number(facility.longitude)]}
+                    radius={getRiskRadius(event.impact_score)}
+                    color={getRiskColor(event.impact_score, event.category)}
+                    fillColor={getRiskColor(event.impact_score, event.category)}
+                    fillOpacity={0.3}
+                    weight={3}
+                    opacity={0.8}
+                    className="pulse-risk-circle"
+                  >
+                    <Popup>
+                      <strong>{event.city} Disruption</strong><br />
+                      Impact: {(event.impact_score * 100).toFixed(1)}%<br />
+                      Type: {event.kind}<br />
+                      Headline: {event.headline}
+                    </Popup>
+                  </Circle>
+                  {cascadeDest && (
+                    <Polyline
+                      positions={[[Number(facility.latitude), Number(facility.longitude)], [Number(cascadeDest.latitude), Number(cascadeDest.longitude)]]}
+                      color="#8b5cf6"
+                      weight={6}
+                      dashArray="15 15"
+                      className="cascade-wave-line"
+                    >
+                       <Popup>AI Detected Cascade Wave</Popup>
+                    </Polyline>
+                  )}
+                </React.Fragment>
               );
             })}
 

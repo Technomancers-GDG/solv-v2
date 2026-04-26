@@ -214,6 +214,7 @@ class Recommendation(Base):
     recommended_cost: Mapped[float] = mapped_column(Float, default=0.0)
     financial_impact_usd: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[str] = mapped_column(String(40), default="suggested")
+    confidence: Mapped[float] = mapped_column(Float, default=0.5)
 
 
 class DriverDecision(Base):

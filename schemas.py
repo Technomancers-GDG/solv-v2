@@ -173,6 +173,7 @@ class RecommendationRead(ORMModel):
     recommended_cost: float
     financial_impact_usd: float
     status: str
+    confidence: float | None = None
 
 
 class DriverDecisionRead(ORMModel):

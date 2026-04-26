@@ -335,16 +335,22 @@ export function RecommendationsLogView({
                   </div>
 
                   {/* Explanation Breakdown */}
-                  {selectedRec.explanation_breakdown && (
+                  {selectedRec.score_breakdown && (
                     <div className="detail-section">
                       <h4>Confidence Breakdown</h4>
                       <div className="breakdown-list">
-                        {typeof selectedRec.explanation_breakdown === "string" ? (
-                          <p>{selectedRec.explanation_breakdown}</p>
-                        ) : Array.isArray(selectedRec.explanation_breakdown) ? (
-                          selectedRec.explanation_breakdown.map((factor, idx) => (
+                        {typeof selectedRec.score_breakdown === "string" ? (
+                          <p>{selectedRec.score_breakdown}</p>
+                        ) : Array.isArray(selectedRec.score_breakdown) ? (
+                          selectedRec.score_breakdown.map((factor, idx) => (
                             <div key={idx} className="breakdown-item">
                               <p>{factor}</p>
+                            </div>
+                          ))
+                        ) : typeof selectedRec.score_breakdown === "object" ? (
+                          Object.entries(selectedRec.score_breakdown).map(([key, value], idx) => (
+                            <div key={idx} className="breakdown-item">
+                              <p><strong>{key}:</strong> {value}</p>
                             </div>
                           ))
                         ) : (

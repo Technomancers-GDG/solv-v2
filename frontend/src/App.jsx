@@ -421,7 +421,11 @@ export default function App() {
   const runAction = useCallback(async (path, body = null, msg = "") => {
     try {
       await apiFetch(path, { method: "POST", body: JSON.stringify(body ?? {}) });
-      if (msg) { setMessage(msg); setError(""); }
+      if (msg) { 
+        setMessage(msg); 
+        setError(""); 
+        setTimeout(() => setMessage(""), 3000);
+      }
       await refreshAll(false);
     } catch (err) { setError(err.message); }
   }, [refreshAll]);

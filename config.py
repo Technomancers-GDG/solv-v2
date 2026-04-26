@@ -37,6 +37,7 @@ class Settings:
     bigquery_enabled: bool
     bigquery_dataset: str
     fcm_enabled: bool
+    cost_point_to_inr: float
 
 
 def _get_env(name: str, default: str) -> str:
@@ -83,6 +84,8 @@ def load_settings() -> Settings:
         bigquery_enabled=_get_bool_env("BIGQUERY_ENABLED", "false"),
         bigquery_dataset=_get_env("BIGQUERY_DATASET", "supply_chain"),
         fcm_enabled=_get_bool_env("FCM_ENABLED", "false"),
+        # Financial calibration: 1 cost point = ₹15 INR (based on ~₹45/km Indian truck ops)
+        cost_point_to_inr=float(_get_env("COST_POINT_TO_INR", "15.0")),
     )
 
 

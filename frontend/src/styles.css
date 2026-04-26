@@ -600,6 +600,15 @@ button.scale-btn:disabled {
   letter-spacing: 0.08em;
 }
 
+@keyframes cascadeWave {
+  0% { stroke-dashoffset: 20; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.2; }
+}
+.cascade-wave-line {
+  animation: cascadeWave 1s linear infinite;
+}
+
+
 .map-pin-facility {
   width: 30px;
   height: 30px;

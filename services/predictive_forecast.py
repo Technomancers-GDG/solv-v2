@@ -155,7 +155,20 @@ class PredictiveForecastService:
         ref_dt = reference_date or datetime.utcnow().date()
         history = self.get_city_history(session, city, ref_dt)
         if len(history) < 3:
-            return None
+            predicted_risk = history[-1]["combined_risk"] if history else 0.1
+            predicted_eta = history[-1]["eta_multiplier"] if history else 1.0
+            return RiskForecast(
+                city=city,
+                forecast_time=datetime.combine(ref_dt, datetime.min.time()) + timedelta(hours=forecast_hours),
+                predicted_route_risk=round(predicted_risk, 3),
+                predicted_eta_multiplier=round(predicted_eta, 3),
+                predicted_closure_risk=round(predicted_risk * 0.9, 3),
+                confidence=0.1,
+                contributing_factors=["insufficient history - using baseline"],
+                prediction_interval_low=round(max(0.0, predicted_risk - 0.2), 3),
+                prediction_interval_high=round(min(1.0, predicted_risk + 0.2), 3),
+                trend_direction="stable",
+            )
 
         risks = [h["combined_risk"] for h in history]
         etas = [h["eta_multiplier"] for h in history]
