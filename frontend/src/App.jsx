@@ -340,6 +340,7 @@ export default function App() {
   const [voiceConfig, setVoiceConfig] = useState(null);
   const [scenarioKey, setScenarioKey] = useState("");
   const [scenarioComparison, setScenarioComparison] = useState(null);
+  const [scalingFleet, setScalingFleet] = useState(false);
   const [voiceIncidentType, setVoiceIncidentType] = useState("road_blockage");
   const [voiceNote, setVoiceNote] = useState("");
 
@@ -431,7 +432,7 @@ export default function App() {
       case "dashboard":
         return <DashboardView metrics={metrics} criticalFacilities={criticalFacilities} proactiveDispatches={proactiveDispatches} riskForecast={riskForecast} auditChain={auditChain} blockchainVerify={blockchainVerify} facilityLookup={facilityLookup} />;
       case "map":
-        return <MapView facilities={facilities} vehicles={dashboard?.vehicles ?? []} objectives={objectives} recommendations={recommendations} activeEvents={dashboard?.active_events ?? []} routeTemplates={routes} riskForecast={riskForecast} vehicleCount={dashboard?.vehicles?.length ?? vehicles.length} onScaleFleet={(n) => runAction("/api/demo/scale-fleet", { target_vehicle_count: n, reset_simulation: true, auto_start: true, speed_multiplier: 180 })} />;
+        return <MapView facilities={facilities} vehicles={dashboard?.vehicles ?? []} objectives={objectives} recommendations={recommendations} activeEvents={dashboard?.active_events ?? []} routeTemplates={routes} riskForecast={riskForecast} vehicleCount={dashboard?.vehicles?.length ?? vehicles.length} onScaleFleet={async (n) => { setScalingFleet(true); try { await runAction("/api/demo/scale-fleet", { target_vehicle_count: n, reset_simulation: true, auto_start: true, speed_multiplier: 180 }); } finally { setScalingFleet(false); } }} isScalingFleet={scalingFleet} />;
       case "liveOps":
         return <LiveOpsView metrics={metrics} deferredVehicles={deferredVehicles} objectiveLookup={objectiveLookup} />;
       case "forecast":

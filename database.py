@@ -4,7 +4,7 @@ from collections.abc import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import StaticPool
 
 from config import settings
 
@@ -17,10 +17,13 @@ connect_args: dict[str, object] = {}
 if settings.database_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
 
-# Use NullPool for SQLite to avoid connection pool exhaustion on Render
+# Use StaticPool for SQLite to keep one persistent connection open per process.
+# This avoids connection pool exhaustion AND avoids the file open/close overhead
+# that makes NullPool extremely slow for bulk insert operations (e.g. fleet scaling).
 pool_kwargs = {}
 if settings.database_url.startswith("sqlite"):
-    pool_kwargs["poolclass"] = NullPool
+    pool_kwargs["poolclass"] = StaticPool
+    pool_kwargs["pool_pre_ping"] = True
 
 engine = create_engine(settings.database_url, future=True, connect_args=connect_args, **pool_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
