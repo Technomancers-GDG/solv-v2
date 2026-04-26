@@ -98,8 +98,6 @@ class RoutePlanner:
     def _fetch_osrm_route(
         self, origin: Facility, destination: Facility
     ) -> dict[str, object] | None:
-        if settings.demo_mode:
-            return None
         coordinates = (
             f"{origin.longitude},{origin.latitude};"
             f"{destination.longitude},{destination.latitude}"
@@ -109,7 +107,7 @@ class RoutePlanner:
             "?overview=full&steps=true&geometries=polyline"
         )
         try:
-            with httpx.Client(timeout=3.5) as client:
+            with httpx.Client(timeout=8.0) as client:
                 response = client.get(url)
             response.raise_for_status()
             payload = response.json()
@@ -144,20 +142,41 @@ class RoutePlanner:
         average_speed_kmph = 48.0
         duration_minutes = road_distance / average_speed_kmph * 60
         
-        # Generate a more realistic multi-point polyline for better map rendering
-        mid_lat = (origin.latitude + destination.latitude) / 2
-        mid_lon = (origin.longitude + destination.longitude) / 2
-        # Add slight curve offset for visual realism
-        offset_lat = (destination.longitude - origin.longitude) * 0.05
-        offset_lon = -(destination.latitude - origin.latitude) * 0.05
+        # Generate a realistic multi-point polyline that looks like a road route
+        lat1, lon1 = origin.latitude, origin.longitude
+        lat2, lon2 = destination.latitude, destination.longitude
         
-        points = [
-            (origin.latitude, origin.longitude),
-            (origin.latitude + (mid_lat - origin.latitude) * 0.3 + offset_lat * 0.5, origin.longitude + (mid_lon - origin.longitude) * 0.3 + offset_lon * 0.5),
-            (mid_lat + offset_lat, mid_lon + offset_lon),
-            (mid_lat + (destination.latitude - mid_lat) * 0.7 + offset_lat * 0.5, mid_lon + (destination.longitude - mid_lon) * 0.7 + offset_lon * 0.5),
-            (destination.latitude, destination.longitude),
-        ]
+        # Calculate direction vector
+        d_lat = lat2 - lat1
+        d_lon = lon2 - lon1
+        
+        # Perpendicular offset for curves (makes route look like real roads)
+        perp_lat = d_lon * 0.08
+        perp_lon = -d_lat * 0.08
+        
+        # Build 20 interpolated points with realistic meandering
+        points = [(lat1, lon1)]
+        segments = 20
+        for i in range(1, segments):
+            t = i / segments
+            # Base linear interpolation
+            base_lat = lat1 + d_lat * t
+            base_lon = lon1 + d_lon * t
+            
+            # Add curves using sine waves (different frequencies for organic feel)
+            curve_strength = 1.0 - abs(t - 0.5) * 2.0  # strongest in middle, zero at ends
+            sine_offset = (
+                (t * 6.28 * 1.5) +  # Primary frequency
+                (t * 6.28 * 3.2 * 0.3) +  # Secondary
+                (t * 6.28 * 5.7 * 0.15)   # Tertiary
+            )
+            
+            lat_offset = perp_lat * curve_strength * (0.5 + 0.5 * sin(sine_offset))
+            lon_offset = perp_lon * curve_strength * (0.5 + 0.5 * sin(sine_offset + 1.2))
+            
+            points.append((base_lat + lat_offset, base_lon + lon_offset))
+        
+        points.append((lat2, lon2))
         polyline = encode_polyline(points)
         
         steps = [
