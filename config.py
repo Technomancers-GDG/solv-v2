@@ -38,6 +38,8 @@ class Settings:
     bigquery_dataset: str
     fcm_enabled: bool
     cost_point_to_inr: float
+    # Gemini
+    gemini_api_key: str
 
 
 def _get_env(name: str, default: str) -> str:
@@ -86,6 +88,8 @@ def load_settings() -> Settings:
         fcm_enabled=_get_bool_env("FCM_ENABLED", "false"),
         # Financial calibration: 1 cost point = ₹15 INR (based on ~₹45/km Indian truck ops)
         cost_point_to_inr=float(_get_env("COST_POINT_TO_INR", "15.0")),
+        # Gemini
+        gemini_api_key=_get_env("GEMINI_API_KEY", ""),
     )
 
 

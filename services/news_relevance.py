@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 import pickle
 import re
 
+from backend.utils.gemini_client import analyze_news_with_gemini
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 POSITIVE_CATEGORIES = {"Road Blockages", "Finance/Transport"}
 NEGATIVE_CATEGORIES = {"Municipality", "Local Politics", "Geopolitics"}
@@ -85,6 +89,15 @@ class NewsRelevanceService:
         self._trained = True
 
     def predict(self, category: str, headline: str) -> NewsPrediction:
+        # Try Gemini-powered analysis first
+        try:
+            gemini_result = analyze_news_with_gemini(headline)
+            if gemini_result is not None:
+                return self._map_gemini_to_prediction(gemini_result)
+        except Exception as exc:
+            logger.error("Gemini prediction failed, falling back to NLP: %s", exc)
+
+        # Fallback to existing NLP pipeline
         self.ensure_trained()
         heuristic_probability = self._heuristic_probability(category, headline)
         model_probability = heuristic_probability
@@ -144,6 +157,51 @@ class NewsRelevanceService:
         if any(token in lowered for token in ("port", "export", "inspection")):
             return "port_disruption"
         return "logistics_disruption"
+
+    def _map_gemini_to_prediction(self, gemini_result: dict) -> NewsPrediction:
+        """Convert Gemini structured JSON into the internal NewsPrediction format."""
+        event_type = str(gemini_result.get("event_type", "")).lower().strip()
+        severity = str(gemini_result.get("severity", "")).lower().strip()
+
+        # Map Gemini severity to probability / score
+        severity_map = {
+            "high": 0.92,
+            "medium": 0.72,
+            "low": 0.35,
+        }
+        probability = severity_map.get(severity, 0.5)
+
+        # Map event_type to internal impact_type taxonomy
+        if any(k in event_type for k in ("protest", "strike", "union", "labor", "riot")):
+            impact_type = "labor_disruption"
+        elif any(k in event_type for k in ("flood", "storm", "rain", "weather", "cyclone", "earthquake")):
+            impact_type = "weather_disruption"
+        elif any(k in event_type for k in ("road", "block", "accident", "closure", "traffic", "diversion", "highway")):
+            impact_type = "road_blockage"
+        elif any(k in event_type for k in ("port", "dock", "shipping", "harbor", "vessel")):
+            impact_type = "port_disruption"
+        else:
+            impact_type = "logistics_disruption"
+
+        relevant = probability >= 0.55
+        impact_score = round(
+            min(1.0, probability + (0.08 if impact_type != "none" else 0.0)), 3
+        )
+        if not relevant:
+            impact_score = round(impact_score * 0.45, 3)
+
+        logger.info(
+            "Gemini-mapped prediction: relevant=%s, impact_type=%s, impact_score=%s",
+            relevant,
+            impact_type,
+            impact_score,
+        )
+        return NewsPrediction(
+            relevant=relevant,
+            impact_type=impact_type,
+            impact_score=impact_score,
+            model_probability=round(probability, 3),
+        )
 
     def _evaluate_validation_set(self) -> float | None:
         if self.model is None or self.vectorizer is None:
