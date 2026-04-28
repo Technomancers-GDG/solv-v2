@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+from config import settings
+
+GEMINI_API_KEY = settings.gemini_api_key
 
 
 def analyze_news_with_gemini(text: str) -> dict | None:
