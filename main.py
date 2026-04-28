@@ -103,6 +103,7 @@ app.add_middleware(
 
 news_model = NewsRelevanceService()
 route_planner = RoutePlanner()
+print(f"[DEBUG] ROUTE_USE_OSRM={settings.route_use_osrm} OSRM_BASE_URL={settings.osrm_base_url}", flush=True)
 event_ingestion_service = EventIngestionService(news_model)
 simulation_engine = SimulationEngine(route_planner)
 forecast_service = PredictiveForecastService()

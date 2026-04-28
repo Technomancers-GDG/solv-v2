@@ -4,6 +4,7 @@ from datetime import datetime
 from math import asin, cos, radians, sin, sqrt
 
 import httpx
+import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -47,6 +48,7 @@ class RoutePlanner:
     def __init__(self, osrm_base_url: str | None = None) -> None:
         self.osrm_base_url = (osrm_base_url or settings.osrm_base_url).rstrip("/")
         self.use_osrm = settings.route_use_osrm
+        self.logger = logging.getLogger(__name__)
 
     def route_key(self, origin_id: int, destination_id: int) -> str:
         return f"{origin_id}:{destination_id}"
@@ -109,10 +111,13 @@ class RoutePlanner:
         try:
             with httpx.Client(timeout=8.0) as client:
                 response = client.get(url)
+            # Will raise HTTPStatusError for 4xx/5xx
             response.raise_for_status()
             payload = response.json()
             routes = payload.get("routes", [])
             if not routes:
+                self.logger.warning("OSRM returned empty routes array; URL=%s", url)
+                self.logger.debug("OSRM response payload: %s", payload)
                 return None
             route = routes[0]
             leg = route["legs"][0]
@@ -131,7 +136,20 @@ class RoutePlanner:
                 "steps": steps,
                 "source": "osrm",
             }
-        except Exception:
+        except httpx.HTTPStatusError as e:
+            resp = getattr(e, "response", None)
+            status = getattr(resp, "status_code", None)
+            body = None
+            try:
+                body = resp.text if resp is not None else None
+            except Exception:
+                body = None
+            self.logger.exception(
+                "OSRM HTTP error: %s URL=%s status=%s body=%s", e, url, status, body
+            )
+            return None
+        except Exception as e:
+            self.logger.exception("OSRM request failed: %s URL=%s", e, url)
             return None
 
     def _estimated_route(self, origin: Facility, destination: Facility) -> dict[str, object]:
