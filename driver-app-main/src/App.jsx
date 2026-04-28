@@ -85,7 +85,13 @@ function App() {
   // WebSocket for live simulation updates
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/operations`);
+    
+    // In production, point directly to the Cloud Run backend instead of the Vite proxy
+    const backendHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
+      ? window.location.host 
+      : "sim-backend-1029069183045.us-central1.run.app";
+      
+    const socket = new WebSocket(`${protocol}://${backendHost}/ws/operations`);
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
