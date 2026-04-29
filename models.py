@@ -273,3 +273,112 @@ class MetricsSnapshot(Base):
     queued_trucks: Mapped[int] = mapped_column(Integer, default=0)
     financial_costs_saved_usd: Mapped[float] = mapped_column(Float, default=0.0)
     financial_costs_incurred_usd: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class LogisticsNode(Base):
+    __tablename__ = "nodes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    node_key: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    node_type: Mapped[str] = mapped_column(String(40), index=True)
+    city: Mapped[str] = mapped_column(String(100), nullable=True, index=True)
+    latitude: Mapped[float] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float] = mapped_column(Float, nullable=True)
+    capacity_units: Mapped[int] = mapped_column(Integer, nullable=True)
+    node_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
+class LogisticsEdge(Base):
+    __tablename__ = "edges"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    edge_key: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    from_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), index=True)
+    to_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), index=True)
+    transport_mode: Mapped[str] = mapped_column(String(30), index=True)
+    cost: Mapped[float] = mapped_column(Float, default=0.0)
+    time_minutes: Mapped[float] = mapped_column(Float, default=0.0)
+    risk: Mapped[float] = mapped_column(Float, default=0.0)
+    distance_km: Mapped[float] = mapped_column(Float, nullable=True)
+    capacity_units: Mapped[int] = mapped_column(Integer, nullable=True)
+    bidirectional: Mapped[bool] = mapped_column(Boolean, default=True)
+    constraints: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    edge_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    from_node: Mapped[LogisticsNode] = relationship("LogisticsNode", foreign_keys=[from_node_id], lazy="joined")
+    to_node: Mapped[LogisticsNode] = relationship("LogisticsNode", foreign_keys=[to_node_id], lazy="joined")
+
+
+class Shipment(Base):
+    __tablename__ = "shipments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    shipment_reference: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    origin_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=True, index=True)
+    destination_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=True, index=True)
+    origin_node_key: Mapped[str] = mapped_column(String(120), index=True)
+    destination_node_key: Mapped[str] = mapped_column(String(120), index=True)
+    current_location_node_key: Mapped[str] = mapped_column(String(120), nullable=True, index=True)
+    cargo_type: Mapped[str] = mapped_column(String(100), default="general")
+    quantity_units: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(40), default="created", index=True)
+    assigned_driver_id: Mapped[int] = mapped_column(ForeignKey("driver_profiles.id"), nullable=True, index=True)
+    assigned_vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=True, index=True)
+    current_route_id: Mapped[int] = mapped_column(Integer, nullable=True, index=True)
+    shipment_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
+class LogisticsRoute(Base):
+    __tablename__ = "routes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    route_key: Mapped[str] = mapped_column(String(180), index=True)
+    shipment_id: Mapped[int] = mapped_column(ForeignKey("shipments.id"), nullable=True, index=True)
+    origin_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=True, index=True)
+    destination_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=True, index=True)
+    origin_node_key: Mapped[str] = mapped_column(String(120), index=True)
+    destination_node_key: Mapped[str] = mapped_column(String(120), index=True)
+    node_sequence: Mapped[list[str]] = mapped_column(JSON, default=list)
+    edge_sequence: Mapped[list[str]] = mapped_column(JSON, default=list)
+    transport_modes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    total_cost: Mapped[float] = mapped_column(Float, default=0.0)
+    total_time: Mapped[float] = mapped_column(Float, default=0.0)
+    total_risk: Mapped[float] = mapped_column(Float, default=0.0)
+    score: Mapped[float] = mapped_column(Float, default=0.0)
+    status: Mapped[str] = mapped_column(String(40), default="planned", index=True)
+    assigned_driver_id: Mapped[int] = mapped_column(ForeignKey("driver_profiles.id"), nullable=True, index=True)
+    assigned_vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=True, index=True)
+    route_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
+class Prediction(Base):
+    __tablename__ = "predictions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    shipment_id: Mapped[int] = mapped_column(ForeignKey("shipments.id"), nullable=True, index=True)
+    route_id: Mapped[int] = mapped_column(ForeignKey("routes.id"), nullable=True, index=True)
+    prediction_type: Mapped[str] = mapped_column(String(60), index=True)
+    target_key: Mapped[str] = mapped_column(String(160), index=True)
+    value: Mapped[float] = mapped_column(Float, default=0.0)
+    confidence: Mapped[float] = mapped_column(Float, default=0.5)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)

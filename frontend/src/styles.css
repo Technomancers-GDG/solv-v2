@@ -525,6 +525,38 @@ th {
   padding: 8px 10px;
 }
 
+.route-risk-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.route-risk-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.risk-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.risk-dot.low { background: #22c55e; }
+.risk-dot.medium { background: #f59e0b; }
+.risk-dot.high { background: #dc2626; }
+
+.dash-sample {
+  width: 24px;
+  height: 0;
+  border-top: 2px dashed #2563eb;
+  display: inline-block;
+}
+
 .scale-controls {
   display: grid;
   gap: 8px;
@@ -779,6 +811,33 @@ button.scale-btn:disabled {
 .route-source {
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+.route-risk-pill {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+}
+
+.route-risk-pill.low {
+  background: #dcfce7;
+  color: #047857;
+  border-color: #86efac;
+}
+
+.route-risk-pill.medium {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fbbf24;
+}
+
+.route-risk-pill.high {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
 }
 
 .route-progress {
@@ -1247,6 +1306,12 @@ button.scale-btn:disabled {
   font-size: 0.78rem;
   color: #22c55e;
   font-weight: 600;
+}
+
+.metric-context {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 .dashboard-grid {
@@ -1936,6 +2001,152 @@ button.scale-btn:disabled {
   font-weight: 700;
   color: var(--muted);
   text-align: right;
+}
+
+.decision-explanation-panel {
+  border: 1px solid rgba(25, 26, 35, 0.14);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.decision-panel-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.decision-kicker,
+.compare-label {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.ai-confidence-badge {
+  border: 1px solid #86efac;
+  background: #dcfce7;
+  color: #047857;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.decision-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.decision-section {
+  display: grid;
+  gap: 4px;
+}
+
+.decision-section > span {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.decision-section p,
+.route-compare-decision p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.decision-section ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.route-comparison-block {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.route-compare-card,
+.route-compare-decision {
+  border: 1px solid rgba(25, 26, 35, 0.12);
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.route-compare-card {
+  display: grid;
+  gap: 4px;
+}
+
+.route-compare-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.route-compare-card.after {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.route-compare-decision {
+  grid-column: 1 / -1;
+}
+
+.ai-feed-section h5 {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ai-activity-feed {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.ai-feed-item {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 10px;
+  border: 1px solid rgba(25, 26, 35, 0.1);
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: #ffffff;
+}
+
+.ai-feed-time {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.ai-feed-item strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.ai-feed-item p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
 }
 
 /* Risk forecast enhancements */

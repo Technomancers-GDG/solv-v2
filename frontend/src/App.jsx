@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useState, useCallback, useRef } from "react";
+import { startTransition, useDeferredValue, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { onAuthChange, logout } from "./firebase";
 import { LoginView } from "./components/views/LoginView";
 import { MapView } from "./components/views/MapView";
@@ -293,6 +293,112 @@ function useVoiceInput() {
   return { isListening, transcript, start, reset: () => setTranscript("") };
 }
 
+function formatINRCompact(value) {
+  const amount = Number(value || 0);
+  if (Math.abs(amount) >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
+  if (Math.abs(amount) >= 1000) return `₹${Math.round(amount / 1000)}K`;
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
+}
+
+function formatDurationFromMinutes(minutes, fallbackHours = 36) {
+  const value = Number(minutes);
+  const hours = Number.isFinite(value) && value > 0 ? value / 60 : fallbackHours;
+  return `${hours.toFixed(hours >= 10 ? 0 : 1)}h`;
+}
+
+function decisionVerb(action = "") {
+  const normalized = String(action || "continue").replaceAll("_", " ");
+  if (normalized.includes("reroute")) return "Rerouted";
+  if (normalized.includes("wait")) return "Held";
+  if (normalized.includes("defer")) return "Deferred";
+  return "Optimized";
+}
+
+function actionDetail(action = "", explanation = "") {
+  const text = String(explanation || "").toLowerCase();
+  if (text.includes("port")) return "avoided port delay";
+  if (text.includes("risk")) return "reduced route risk";
+  if (String(action).includes("rail")) return "switched to rail route for cost efficiency";
+  if (String(action).includes("reroute")) return "selected a safer fallback route";
+  return "updated route recommendation";
+}
+
+function recommendationTime(rec) {
+  const raw = rec?.created_at || rec?.simulation_time;
+  const date = raw ? new Date(String(raw).endsWith("Z") ? raw : `${raw}Z`) : new Date();
+  if (Number.isNaN(date.getTime())) return "--:--";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function buildDecisionFromRecommendation(rec, metrics) {
+  if (!rec) {
+    const saved = Number(metrics?.financial_costs_saved_usd ?? 25000);
+    return {
+      id: "mock-decision",
+      title: "Rerouted Shipment SHP-001",
+      reason: "Predicted 10-hour delay at Chennai Port",
+      impact: [`${formatINRCompact(saved || 25000)} cost saved`, "6 hours faster delivery"],
+      confidence: 92,
+      comparison: {
+        before: { label: "Route A", cost: "₹1.2L", time: "36h" },
+        after: { label: "Route B", cost: "₹95K", time: "30h" },
+        decision: "Chosen to minimize cost and avoid delay risk",
+      },
+    };
+  }
+
+  const shipmentRef = `SHP-${String(rec.id ?? 1).padStart(3, "0")}`;
+  const costSaved = Number(rec.financial_impact_usd ?? 0) || Math.max(0, Number(rec.baseline_cost ?? 0) - Number(rec.recommended_cost ?? 0));
+  const addedTravel = Number(rec.score_breakdown?.added_travel_minutes ?? 0);
+  const baselineMinutes = Number(rec.score_breakdown?.baseline_duration_minutes ?? 2160);
+  const recommendedMinutes = Math.max(60, baselineMinutes + addedTravel);
+  const timeSaved = Math.max(0, baselineMinutes - recommendedMinutes);
+  const confidence = Math.round((Number(rec.confidence ?? 0.9) || 0.9) * 100);
+
+  return {
+    id: rec.id,
+    title: `${decisionVerb(rec.action)} Shipment ${shipmentRef}`,
+    reason: rec.explanation || "AI selected the best route after evaluating cost, capacity, and route risk.",
+    impact: [
+      `${formatINRCompact(costSaved)} cost saved`,
+      timeSaved > 0 ? `${formatDurationFromMinutes(timeSaved, 6)} faster delivery` : "delay risk avoided",
+    ],
+    confidence,
+    comparison: {
+      before: {
+        label: "Route A",
+        cost: formatINRCompact(rec.baseline_cost ?? costSaved * 1.2),
+        time: formatDurationFromMinutes(baselineMinutes, 36),
+      },
+      after: {
+        label: "Route B",
+        cost: formatINRCompact(rec.recommended_cost ?? Math.max(0, Number(rec.baseline_cost ?? 0) - costSaved)),
+        time: formatDurationFromMinutes(recommendedMinutes, 30),
+      },
+      decision: rec.action?.includes("reroute")
+        ? "Chosen to minimize cost and avoid delay risk"
+        : "Chosen as the lowest-risk feasible option",
+    },
+  };
+}
+
+function buildActivityFeed(recommendations, aiActivity) {
+  const fromRecommendations = (recommendations || []).slice(0, 15).map((rec) => ({
+    id: `rec-${rec.id}`,
+    time: recommendationTime(rec),
+    title: `${decisionVerb(rec.action)} SHP-${String(rec.id ?? 0).padStart(3, "0")}`,
+    detail: actionDetail(rec.action, rec.explanation),
+  }));
+
+  if (fromRecommendations.length) return fromRecommendations;
+
+  return [
+    { id: "mock-1", time: "16:23", title: "Rerouted SHP-001", detail: "avoided port delay" },
+    { id: "mock-2", time: "16:20", title: "Predicted congestion at Mumbai port", detail: `${aiActivity?.cascade_detections_today ?? 1} cascade signal detected` },
+    { id: "mock-3", time: "16:18", title: "Switched to rail route", detail: "optimized for cost efficiency" },
+  ];
+}
+
 export default function App() {
   const { lang, t, switchLang } = useLanguage();
   const [activeView, setActiveView] = useState("dashboard");
@@ -339,6 +445,9 @@ export default function App() {
   const [blockchainVerify, setBlockchainVerify] = useState(null);
   const [voiceConfig, setVoiceConfig] = useState(null);
   const [aiActivity, setAiActivity] = useState(null);
+  const [latestDecision, setLatestDecision] = useState(null);
+  const [previousRoute, setPreviousRoute] = useState(null);
+  const [activityFeed, setActivityFeed] = useState([]);
   const [scenarioKey, setScenarioKey] = useState("");
   const [scenarioComparison, setScenarioComparison] = useState(null);
   const [scalingFleet, setScalingFleet] = useState(false);
@@ -439,11 +548,28 @@ export default function App() {
   const facilityLookup = Object.fromEntries(facilities.map((f) => [f.id, f]));
   const objectiveLookup = Object.fromEntries(objectives.map((o) => [o.id, o]));
   const criticalFacilities = (dashboard?.facilities ?? []).filter((f) => f.utilization_pct >= 70).slice(0, 6);
+  const derivedDecision = useMemo(
+    () => buildDecisionFromRecommendation(recommendations?.[0], metrics),
+    [recommendations, metrics]
+  );
+  const derivedActivityFeed = useMemo(
+    () => buildActivityFeed(recommendations, aiActivity),
+    [recommendations, aiActivity]
+  );
+
+  useEffect(() => {
+    setLatestDecision(derivedDecision);
+    setPreviousRoute(derivedDecision?.comparison?.before ?? null);
+  }, [derivedDecision]);
+
+  useEffect(() => {
+    setActivityFeed(derivedActivityFeed.slice(0, 20));
+  }, [derivedActivityFeed]);
 
   const renderView = () => {
     switch (activeView) {
       case "dashboard":
-        return <DashboardView metrics={metrics} criticalFacilities={criticalFacilities} proactiveDispatches={proactiveDispatches} riskForecast={riskForecast} auditChain={auditChain} blockchainVerify={blockchainVerify} facilityLookup={facilityLookup} aiActivity={aiActivity} />;
+        return <DashboardView metrics={metrics} criticalFacilities={criticalFacilities} proactiveDispatches={proactiveDispatches} riskForecast={riskForecast} auditChain={auditChain} blockchainVerify={blockchainVerify} facilityLookup={facilityLookup} aiActivity={aiActivity} latestDecision={latestDecision} previousRoute={previousRoute} activityFeed={activityFeed} />;
       case "map":
         return <MapView facilities={facilities} vehicles={dashboard?.vehicles ?? []} objectives={objectives} recommendations={recommendations} activeEvents={dashboard?.active_events ?? []} routeTemplates={routes} riskForecast={riskForecast} vehicleCount={dashboard?.vehicles?.length ?? vehicles.length} onScaleFleet={async (n) => { setScalingFleet(true); try { await runAction("/api/demo/scale-fleet", { target_vehicle_count: n, reset_simulation: true, auto_start: true, speed_multiplier: 180 }); } finally { setScalingFleet(false); } }} isScalingFleet={scalingFleet} />;
       case "liveOps":
@@ -469,7 +595,7 @@ export default function App() {
       case "settings":
         return <SettingsView lang={lang} onSwitchLang={switchLang} t={t} />;
       default:
-        return <DashboardView metrics={metrics} criticalFacilities={criticalFacilities} proactiveDispatches={proactiveDispatches} riskForecast={riskForecast} auditChain={auditChain} blockchainVerify={blockchainVerify} facilityLookup={facilityLookup} />;
+        return <DashboardView metrics={metrics} criticalFacilities={criticalFacilities} proactiveDispatches={proactiveDispatches} riskForecast={riskForecast} auditChain={auditChain} blockchainVerify={blockchainVerify} facilityLookup={facilityLookup} aiActivity={aiActivity} latestDecision={latestDecision} previousRoute={previousRoute} activityFeed={activityFeed} />;
     }
   };
 

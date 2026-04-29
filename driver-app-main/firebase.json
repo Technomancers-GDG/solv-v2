@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "gsc-2026-driver",
     "public": "dist",
     "ignore": [
       "firebase.json",

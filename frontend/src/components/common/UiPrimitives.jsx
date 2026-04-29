@@ -7,11 +7,12 @@ export function Panel({ title, children, className = "" }) {
   );
 }
 
-export function MetricCard({ label, value, tone = "neutral", trend }) {
+export function MetricCard({ label, value, tone = "neutral", trend, context }) {
   return (
     <div className={`metric-card tone-${tone}`}>
       <div className="metric-label">{label}</div>
       <div className="metric-value">{value}</div>
+      {context && <div className="metric-context">{context}</div>}
       {trend !== undefined && <div className="metric-trend">{trend > 0 ? "\u2191" : "\u2193"} {Math.abs(trend).toFixed(1)}%</div>}
     </div>
   );

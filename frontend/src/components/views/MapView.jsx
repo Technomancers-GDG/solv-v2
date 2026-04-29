@@ -183,6 +183,17 @@ function getRiskRadius(risk) {
   return 8000 + risk * 40000;
 }
 
+function routeRiskLevel(risk) {
+  const value = Number(risk) || 0;
+  if (value >= 0.6) return "high";
+  if (value >= 0.3) return "medium";
+  return "low";
+}
+
+function isReroutedRoute(route) {
+  return String(route?.recommendationAction || "").toLowerCase().includes("reroute");
+}
+
 function MapClickHandler({ onMapClick }) {
   useMapEvents({
     click: onMapClick,
@@ -229,6 +240,16 @@ export function MapView({
     return lookup;
   }, [routeTemplates]);
 
+  const riskByCity = useMemo(() => {
+    const lookup = {};
+    riskForecast.forEach((rf) => {
+      const key = String(rf.city || "").trim().toLowerCase();
+      if (!key) return;
+      lookup[key] = Math.max(Number(rf.risk ?? 0), lookup[key] ?? 0);
+    });
+    return lookup;
+  }, [riskForecast]);
+
   const liveRoutes = useMemo(() => {
     const transformed = [];
     vehicles.forEach((vehicle) => {
@@ -271,6 +292,10 @@ export function MapView({
       const decodedRoutePoints = routeTemplate?.decodedRoutePoints || [];
       const routePoints = decodedRoutePoints.length >= 2 ? decodedRoutePoints : [startPoint, endPoint];
       const markerPoint = status === "in_transit" ? (pointAlongPath(routePoints, progress) ?? startPoint) : startPoint;
+      const recommendation = recommendations.find((r) => Number(r.vehicle_id) === vehicleId && String(r.action || "").startsWith("reroute"));
+      const startRisk = riskByCity[String(startFacility?.city || "").trim().toLowerCase()] ?? 0;
+      const endRisk = riskByCity[String(endFacility?.city || "").trim().toLowerCase()] ?? 0;
+      const routeRisk = Math.max(startRisk, endRisk, Number(recommendation?.score_breakdown?.event_severity ?? 0));
 
       transformed.push({
         vehicleId,
@@ -283,7 +308,9 @@ export function MapView({
         currentPoint: markerPoint,
         routePoints,
         routeSource: routeTemplate?.source || "derived",
-        recommendationAction: vehicle.recommendation_action || null,
+        recommendationAction: vehicle.recommendation_action || recommendation?.action || null,
+        routeRisk,
+        riskLevel: routeRiskLevel(routeRisk),
       });
     });
 
@@ -300,7 +327,7 @@ export function MapView({
       });
     });
     return spreadRoutes;
-  }, [vehicles, objectiveLookup, facilityLookup, routeTemplateLookup]);
+  }, [vehicles, objectiveLookup, facilityLookup, routeTemplateLookup, riskByCity, recommendations]);
 
   const selectedVehicleId = highlightedVehicleId || filterVehicleId;
   const visibleRoutes = useMemo(() => liveRoutes.filter((route) => {
@@ -363,6 +390,12 @@ export function MapView({
             </div>
           ) : null}
           <div className="route-hint">Toggle "Show All Routes" to see all active route paths on the map. Click a truck marker or use the dropdown to highlight a specific route.</div>
+          <div className="route-risk-legend">
+            <span><i className="risk-dot low" />Low risk</span>
+            <span><i className="risk-dot medium" />Medium risk</span>
+            <span><i className="risk-dot high" />High risk</span>
+            <span><i className="dash-sample" />Rerouted segment</span>
+          </div>
         </div>
 
         <div className="map-container">
@@ -372,7 +405,15 @@ export function MapView({
             {selectedRoutePath ? (
               <>
                 <Polyline key={`shadow-${selectedVehicleId}`} positions={selectedRoutePath} color="#111827" weight={8} opacity={0.25} />
-                <Polyline key={`route-${selectedVehicleId}`} positions={selectedRoutePath} color="#2563eb" weight={5} opacity={0.9} lineJoin="round" />
+                <Polyline
+                  key={`route-${selectedVehicleId}`}
+                  positions={selectedRoutePath}
+                  color={getRiskColor(selectedRoute?.routeRisk ?? 0)}
+                  weight={5}
+                  opacity={0.9}
+                  lineJoin="round"
+                  dashArray={isReroutedRoute(selectedRoute) ? "10 8" : undefined}
+                />
               </>
             ) : null}
 
@@ -381,7 +422,14 @@ export function MapView({
               const pts = route.routePoints.filter((p) => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]));
               if (pts.length < 2) return null;
               return (
-                <Polyline key={`all-route-${route.vehicleId}`} positions={pts} color="#6366f1" weight={2.5} opacity={0.2} dashArray="6 4" />
+                <Polyline
+                  key={`all-route-${route.vehicleId}`}
+                  positions={pts}
+                  color={getRiskColor(route.routeRisk)}
+                  weight={2.5}
+                  opacity={isReroutedRoute(route) ? 0.55 : 0.28}
+                  dashArray={isReroutedRoute(route) ? "8 6" : undefined}
+                />
               );
             })}
 
@@ -475,7 +523,8 @@ export function MapView({
                     Status: {route.status}<br />
                     {route.objectiveName}<br />
                     Progress: {route.progress.toFixed(1)}%<br />
-                    Route source: {route.routeSource}
+                    Route source: {route.routeSource}<br />
+                    Risk: {route.riskLevel} ({Math.round((route.routeRisk || 0) * 100)}%)
                   </Popup>
                 </Marker>
               );
@@ -502,7 +551,10 @@ export function MapView({
               <div key={`active-route-${route.vehicleId}`} className="route-card" role="button" tabIndex={0} onClick={() => { setFilterVehicleId(String(route.vehicleId)); setHighlightedVehicleId(String(route.vehicleId)); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFilterVehicleId(String(route.vehicleId)); setHighlightedVehicleId(String(route.vehicleId)); } }}>
                 <div className="route-header"><strong>{route.identifier}</strong><span className={`route-status ${route.status.replaceAll("_", "-")}`}>{route.status.replaceAll("_", " ").toUpperCase()}</span></div>
                 <div className="route-details"><span className="route-objective">{route.objectiveName}</span><span>{route.payloadUnits} units</span></div>
-                <div className="route-details"><span className="route-source">Route source: {route.routeSource}</span></div>
+                <div className="route-details">
+                  <span className="route-source">Route source: {route.routeSource}</span>
+                  <span className={`route-risk-pill ${route.riskLevel}`}>{route.riskLevel} risk</span>
+                </div>
                 <div className="route-progress"><div className="progress-bar-mini"><div className="progress-fill-mini" style={{ width: `${route.progress}%` }} /></div><span className="progress-label">{route.progress.toFixed(0)}% complete</span></div>
               </div>
             ))}
