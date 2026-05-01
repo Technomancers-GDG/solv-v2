@@ -223,7 +223,7 @@ def test_route_planner_estimation_returns_steps() -> None:
 
     assert route["distance_km"] > 1000
     assert route["duration_minutes"] > 1000
-    assert len(route["steps"]) == 3
+    assert len(route["steps"]) == 5
 
 
 def test_simulation_seed_handles_large_vehicle_state_counts() -> None:

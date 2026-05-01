@@ -1,4 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { AIRerouteToast } from "./components/common/AIDecisionWidgets";
 import { onAuthChange, logout } from "./firebase";
 import { LoginView } from "./components/views/LoginView";
 import { MapView } from "./components/views/MapView";
@@ -448,6 +449,8 @@ export default function App() {
   const [latestDecision, setLatestDecision] = useState(null);
   const [previousRoute, setPreviousRoute] = useState(null);
   const [activityFeed, setActivityFeed] = useState([]);
+  const [toasts, setToasts] = useState([]);
+  const seenDecisionIds = useRef(new Set());
   const [scenarioKey, setScenarioKey] = useState("");
   const [scenarioComparison, setScenarioComparison] = useState(null);
   const [scalingFleet, setScalingFleet] = useState(false);
@@ -558,6 +561,24 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (!derivedDecision) return;
+    const id = String(derivedDecision.id ?? derivedDecision.title ?? "");
+    if (id && !seenDecisionIds.current.has(id) && seenDecisionIds.current.size > 0) {
+      // New decision arrived — fire a toast
+      const isReroute = String(derivedDecision.title ?? "").toLowerCase().includes("rerouted");
+      setToasts((prev) => [
+        {
+          id: `toast-${Date.now()}`,
+          type: isReroute ? "reroute" : "info",
+          title: isReroute ? "⚠ AI Reroute Executed" : "🧠 AI Decision Made",
+          detail: derivedDecision.impact?.[0]
+            ? `${derivedDecision.impact[0]}${derivedDecision.impact[1] ? " · " + derivedDecision.impact[1] : ""}`
+            : derivedDecision.reason,
+        },
+        ...prev.slice(0, 3), // keep at most 4 toasts
+      ]);
+    }
+    if (id) seenDecisionIds.current.add(id);
     setLatestDecision(derivedDecision);
     setPreviousRoute(derivedDecision?.comparison?.before ?? null);
   }, [derivedDecision]);
@@ -565,6 +586,19 @@ export default function App() {
   useEffect(() => {
     setActivityFeed(derivedActivityFeed.slice(0, 20));
   }, [derivedActivityFeed]);
+
+  const dismissToast = useCallback((toastId) => {
+    setToasts((prev) => prev.filter((t) => t.id !== toastId));
+  }, []);
+
+  // Auto-dismiss toasts after 6 seconds
+  useEffect(() => {
+    if (toasts.length === 0) return;
+    const timer = setTimeout(() => {
+      setToasts((prev) => prev.slice(0, -1));
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [toasts.length]);
 
   const renderView = () => {
     switch (activeView) {
@@ -616,6 +650,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <AIRerouteToast toasts={toasts} onDismiss={dismissToast} />
       <Sidebar active={activeView} onNavigate={setActiveView} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)} t={t} />
       <div className={`main-content ${sidebarCollapsed ? "expanded" : ""}`}>
         <header className="top-bar" lang={lang}>
