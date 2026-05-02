@@ -10,6 +10,7 @@ from schemas import (
 from services.logistics_data_fusion import DataFusionService
 from services.logistics_decision_engine import LogisticsDecisionEngine
 from services.logistics_prediction import LogisticsPredictionEngine
+from services.driver_performance import DriverPerformanceService
 from services.multimodal_graph_engine import MultimodalGraphEngine
 
 
@@ -245,3 +246,41 @@ def test_mode_switch_and_time_window_penalties_are_applied_to_segments() -> None
     assert rail_segment.mode_switch_penalty_applied == 250
     assert rail_segment.switching_delay_applied == 30
     assert rail_segment.time_window_violation_minutes > 0
+
+
+def test_driver_reliability_penalty_changes_route_cost() -> None:
+    graph = sample_graph()
+    engine = MultimodalGraphEngine()
+
+    high_reliability = engine.compute_routes(
+        graph,
+        "mine-1",
+        "port-1",
+        RouteWeights(w1=1, w2=1, w3=1),
+        max_routes=3,
+        driver_reliability_score=0.95,
+        driver_penalty_factor=100,
+    )[0]
+    low_reliability = engine.compute_routes(
+        graph,
+        "mine-1",
+        "port-1",
+        RouteWeights(w1=1, w2=1, w3=1),
+        max_routes=3,
+        driver_reliability_score=0.55,
+        driver_penalty_factor=100,
+    )[0]
+
+    assert low_reliability.total_cost > high_reliability.total_cost
+    assert low_reliability.segments[0].driver_penalty_applied > high_reliability.segments[0].driver_penalty_applied
+
+
+def test_driver_performance_scoring_is_explainable() -> None:
+    service = DriverPerformanceService()
+
+    assert service.classify(0.82) == "high"
+    assert service.classify(0.61) == "medium"
+    assert service.classify(0.40) == "low"
+    assert service._efficiency_score(actual_time=150, expected_time=100) < service._efficiency_score(actual_time=100, expected_time=100)
+    assert service._idle_score(idle_time=35, expected_time=100) < service._idle_score(idle_time=5, expected_time=100)
+    assert service._adherence_score(route_deviation=0.2) < service._adherence_score(route_deviation=0.02)

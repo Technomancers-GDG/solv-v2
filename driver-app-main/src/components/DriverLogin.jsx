@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Panel } from "./common/UiPrimitives";
 
-export function DriverLogin({ onLogin, error, setError }) {
+export function DriverLogin({ onLogin, error, setError, apiBase = "" }) {
   const [vehicleId, setVehicleId] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -14,7 +14,7 @@ export function DriverLogin({ onLogin, error, setError }) {
     }
     setLoading(true);
     try {
-      const response = await fetch(`/api/vehicles`);
+      const response = await fetch(`${apiBase}/api/vehicles`);
       if (!response.ok) throw new Error("Failed to fetch vehicles");
       const vehicles = await response.json();
       const match = vehicles.find(

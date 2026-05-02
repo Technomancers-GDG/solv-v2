@@ -587,6 +587,7 @@ class RouteSegmentRead(BaseModel):
     mode_switch_penalty_applied: float = 0.0
     switching_delay_applied: float = 0.0
     time_window_violation_minutes: float = 0.0
+    driver_penalty_applied: float = 0.0
     capacity: float | None = None
     time_window: tuple[float, float] | None = None
     distance_km: float | None = None
@@ -614,6 +615,9 @@ class ComputeRoutesRequest(BaseModel):
     weights: RouteWeights = Field(default_factory=RouteWeights)
     max_routes: int = Field(default=3, ge=1, le=8)
     persist_graph: bool = False
+    driver_id: int | None = None
+    driver_reliability_score: float | None = Field(default=None, ge=0, le=1)
+    driver_penalty_factor: float = Field(default=100.0, ge=0)
     required_capacity: float = Field(default=0.0, ge=0)
     switching_delay: float = Field(default=0.0, ge=0)
     time_window_penalty: float = Field(default=10.0, ge=0)
@@ -761,3 +765,16 @@ class TelemetrySimulationResponse(BaseModel):
     emissions_kg: float
     generated_at: datetime
     details: dict[str, Any]
+
+
+class DriverMetricsRead(ORMModel):
+    driver_id: int
+    efficiency_score: float
+    reliability_score: float
+    route_adherence_score: float
+    idle_time_score: float
+    risk_score: float
+    classification_label: str
+    sample_count: int
+    updated_at: datetime
+    scoring_metadata: dict[str, Any] = Field(default_factory=dict)

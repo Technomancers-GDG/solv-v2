@@ -27,6 +27,7 @@ from database import SessionLocal, get_session, init_db
 from models import (
     DriverDecision,
     DriverIncident,
+    DriverMetric,
     DriverProfile,
     Facility,
     LogisticsRoute,
@@ -55,6 +56,7 @@ from schemas import (
     DriverIncidentCreate,
     DriverIncidentRead,
     DriverInstructionRead,
+    DriverMetricsRead,
     DriverMobileSnapshot,
     DriverResponseRequest,
     DriverProfileCreate,
@@ -101,6 +103,7 @@ from schemas import (
     NewsEventRead,
 )
 from seed_data import seed_demo_data
+from services.driver_performance import DriverPerformanceService
 from services.event_ingestion import EventIngestionService
 from services.inventory_optimizer import InventoryOptimizer
 from services.logistics_data_fusion import DataFusionService
@@ -139,6 +142,7 @@ logistics_prediction_engine = LogisticsPredictionEngine()
 logistics_decision_engine = LogisticsDecisionEngine()
 logistics_execution_service = LogisticsExecutionService()
 telemetry_simulation_service = TelemetrySimulationService()
+driver_performance_service = DriverPerformanceService(telemetry_simulation_service)
 demo_disruption_task: asyncio.Task[None] | None = None
 
 ModelType = TypeVar("ModelType")
@@ -191,6 +195,9 @@ def compute_logistics_routes(
     destination_node_id: str,
     weights: RouteWeights,
     max_routes: int,
+    driver_id: int | None = None,
+    driver_reliability_score: float | None = None,
+    driver_penalty_factor: float = 100.0,
     required_capacity: float = 0.0,
     switching_delay: float = 0.0,
     time_window_penalty: float = 10.0,
@@ -205,6 +212,14 @@ def compute_logistics_routes(
     resolved_graph = resolve_logistics_graph(session, graph)
     adjusted_graph: LogisticsGraph | None = None
     predictions: PredictionResponse | None = None
+    routing_reliability = driver_reliability_score
+    if driver_id is not None and routing_reliability is None:
+        try:
+            routing_reliability = driver_performance_service.get_or_compute_driver_metrics(
+                session, driver_id
+            ).reliability_score
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
         routing_graph = resolved_graph
         if apply_predictions:
@@ -219,6 +234,8 @@ def compute_logistics_routes(
                 required_capacity=required_capacity,
                 switching_delay=switching_delay,
                 time_window_penalty=time_window_penalty,
+                driver_reliability_score=routing_reliability,
+                driver_penalty_factor=driver_penalty_factor,
             )
             if preliminary_routes:
                 predictions = logistics_prediction_engine.predict(
@@ -247,6 +264,8 @@ def compute_logistics_routes(
             required_capacity=required_capacity,
             switching_delay=switching_delay,
             time_window_penalty=time_window_penalty,
+            driver_reliability_score=routing_reliability,
+            driver_penalty_factor=driver_penalty_factor,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -413,6 +432,31 @@ def create_driver(payload: DriverProfileCreate, session: Session = Depends(get_s
     session.commit()
     session.refresh(driver)
     return driver
+
+
+@app.get("/api/drivers/performance", response_model=list[DriverMetricsRead])
+@app.get("/drivers/performance", response_model=list[DriverMetricsRead])
+def list_driver_performance(
+    refresh: bool = Query(default=False),
+    session: Session = Depends(get_session),
+) -> list[DriverMetric]:
+    """Return explainable driver behavior scores for routing decisions."""
+    return driver_performance_service.list_driver_metrics(session, refresh=refresh)
+
+
+@app.get("/api/drivers/{driver_id}/score", response_model=DriverMetricsRead)
+@app.get("/drivers/{driver_id}/score", response_model=DriverMetricsRead)
+def get_driver_score(
+    driver_id: int,
+    refresh: bool = Query(default=False),
+    session: Session = Depends(get_session),
+) -> DriverMetric:
+    try:
+        return driver_performance_service.get_or_compute_driver_metrics(
+            session, driver_id, refresh=refresh
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/api/vehicles", response_model=list[VehicleRead])
@@ -1547,6 +1591,9 @@ def compute_routes(
         destination_node_id=payload.destination_node_id,
         weights=payload.weights,
         max_routes=payload.max_routes,
+        driver_id=payload.driver_id,
+        driver_reliability_score=payload.driver_reliability_score,
+        driver_penalty_factor=payload.driver_penalty_factor,
         required_capacity=payload.required_capacity,
         switching_delay=payload.switching_delay,
         time_window_penalty=payload.time_window_penalty,
@@ -1631,7 +1678,27 @@ def assign_route(
     if payload.graph is not None:
         data_fusion_service.persist_graph(session, payload.graph)
     try:
-        return logistics_execution_service.assign_route(session, payload)
+        assignment_payload = payload
+        if assignment_payload.driver_id is None:
+            vehicle = session.get(Vehicle, assignment_payload.vehicle_id) if assignment_payload.vehicle_id else None
+            if vehicle is not None:
+                assignment_payload = assignment_payload.model_copy(
+                    update={"driver_id": vehicle.driver_profile_id}
+                )
+            else:
+                metadata = assignment_payload.metadata or {}
+                high_value = bool(metadata.get("high_value")) or float(metadata.get("cargo_value", 0) or 0) >= 100000
+                time_sensitive = bool(metadata.get("time_sensitive")) or float(metadata.get("sla_minutes", 0) or 0) > 0
+                preferred = driver_performance_service.recommend_driver_for_assignment(
+                    session,
+                    high_value=high_value,
+                    time_sensitive=time_sensitive,
+                )
+                if preferred is not None:
+                    assignment_payload = assignment_payload.model_copy(
+                        update={"driver_id": preferred.driver_id}
+                    )
+        return logistics_execution_service.assign_route(session, assignment_payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1666,6 +1733,7 @@ def reroute_shipment(
             destination_node_id=destination_node_key,
             weights=payload.weights,
             max_routes=payload.max_routes,
+            driver_id=shipment.assigned_driver_id,
             required_capacity=payload.required_capacity,
             switching_delay=payload.switching_delay,
         )

@@ -36,6 +36,7 @@ class TraversalEdge:
     mode_switch_penalty_applied: float = 0.0
     switching_delay_applied: float = 0.0
     time_window_violation_minutes: float = 0.0
+    driver_penalty_applied: float = 0.0
 
 
 @dataclass(order=True, slots=True)
@@ -76,6 +77,8 @@ class MultimodalGraphEngine:
         required_capacity: float = 0.0,
         switching_delay: float = 0.0,
         time_window_penalty: float = 10.0,
+        driver_reliability_score: float | None = None,
+        driver_penalty_factor: float = 100.0,
     ) -> list[RouteOptionRead]:
         self._validate_graph(graph, origin_node_id, destination_node_id)
         adjacency = self._build_adjacency(graph)
@@ -87,6 +90,8 @@ class MultimodalGraphEngine:
             required_capacity=required_capacity,
             switching_delay=switching_delay,
             time_window_penalty=time_window_penalty,
+            driver_reliability_score=driver_reliability_score,
+            driver_penalty_factor=driver_penalty_factor,
         )
         if first_path is None:
             return []
@@ -114,6 +119,8 @@ class MultimodalGraphEngine:
                     required_capacity=required_capacity,
                     switching_delay=switching_delay,
                     time_window_penalty=time_window_penalty,
+                    driver_reliability_score=driver_reliability_score,
+                    driver_penalty_factor=driver_penalty_factor,
                 )
                 if spur is None:
                     continue
@@ -138,6 +145,8 @@ class MultimodalGraphEngine:
             required_capacity=required_capacity,
             switching_delay=switching_delay,
             time_window_penalty=time_window_penalty,
+            driver_reliability_score=driver_reliability_score,
+            driver_penalty_factor=driver_penalty_factor,
             allowed_modes={"road"},
         )
         return self._attach_business_metrics(accepted, road_baseline or first_path)
@@ -155,6 +164,8 @@ class MultimodalGraphEngine:
         required_capacity: float = 0.0,
         switching_delay: float = 0.0,
         time_window_penalty: float = 10.0,
+        driver_reliability_score: float | None = None,
+        driver_penalty_factor: float = 100.0,
     ) -> RouteOptionRead | None:
         disabled_edges = disabled_edges or set()
         disabled_nodes = disabled_nodes or set()
@@ -193,6 +204,8 @@ class MultimodalGraphEngine:
                     current_route_time=item.total_time,
                     switching_delay=switching_delay,
                     time_window_penalty=time_window_penalty,
+                    driver_reliability_score=driver_reliability_score,
+                    driver_penalty_factor=driver_penalty_factor,
                 )
                 next_cost = item.total_cost + edge_with_penalties.cost
                 next_time = item.total_time + edge_with_penalties.time
@@ -225,12 +238,18 @@ class MultimodalGraphEngine:
         current_route_time: float,
         switching_delay: float,
         time_window_penalty: float,
+        driver_reliability_score: float | None,
+        driver_penalty_factor: float,
     ) -> TraversalEdge:
         mode_penalty = 0.0
         switch_delay = 0.0
         if previous_mode is not None and previous_mode != edge.transport_mode:
             mode_penalty = edge.mode_switch_penalty
             switch_delay = switching_delay
+        driver_penalty = 0.0
+        if driver_reliability_score is not None:
+            reliability = min(1.0, max(0.0, driver_reliability_score))
+            driver_penalty = (1.0 - reliability) * driver_penalty_factor
 
         # Time windows are soft constraints. Early arrival is modeled as wait
         # time; late traversal is modeled as delay. Both increase score.
@@ -246,11 +265,12 @@ class MultimodalGraphEngine:
 
         return replace(
             edge,
-            cost=edge.cost + mode_penalty + window_violation * time_window_penalty,
+            cost=edge.cost + mode_penalty + window_violation * time_window_penalty + driver_penalty,
             time=edge.time + switch_delay + window_violation,
             mode_switch_penalty_applied=mode_penalty,
             switching_delay_applied=switch_delay,
             time_window_violation_minutes=round(window_violation, 3),
+            driver_penalty_applied=round(driver_penalty, 3),
         )
 
     def _build_adjacency(self, graph: LogisticsGraph) -> dict[str, list[TraversalEdge]]:
@@ -321,6 +341,7 @@ class MultimodalGraphEngine:
                 mode_switch_penalty_applied=edge.mode_switch_penalty_applied,
                 switching_delay_applied=edge.switching_delay_applied,
                 time_window_violation_minutes=edge.time_window_violation_minutes,
+                driver_penalty_applied=edge.driver_penalty_applied,
                 capacity=edge.capacity,
                 time_window=edge.time_window,
                 distance_km=edge.distance_km,
@@ -374,6 +395,7 @@ class MultimodalGraphEngine:
             mode_switch_penalty_applied=segment.mode_switch_penalty_applied,
             switching_delay_applied=segment.switching_delay_applied,
             time_window_violation_minutes=segment.time_window_violation_minutes,
+            driver_penalty_applied=segment.driver_penalty_applied,
         )
 
     def _attach_business_metrics(

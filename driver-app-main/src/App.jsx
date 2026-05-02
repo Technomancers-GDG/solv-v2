@@ -243,7 +243,7 @@ function App() {
   }
 
   if (!vehicle) {
-    return <DriverLogin onLogin={handleLogin} error={error} setError={setError} />;
+    return <DriverLogin onLogin={handleLogin} error={error} setError={setError} apiBase={API_BASE} />;
   }
 
   return (

@@ -246,6 +246,24 @@ class DriverIncident(Base):
     linked_news_event_id: Mapped[int] = mapped_column(ForeignKey("news_events.id"), nullable=True)
 
 
+class DriverMetric(Base):
+    __tablename__ = "driver_metrics"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    driver_id: Mapped[int] = mapped_column(ForeignKey("driver_profiles.id"), unique=True, index=True)
+    efficiency_score: Mapped[float] = mapped_column(Float, default=0.75)
+    reliability_score: Mapped[float] = mapped_column(Float, default=0.75, index=True)
+    route_adherence_score: Mapped[float] = mapped_column(Float, default=0.75)
+    idle_time_score: Mapped[float] = mapped_column(Float, default=0.75)
+    risk_score: Mapped[float] = mapped_column(Float, default=0.25)
+    classification_label: Mapped[str] = mapped_column(String(20), default="medium", index=True)
+    sample_count: Mapped[int] = mapped_column(Integer, default=0)
+    scoring_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
 class SimEvent(Base):
     __tablename__ = "sim_events"
 
