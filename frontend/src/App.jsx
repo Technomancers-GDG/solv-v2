@@ -296,20 +296,20 @@ function useVoiceInput() {
   return { isListening, transcript, start, reset: () => setTranscript("") };
 }
 
-function formatINRCompact(value) {
+export function formatINRCompact(value) {
   const amount = Number(value || 0);
   if (Math.abs(amount) >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
   if (Math.abs(amount) >= 1000) return `₹${Math.round(amount / 1000)}K`;
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
 }
 
-function formatDurationFromMinutes(minutes, fallbackHours = 36) {
+export function formatDurationFromMinutes(minutes, fallbackHours = 36) {
   const value = Number(minutes);
   const hours = Number.isFinite(value) && value > 0 ? value / 60 : fallbackHours;
   return `${hours.toFixed(hours >= 10 ? 0 : 1)}h`;
 }
 
-function decisionVerb(action = "") {
+export function decisionVerb(action = "") {
   const normalized = String(action || "continue").replaceAll("_", " ");
   if (normalized.includes("reroute")) return "Rerouted";
   if (normalized.includes("wait")) return "Held";
@@ -317,7 +317,7 @@ function decisionVerb(action = "") {
   return "Optimized";
 }
 
-function actionDetail(action = "", explanation = "") {
+export function actionDetail(action = "", explanation = "") {
   const text = String(explanation || "").toLowerCase();
   if (text.includes("port")) return "avoided port delay";
   if (text.includes("risk")) return "reduced route risk";
@@ -326,14 +326,14 @@ function actionDetail(action = "", explanation = "") {
   return "updated route recommendation";
 }
 
-function recommendationTime(rec) {
+export function recommendationTime(rec) {
   const raw = rec?.created_at || rec?.simulation_time;
   const date = raw ? new Date(String(raw).endsWith("Z") ? raw : `${raw}Z`) : new Date();
   if (Number.isNaN(date.getTime())) return "--:--";
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function buildDecisionFromRecommendation(rec, metrics) {
+export function buildDecisionFromRecommendation(rec, metrics) {
   if (!rec) {
     const saved = Number(metrics?.financial_costs_saved_usd ?? 25000);
     return {
@@ -385,7 +385,7 @@ function buildDecisionFromRecommendation(rec, metrics) {
   };
 }
 
-function buildActivityFeed(recommendations, _aiActivity) {
+export function buildActivityFeed(recommendations, _aiActivity) {
   const fromRecommendations = (recommendations || []).slice(0, 15).map((rec) => ({
     id: `rec-${rec.id}`,
     time: recommendationTime(rec),
