@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import (
@@ -34,10 +34,10 @@ class Facility(Base):
     queue_capacity_units: Mapped[int] = mapped_column(Integer, default=0)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
     )
 
 
@@ -91,10 +91,10 @@ class Vehicle(Base):
     status: Mapped[str] = mapped_column(String(40), default="idle")
     available_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
     )
 
     home_facility: Mapped[Facility] = relationship("Facility", foreign_keys=[home_facility_id])
@@ -119,10 +119,10 @@ class Objective(Base):
     fallback_facility_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
     )
 
     origin_facility: Mapped[Facility] = relationship(
@@ -145,7 +145,7 @@ class RouteTemplate(Base):
     encoded_polyline: Mapped[str] = mapped_column(Text, default="")
     steps: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     source: Mapped[str] = mapped_column(String(40), default="estimated")
-    refreshed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    refreshed_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class ScenarioPreset(Base):
@@ -196,7 +196,7 @@ class Recommendation(Base):
     __tablename__ = "recommendations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     simulation_time: Mapped[datetime] = mapped_column(DateTime, index=True)
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), index=True)
     objective_id: Mapped[int] = mapped_column(ForeignKey("objectives.id"), index=True)
@@ -221,7 +221,7 @@ class DriverDecision(Base):
     __tablename__ = "driver_decisions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    decided_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    decided_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     recommendation_id: Mapped[int] = mapped_column(ForeignKey("recommendations.id"))
     driver_profile_id: Mapped[int] = mapped_column(ForeignKey("driver_profiles.id"))
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"))
@@ -236,7 +236,7 @@ class DriverIncident(Base):
     __tablename__ = "driver_incidents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    reported_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    reported_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     driver_profile_id: Mapped[int] = mapped_column(ForeignKey("driver_profiles.id"), index=True)
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=True, index=True)
     city: Mapped[str] = mapped_column(String(80), index=True)
@@ -260,7 +260,7 @@ class DriverMetric(Base):
     sample_count: Mapped[int] = mapped_column(Integer, default=0)
     scoring_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
     )
 
 
@@ -281,7 +281,7 @@ class MetricsSnapshot(Base):
     __tablename__ = "metrics_snapshots"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    captured_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     co2_saved_kg: Mapped[float] = mapped_column(Float, default=0.0)
     idle_minutes_prevented: Mapped[float] = mapped_column(Float, default=0.0)
     on_time_delivery_pct: Mapped[float] = mapped_column(Float, default=100.0)
@@ -306,9 +306,9 @@ class LogisticsNode(Base):
     capacity_units: Mapped[int] = mapped_column(Integer, nullable=True)
     node_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
     )
 
 
@@ -329,9 +329,9 @@ class LogisticsEdge(Base):
     constraints: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     edge_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
     )
 
     from_node: Mapped[LogisticsNode] = relationship("LogisticsNode", foreign_keys=[from_node_id], lazy="joined")
@@ -355,9 +355,9 @@ class Shipment(Base):
     assigned_vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=True, index=True)
     current_route_id: Mapped[int] = mapped_column(Integer, nullable=True, index=True)
     shipment_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
     )
 
 
@@ -382,9 +382,9 @@ class LogisticsRoute(Base):
     assigned_driver_id: Mapped[int] = mapped_column(ForeignKey("driver_profiles.id"), nullable=True, index=True)
     assigned_vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=True, index=True)
     route_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
     )
 
 
@@ -399,4 +399,4 @@ class Prediction(Base):
     value: Mapped[float] = mapped_column(Float, default=0.0)
     confidence: Mapped[float] = mapped_column(Float, default=0.5)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False, index=True)

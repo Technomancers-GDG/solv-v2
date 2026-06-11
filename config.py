@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -89,7 +93,7 @@ def load_settings() -> Settings:
         # Financial calibration: 1 cost point = ₹15 INR (based on ~₹45/km Indian truck ops)
         cost_point_to_inr=float(_get_env("COST_POINT_TO_INR", "15.0")),
         # Gemini
-        gemini_api_key=_get_env("GEMINI_API_KEY", "AIzaSyCQKgbpYP_CZtCRl20yO4_1dVckyLGUd8o"),
+        gemini_api_key=_get_env("GEMINI_API_KEY", ""),
     )
 
 

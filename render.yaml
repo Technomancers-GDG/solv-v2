@@ -58,3 +58,7 @@ services:
         value: Chennai
       - key: DEMO_DISRUPTION_SEVERITY
         value: "0.82"
+      # 🔴 IMPORTANT: Set your Gemini API key here or via Render Dashboard
+      # Generate a key at https://aistudio.google.com/apikey
+      - key: GEMINI_API_KEY
+        sync: false

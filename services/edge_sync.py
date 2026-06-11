@@ -6,7 +6,7 @@ in low-connectivity rural areas.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import hashlib
@@ -94,16 +94,16 @@ class EdgeSyncManager:
     ) -> EdgeOperation:
         state = self.get_or_create_state(driver_profile_id)
         op = EdgeOperation(
-            op_id=f"{driver_profile_id}:{op_type}:{datetime.utcnow().timestamp()}",
+            op_id=f"{driver_profile_id}:{op_type}:{datetime.now(timezone.utc).timestamp()}",
             op_type=op_type,
             driver_profile_id=driver_profile_id,
             vehicle_id=vehicle_id,
             payload=payload,
-            created_at=datetime.utcnow().isoformat(),
+            created_at=datetime.now(timezone.utc).isoformat(),
         )
         state.pending_operations.append(op)
         if state.offline_since is None:
-            state.offline_since = datetime.utcnow().isoformat()
+            state.offline_since = datetime.now(timezone.utc).isoformat()
         return op
 
     def sync_operations(self, driver_profile_id: int) -> dict[str, Any]:
@@ -120,7 +120,7 @@ class EdgeSyncManager:
             op.synced = True
             synced.append(op.op_id)
 
-        state.last_sync_at = datetime.utcnow().isoformat()
+        state.last_sync_at = datetime.now(timezone.utc).isoformat()
         if all(op.synced for op in state.pending_operations):
             state.offline_since = None
 

@@ -1,5 +1,6 @@
-import { startTransition, useDeferredValue, useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { Component, startTransition, useDeferredValue, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { AIRerouteToast } from "./components/common/AIDecisionWidgets";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { onAuthChange, logout } from "./firebase";
 import { LoginView } from "./components/views/LoginView";
 import { MapView } from "./components/views/MapView";
@@ -383,7 +384,7 @@ function buildDecisionFromRecommendation(rec, metrics) {
   };
 }
 
-function buildActivityFeed(recommendations, aiActivity) {
+function buildActivityFeed(recommendations, _aiActivity) {
   const fromRecommendations = (recommendations || []).slice(0, 15).map((rec) => ({
     id: `rec-${rec.id}`,
     time: recommendationTime(rec),
@@ -391,13 +392,7 @@ function buildActivityFeed(recommendations, aiActivity) {
     detail: actionDetail(rec.action, rec.explanation),
   }));
 
-  if (fromRecommendations.length) return fromRecommendations;
-
-  return [
-    { id: "mock-1", time: "16:23", title: "Rerouted SHP-001", detail: "avoided port delay" },
-    { id: "mock-2", time: "16:20", title: "Predicted congestion at Mumbai port", detail: `${aiActivity?.cascade_detections_today ?? 1} cascade signal detected` },
-    { id: "mock-3", time: "16:18", title: "Switched to rail route", detail: "optimized for cost efficiency" },
-  ];
+  return fromRecommendations;
 }
 
 export default function App() {
@@ -515,27 +510,55 @@ export default function App() {
     }
   }, [voice.transcript]);
 
-  useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    
-    // In production, point directly to the Cloud Run backend instead of the Vite proxy
-    const backendHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
-      ? window.location.host 
-      : "sim-backend-1029069183045.us-central1.run.app";
-      
-    const socket = new WebSocket(`${protocol}://${backendHost}/ws/operations`);
-    socket.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.type === "simulation_snapshot") {
-          startTransition(() => { setDashboard(payload.payload); setMetrics(payload.payload.metrics); });
-        }
-      } catch {}
-    };
-    const ping = setInterval(() => { if (socket.readyState === WebSocket.OPEN) socket.send("ping"); }, 15000);
-    return () => { clearInterval(ping); socket.close(); };
-  }, []);
+  const [wsConnected, setWsConnected] = useState(false);
 
+  useEffect(() => {
+    let socket;
+    let pingTimer;
+    let reconnectTimer;
+
+    function connectWs() {
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      // Derive WebSocket host from current page or env var
+      const backendHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? window.location.host
+        : (import.meta.env.VITE_WS_HOST || window.location.host);
+
+      socket = new WebSocket(`${protocol}://${backendHost}/ws/operations`);
+
+      socket.onopen = () => {
+        setWsConnected(true);
+        pingTimer = setInterval(() => { if (socket.readyState === WebSocket.OPEN) socket.send("ping"); }, 15000);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === "simulation_snapshot") {
+            startTransition(() => { setDashboard(payload.payload); setMetrics(payload.payload.metrics); });
+          }
+        } catch {}
+      };
+
+      socket.onclose = () => {
+        setWsConnected(false);
+        clearInterval(pingTimer);
+        reconnectTimer = setTimeout(connectWs, 3000);
+      };
+
+      socket.onerror = () => {
+        socket.close();
+      };
+    }
+
+    connectWs();
+
+    return () => {
+      clearInterval(pingTimer);
+      clearTimeout(reconnectTimer);
+      if (socket) socket.close();
+    };
+  }, []);
   const runAction = useCallback(async (path, body = null, msg = "") => {
     try {
       await apiFetch(path, { method: "POST", body: JSON.stringify(body ?? {}) });
@@ -664,6 +687,14 @@ export default function App() {
             </button>
             <h1>{t.commandCenter}</h1>
             <span className="prototype-badge">{t.prototypeBadge}</span>
+            <div style={{ marginLeft: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ 
+                display: "inline-block", width: "10px", height: "10px", borderRadius: "50%", 
+                backgroundColor: wsConnected ? "#10b981" : "#ef4444",
+                boxShadow: wsConnected ? "0 0 8px #10b981" : "0 0 8px #ef4444"
+              }} title={wsConnected ? "Connected to Backend" : "Disconnected (Auto-reconnecting...)"} />
+              <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>{wsConnected ? "Live" : "Reconnecting..."}</span>
+            </div>
           </div>
           <div className="top-bar-right">
             <div className="user-chip">
@@ -683,7 +714,9 @@ export default function App() {
         {error && <div className="banner error">{error}</div>}
         {loading && !dashboard ? <div className="loading">Loading intelligence layer...</div> : (
           <main className="view-area">
-            {renderView()}
+            <ErrorBoundary key={activeView}>
+              {renderView()}
+            </ErrorBoundary>
           </main>
         )}
       </div>

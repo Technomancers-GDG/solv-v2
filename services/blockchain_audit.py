@@ -7,10 +7,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from config import settings
 
@@ -62,7 +65,7 @@ class BlockchainLedger:
     def _create_genesis_block(self) -> None:
         genesis = AuditBlock(
             index=0,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             decision_type="genesis",
             entity_id=0,
             action="chain_initialized",
@@ -82,10 +85,10 @@ class BlockchainLedger:
             for block_data in data.get("chain", []):
                 self.chain.append(AuditBlock(**block_data))
             if self.chain and not self._validate_chain():
-                print("[BLOCKCHAIN] Chain validation failed. Starting fresh.")
+                logger.warning("Chain validation failed. Starting fresh.")
                 self.chain = []
         except Exception as exc:
-            print(f"[BLOCKCHAIN] Load failed: {exc}. Starting fresh.")
+            logger.error("Load failed: %s. Starting fresh.", exc)
             self.chain = []
 
     def _persist(self) -> None:
@@ -118,7 +121,7 @@ class BlockchainLedger:
         previous = self.chain[-1]
         block = AuditBlock(
             index=len(self.chain),
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             decision_type=decision_type,
             entity_id=entity_id,
             action=action,

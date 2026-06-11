@@ -240,7 +240,7 @@ See GEMINI_INTEGRATION_EXAMPLES.md for code.
 
 ### Required
 ```
-GEMINI_API_KEY=AIzaSyCQKgbpYP_CZtCRl20yO4_1dVckyLGUd8o
+GEMINI_API_KEY=<your-gemini-api-key>
 ```
 Already configured in `config.py`
 

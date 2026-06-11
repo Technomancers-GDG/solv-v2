@@ -74,17 +74,17 @@ class NewsRelevanceService:
                     self.model = artifact[1]
 
                 if self.model is not None and self.vectorizer is not None:
-                    print(f"[INFO] Loaded news relevance model artifact from {artifact_path}.")
+                    logger.info("Loaded news relevance model artifact from %s.", artifact_path)
                 else:
                     self.model = None
                     self.vectorizer = None
-                    print("[INFO] News model artifact missing required objects. Using heuristic fallback.")
+                    logger.warning("News model artifact missing required objects. Using heuristic fallback.")
             except Exception as exc:
                 self.model = None
                 self.vectorizer = None
-                print(f"[INFO] Failed to load news model artifact: {exc}. Using heuristic fallback.")
+                logger.warning("Failed to load news model artifact: %s. Using heuristic fallback.", exc)
         else:
-            print("[INFO] News model artifact not found. Using heuristic fallback.")
+            logger.info("News model artifact not found. Using heuristic fallback.")
 
         self._trained = True
 

@@ -86,10 +86,10 @@ function App() {
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     
-    // In production, point directly to the Cloud Run backend instead of the Vite proxy
+    // Derive WebSocket host from current page or env var
     const backendHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
       ? window.location.host 
-      : "sim-backend-1029069183045.us-central1.run.app";
+      : (import.meta.env.VITE_WS_HOST || window.location.host);
       
     const socket = new WebSocket(`${protocol}://${backendHost}/ws/operations`);
     socket.onmessage = (event) => {

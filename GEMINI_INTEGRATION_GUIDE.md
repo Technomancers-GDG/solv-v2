@@ -235,7 +235,7 @@ export GEMINI_DEBUG=true
 ### API Key Setup
 Already configured in `config.py`:
 ```python
-gemini_api_key=_get_env("GEMINI_API_KEY", "AIzaSyCQKgbpYP_CZtCRl20yO4_1dVckyLGUd8o"),
+gemini_api_key=_get_env("GEMINI_API_KEY", "<your-gemini-api-key>"),
 ```
 
 ---

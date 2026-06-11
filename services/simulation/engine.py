@@ -1,18 +1,19 @@
+"""Core simulation engine - orchestrates vehicles, events, and dispatch logic."""
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
-from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta
 import hashlib
 import heapq
+import logging
+from collections import defaultdict
+from datetime import datetime, time, timedelta
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from fastapi import WebSocket
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
-
-import random
 
 from config import settings
 from database import SessionLocal
@@ -30,342 +31,27 @@ from models import (
     Vehicle,
     WeatherEvent,
 )
-from schemas import DashboardSnapshot, FacilityLoadView, MetricsSummary, SimulationStatus, VehicleStateView
+from schemas import (
+    DashboardSnapshot,
+    FacilityLoadView,
+    MetricsSummary,
+    SimulationStatus,
+    VehicleStateView,
+)
 from services.route_planner import RoutePlanner
+from services.simulation.connection_manager import ConnectionManager
+from services.simulation.decision_engine import DecisionEngine
+from services.simulation.models import (
+    LiveVehicleState,
+    ScheduledEvent,
+    CandidateDecision,
+)
 
 if settings.use_rl_engine:
     from services.rl_decision_engine import get_rl_engine, StateVector
 else:
     get_rl_engine = None  # type: ignore[assignment]
     StateVector = None  # type: ignore[assignment]
-
-
-@dataclass(slots=True)
-class LiveVehicleState:
-    vehicle_id: int
-    identifier: str
-    status: str
-    current_facility_id: int | None
-    next_facility_id: int | None = None
-    objective_id: int | None = None
-    route_template_id: int | None = None
-    route_distance_km: float = 0.0
-    baseline_route_distance_km: float = 0.0
-    eta: datetime | None = None
-    payload_units: int = 0
-    progress_pct: float = 0.0
-    duty_minutes_since_rest: float = 0.0
-    last_recommendation_action: str | None = None
-    stockout_risk_avoided: bool = False
-    critical_payload: bool = False
-    perishable_payload: bool = False
-    last_rl_state: Any = None
-    last_rl_action: str | None = None
-
-
-@dataclass(slots=True, order=True)
-class ScheduledEvent:
-    due_at: datetime
-    priority: int
-    sequence: int
-    event_type: str = field(compare=False)
-    vehicle_id: int = field(compare=False)
-    objective_id: int | None = field(compare=False, default=None)
-    payload: dict[str, Any] = field(compare=False, default_factory=dict)
-
-
-@dataclass(slots=True)
-class CandidateDecision:
-    action: str
-    destination_id: int | None
-    score: float
-    baseline_cost: float
-    recommended_cost: float
-    explanation: str
-    breakdown: dict[str, float]
-    travel_minutes: float
-    route_risk: float
-    eta_multiplier: float
-    ai_confidence: float = 0.85
-    ai_engine: str = "Deterministic_Heuristics"
-
-
-class ConnectionManager:
-    def __init__(self) -> None:
-        self.connections: set[WebSocket] = set()
-
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        self.connections.add(websocket)
-
-    def disconnect(self, websocket: WebSocket) -> None:
-        self.connections.discard(websocket)
-
-    async def broadcast(self, payload: dict[str, Any]) -> None:
-        for websocket in list(self.connections):
-            try:
-                await websocket.send_json(payload)
-            except Exception:
-                self.disconnect(websocket)
-
-
-class DecisionEngine:
-    def effective_available_units(
-        self,
-        facility_id: int,
-        facilities: dict[int, Facility],
-        port_links: list[PortLink],
-        inbound_reserved: dict[int, int],
-    ) -> int:
-        facility = facilities[facility_id]
-        reserved_total = inbound_reserved.get(facility_id, 0)
-        if facility.facility_type != "warehouse":
-            return facility.base_capacity_units - facility.current_inventory_units - reserved_total
-
-        linked_links = [link for link in port_links if link.warehouse_id == facility_id and link.active]
-        static_reserved = sum(link.reserved_capacity_units for link in linked_links)
-        dynamic_spillover = 0
-        for link in linked_links:
-            port = facilities[link.port_id]
-            threshold_units = port.base_capacity_units * (link.spillover_threshold_pct / 100)
-            port_pressure = max(0.0, port.current_inventory_units - threshold_units)
-            dynamic_spillover += int(min(link.max_spillover_units, port_pressure))
-        return (
-            facility.base_capacity_units
-            - facility.current_inventory_units
-            - static_reserved
-            - dynamic_spillover
-            - reserved_total
-        )
-
-    def score_dispatch_options(
-        self,
-        *,
-        sim_time: datetime,
-        vehicle: Vehicle,
-        objective: Objective,
-        current_facility: Facility,
-        facilities: dict[int, Facility],
-        port_links: list[PortLink],
-        inbound_reserved: dict[int, int],
-        route_data: dict[int, RouteTemplate],
-        risk_lookup: dict[int, dict[str, float]],
-    ) -> CandidateDecision:
-        original_destination_id = objective.destination_facility_id
-        baseline_route = route_data[original_destination_id]
-        baseline_risk = risk_lookup[original_destination_id]
-        baseline_available = self.effective_available_units(
-            original_destination_id, facilities, port_links, inbound_reserved
-        )
-        baseline_projected_units = baseline_available - vehicle.payload_capacity_units
-        baseline_overload_risk = max(
-            0.0,
-            -baseline_projected_units / max(vehicle.payload_capacity_units, 1),
-        )
-        baseline_cost = self._total_cost(
-            objective=objective,
-            vehicle=vehicle,
-            route=baseline_route,
-            facility=facilities[original_destination_id],
-            effective_available=baseline_available,
-            risk=baseline_risk,
-            original_duration=baseline_route.duration_minutes,
-        )
-
-        candidates: list[CandidateDecision] = []
-        candidate_ids = [objective.destination_facility_id, *objective.fallback_facility_ids]
-        for destination_id in candidate_ids:
-            destination = facilities[destination_id]
-            route = route_data[destination_id]
-            risk = risk_lookup[destination_id]
-            available_units = self.effective_available_units(
-                destination_id, facilities, port_links, inbound_reserved
-            )
-            projected_units = available_units - vehicle.payload_capacity_units
-            hard_blocked = (
-                risk["route_risk"] >= 0.97
-                or destination_id not in candidate_ids
-                or destination.active is False
-            )
-            if hard_blocked:
-                continue
-            overload_risk = max(0.0, -projected_units / max(vehicle.payload_capacity_units, 1))
-            if overload_risk > 0.75:
-                continue
-
-            action = "continue" if destination_id == objective.destination_facility_id else (
-                "reroute_port" if destination.facility_type == "port" else "reroute_warehouse"
-            )
-            cost = self._total_cost(
-                objective=objective,
-                vehicle=vehicle,
-                route=route,
-                facility=destination,
-                effective_available=available_units,
-                risk=risk,
-                original_duration=baseline_route.duration_minutes,
-            )
-            breakdown = {
-                "overload_risk": round(overload_risk, 3),
-                "added_travel_minutes": round(
-                    max(0.0, route.duration_minutes * risk["eta_multiplier"] - baseline_route.duration_minutes), 2
-                ),
-                "predicted_idle_minutes": round(max(0.0, -projected_units) * 0.18, 2),
-                "co2_delta_kg": round(
-                    max(0.0, route.distance_km - baseline_route.distance_km) * vehicle.emission_kg_per_km, 2
-                ),
-                "sla_penalty": round(
-                    max(
-                        0.0,
-                        route.duration_minutes * risk["eta_multiplier"]
-                        + objective.loading_duration_minutes
-                        + objective.unloading_duration_minutes
-                        - objective.sla_minutes,
-                    )
-                    / max(objective.sla_minutes, 1),
-                    3,
-                ),
-                "event_severity": round(risk["route_risk"], 3),
-                "downstream_congestion": round(
-                    facilities[destination_id].current_inventory_units
-                    / max(facilities[destination_id].base_capacity_units, 1),
-                    3,
-                ),
-                "baseline_overload_risk": round(baseline_overload_risk, 3),
-                "baseline_event_severity": round(baseline_risk["route_risk"], 3),
-            }
-            explanation = self._explain(action, destination, breakdown, risk)
-            candidates.append(
-                CandidateDecision(
-                    action=action,
-                    destination_id=destination_id,
-                    score=cost,
-                    baseline_cost=baseline_cost,
-                    recommended_cost=cost,
-                    explanation=explanation,
-                    breakdown=breakdown,
-                    travel_minutes=route.duration_minutes,
-                    route_risk=risk["route_risk"],
-                    eta_multiplier=risk["eta_multiplier"],
-                )
-            )
-
-        original_available = self.effective_available_units(
-            original_destination_id, facilities, port_links, inbound_reserved
-        )
-        wait_minutes = max(
-            40.0,
-            (vehicle.payload_capacity_units - max(original_available, 0)) * 0.12
-            + baseline_risk["route_risk"] * 60,
-        )
-        candidates.append(
-            CandidateDecision(
-                action="wait",
-                destination_id=current_facility.id,
-                score=baseline_cost + wait_minutes * 0.65,
-                baseline_cost=baseline_cost,
-                recommended_cost=baseline_cost + wait_minutes * 0.65,
-                explanation=(
-                    f"Wait at {current_facility.name} for {int(wait_minutes)} minutes to reduce "
-                    f"destination overload and port spillover pressure."
-                ),
-                breakdown={
-                    "overload_risk": round(max(0.0, -original_available / max(vehicle.payload_capacity_units, 1)), 3),
-                    "added_travel_minutes": 0.0,
-                    "predicted_idle_minutes": round(wait_minutes, 2),
-                    "co2_delta_kg": 0.0,
-                    "sla_penalty": round(wait_minutes / max(objective.sla_minutes, 1), 3),
-                    "event_severity": round(baseline_risk["route_risk"], 3),
-                    "downstream_congestion": round(
-                        facilities[original_destination_id].current_inventory_units
-                        / max(facilities[original_destination_id].base_capacity_units, 1),
-                        3,
-                    ),
-                    "baseline_overload_risk": round(baseline_overload_risk, 3),
-                    "baseline_event_severity": round(baseline_risk["route_risk"], 3),
-                },
-                travel_minutes=0.0,
-                route_risk=baseline_risk["route_risk"],
-                eta_multiplier=1.0,
-            )
-        )
-        candidates.append(
-            CandidateDecision(
-                action="defer_dispatch",
-                destination_id=current_facility.id,
-                score=baseline_cost + objective.dispatch_interval_minutes * 0.82,
-                baseline_cost=baseline_cost,
-                recommended_cost=baseline_cost + objective.dispatch_interval_minutes * 0.82,
-                explanation=(
-                    "Defer this dispatch cycle and let downstream lanes clear before sending "
-                    "another loaded vehicle."
-                ),
-                breakdown={
-                    "overload_risk": 0.0,
-                    "added_travel_minutes": 0.0,
-                    "predicted_idle_minutes": float(objective.dispatch_interval_minutes),
-                    "co2_delta_kg": 0.0,
-                    "sla_penalty": round(objective.dispatch_interval_minutes / max(objective.sla_minutes, 1), 3),
-                    "event_severity": round(baseline_risk["route_risk"], 3),
-                    "downstream_congestion": 0.0,
-                    "baseline_overload_risk": round(baseline_overload_risk, 3),
-                    "baseline_event_severity": round(baseline_risk["route_risk"], 3),
-                },
-                travel_minutes=0.0,
-                route_risk=baseline_risk["route_risk"],
-                eta_multiplier=1.0,
-            )
-        )
-        return min(candidates, key=lambda candidate: candidate.score)
-
-    def _total_cost(
-        self,
-        *,
-        objective: Objective,
-        vehicle: Vehicle,
-        route: RouteTemplate,
-        facility: Facility,
-        effective_available: int,
-        risk: dict[str, float],
-        original_duration: float,
-    ) -> float:
-        overload_penalty = max(0.0, vehicle.payload_capacity_units - max(effective_available, 0)) * 5.0
-        added_travel = max(0.0, route.duration_minutes * risk["eta_multiplier"] - original_duration) * 1.50
-        congestion_penalty = (
-            facility.current_inventory_units / max(facility.base_capacity_units, 1)
-        ) * 150.0
-        co2_penalty = route.distance_km * vehicle.emission_kg_per_km * 0.05
-        minutes_late = max(
-            0.0,
-            route.duration_minutes * risk["eta_multiplier"]
-            + objective.loading_duration_minutes
-            + objective.unloading_duration_minutes
-            - objective.sla_minutes,
-        )
-        sla_penalty = (500.0 if minutes_late > 0 else 0.0) + (minutes_late * 2.0)
-        event_penalty = risk["route_risk"] * 1000.0
-        return round(
-            overload_penalty + added_travel + congestion_penalty + co2_penalty + sla_penalty + event_penalty,
-            2,
-        )
-
-    def _explain(
-        self,
-        action: str,
-        destination: Facility,
-        breakdown: dict[str, float],
-        risk: dict[str, float],
-    ) -> str:
-        if action == "continue":
-            return (
-                f"Continue to {destination.name}; capacity remains viable and combined weather/news "
-                f"risk stays at {risk['route_risk']:.2f}."
-            )
-        return (
-            f"{action.replace('_', ' ')} to {destination.name} because overload risk is "
-            f"{breakdown['overload_risk']:.2f}, event severity is {breakdown['event_severity']:.2f}, "
-            f"and downstream congestion is {breakdown['downstream_congestion']:.2f}."
-        )
 
 
 class SimulationEngine:
@@ -409,7 +95,10 @@ class SimulationEngine:
         self.on_time_trips = 0
         self.beneficiary_location_ids: set[int] = set()
         self.last_metrics_snapshot_hour: tuple[int, int, int, int] | None = None
+        self.spotlight_driver_id: int | None = None
         self._last_cascade_check: datetime | None = None
+
+    # ── Queue & Status ──────────────────────────────────────────────
 
     def queue_size(self) -> int:
         return len(self.event_queue)
@@ -422,6 +111,8 @@ class SimulationEngine:
             queued_events=self.queue_size(),
             error_message=self.last_error,
         )
+
+    # ── State Loading ───────────────────────────────────────────────
 
     def load_state(self, session: Session) -> None:
         self.facilities = {
@@ -456,7 +147,6 @@ class SimulationEngine:
         self._load_event_maps(session)
 
     def _load_event_maps(self, session: Session) -> None:
-        # Incremental load: do not clear existing maps, just add missing/update higher scores
         for weather in session.scalars(select(WeatherEvent)).all():
             self.update_weather_event_map(weather)
         for news in session.scalars(select(NewsEvent).where(NewsEvent.relevant.is_(True))).all():
@@ -481,6 +171,8 @@ class SimulationEngine:
             "eta_multiplier": weather.eta_multiplier,
             "precipitation_mm": weather.precipitation_mm,
         }
+
+    # ── Scheduling ──────────────────────────────────────────────────
 
     def _schedule(
         self,
@@ -523,6 +215,8 @@ class SimulationEngine:
                 )
                 stagger += 6
 
+    # ── Lifecycle (start / pause / resume / reset) ──────────────────
+
     async def start(self, speed_multiplier: float | None = None) -> SimulationStatus:
         if self.status == "running":
             return self.snapshot_status()
@@ -555,7 +249,7 @@ class SimulationEngine:
         self.seed_dispatch_queue()
         self.status = "running"
         self._task = asyncio.create_task(self._run_loop())
-        print(f"[INFO] Simulation started at {self.speed_multiplier}x.", flush=True)
+        logger.info("Simulation started at %sx.", self.speed_multiplier)
         return self.snapshot_status()
 
     async def pause(self) -> SimulationStatus:
@@ -602,6 +296,8 @@ class SimulationEngine:
         self.status = "idle"
         return self.snapshot_status()
 
+    # ── Main Loop ───────────────────────────────────────────────────
+
     async def _run_loop(self) -> None:
         loop = asyncio.get_running_loop()
         last_wall = loop.time()
@@ -620,7 +316,7 @@ class SimulationEngine:
                             self._process_event(session, event)
                             processed += 1
                         except Exception as exc:
-                            print(f"[ERROR] Event {event.event_type} failed: {exc}", flush=True)
+                            logger.error("Event %s failed: %s", event.event_type, exc)
                             self.last_error = f"{type(exc).__name__}: {exc}"
                     if processed:
                         session.commit()
@@ -634,86 +330,9 @@ class SimulationEngine:
         except Exception as exc:
             self.last_error = f"{type(exc).__name__}: {exc}"
             self.status = "error"
-            print(f"[ERROR] Simulation loop crashed: {self.last_error}", flush=True)
+            logger.error("Simulation loop crashed: %s", self.last_error)
 
-    def _check_autonomous_cascade(self, session: Session) -> None:
-        """Autonomous cascade detection: check every 5 sim-minutes for capacity overload."""
-        if self._last_cascade_check is not None:
-            elapsed = (self.simulation_time - self._last_cascade_check).total_seconds()
-            if elapsed < 300:  # 5 simulation minutes
-                return
-        self._last_cascade_check = self.simulation_time
-
-        cascade_triggered = False
-        for facility in self.facilities.values():
-            utilization = facility.current_inventory_units / max(facility.base_capacity_units, 1)
-            if utilization < 0.85:
-                continue
-            # Check if we already have a recent event for this city today
-            sim_key = self.simulation_time.date().isoformat()
-            existing = self.news_map.get((sim_key, facility.city))
-            if existing and existing["impact_score"] >= utilization * 0.8:
-                continue  # Already have a sufficiently severe event
-
-            severity = min(0.95, utilization * 0.9)
-            event_date = self.simulation_time.date()
-            event = NewsEvent(
-                original_date=event_date,
-                simulation_date=event_date,
-                city=facility.city,
-                category="Autonomous Cascade Detection",
-                headline=(
-                    f"AI detected capacity overload at {facility.name} "
-                    f"({utilization:.0%} utilization) — cascade risk elevated"
-                ),
-                relevant=True,
-                impact_type="logistics_disruption",
-                impact_score=severity,
-                model_probability=severity,
-            )
-            session.add(event)
-            session.flush()
-            self.update_news_event_map(event)
-
-            # Cascade to linked facilities via PortLinks
-            for link in self.port_links:
-                linked_id = None
-                if link.warehouse_id == facility.id and link.active:
-                    linked_id = link.port_id
-                elif link.port_id == facility.id and link.active:
-                    linked_id = link.warehouse_id
-                if linked_id is None:
-                    continue
-                linked = self.facilities.get(linked_id)
-                if linked is None:
-                    continue
-                cascade_severity = min(0.85, severity * 0.7)
-                cascade_event = NewsEvent(
-                    original_date=event_date,
-                    simulation_date=event_date,
-                    city=linked.city,
-                    category="Cascade Propagation",
-                    headline=(
-                        f"Cascade from {facility.city} → {linked.name}: "
-                        f"spillover pressure detected"
-                    ),
-                    relevant=True,
-                    impact_type="port_congestion" if linked.facility_type == "port" else "logistics_disruption",
-                    impact_score=cascade_severity,
-                    model_probability=cascade_severity,
-                )
-                session.add(cascade_event)
-                self.update_news_event_map(cascade_event)
-
-            cascade_triggered = True
-
-        if cascade_triggered:
-            session.commit()
-            print(
-                f"[CASCADE] Autonomous cascade detection triggered at "
-                f"{self.simulation_time.isoformat()}",
-                flush=True,
-            )
+    # ── Event Processing ────────────────────────────────────────────
 
     def _process_event(self, session: Session, event: ScheduledEvent) -> None:
         if event.event_type == "dispatch":
@@ -740,9 +359,11 @@ class SimulationEngine:
         )
 
     def _handle_dispatch(self, session: Session, event: ScheduledEvent) -> None:
-        vehicle = self.vehicles[event.vehicle_id]
-        state = self.live_vehicle_states[event.vehicle_id]
-        objective = self.objectives[event.objective_id] if event.objective_id else None
+        vehicle = self.vehicles.get(event.vehicle_id)
+        state = self.live_vehicle_states.get(event.vehicle_id)
+        if vehicle is None or state is None:
+            return
+        objective = self.objectives.get(event.objective_id) if event.objective_id else None
         if objective is None:
             return
         current_facility = self.facilities[state.current_facility_id or objective.origin_facility_id]
@@ -822,10 +443,7 @@ class SimulationEngine:
         if chosen_decision.action.startswith("reroute") and chosen_decision.destination_id is not None:
             destination = self.facilities.get(chosen_decision.destination_id)
             destination_name = destination.name if destination else str(chosen_decision.destination_id)
-            print(
-                f"[AI] Reroute suggested for Vehicle {vehicle.identifier} -> {destination_name}",
-                flush=True,
-            )
+            logger.info("Reroute suggested for Vehicle %s -> %s", vehicle.identifier, destination_name)
 
         state.stockout_risk_avoided = (
             chosen_decision.action.startswith("reroute")
@@ -834,6 +452,12 @@ class SimulationEngine:
                 or chosen_decision.breakdown.get("baseline_event_severity", 0.0) >= 0.6
             )
         )
+
+        if chosen_decision.action == "waiting_for_human":
+            state.status = "waiting_for_human"
+            vehicle.status = "waiting_for_human"
+            vehicle.available_at = None
+            return
 
         if chosen_decision.action == "wait":
             state.status = "waiting"
@@ -1000,7 +624,7 @@ class SimulationEngine:
         if state.perishable_payload and (state.stockout_risk_avoided or arrived_on_time):
             self.current_metrics.spoilage_or_wastage_prevented += vehicle.payload_capacity_units
 
-        # --- RL feedback loop: store transition and train ---
+        # RL feedback loop
         self._record_rl_transition(
             state=state,
             vehicle=vehicle,
@@ -1040,6 +664,8 @@ class SimulationEngine:
             priority=1,
         )
 
+    # ── RL Transition Recording ─────────────────────────────────────
+
     def _record_rl_transition(
         self,
         state: LiveVehicleState,
@@ -1049,7 +675,6 @@ class SimulationEngine:
         arrived_on_time: bool,
         co2_saved: float,
     ) -> None:
-        """Record completed trip as RL transition and trigger a training step."""
         if not settings.use_rl_engine or get_rl_engine is None:
             return
         if state.last_rl_state is None or state.last_rl_action is None:
@@ -1067,7 +692,6 @@ class SimulationEngine:
                 stockout_prevented=state.stockout_risk_avoided,
                 reroute_successful=state.last_rl_action.startswith("reroute") and arrived_on_time,
             )
-            # Build next-state from current post-delivery context
             facility_util = destination.current_inventory_units / max(destination.base_capacity_units, 1)
             next_state = StateVector.from_sim_context(
                 facility_utilization=facility_util,
@@ -1093,15 +717,17 @@ class SimulationEngine:
             train_result = engine.train_step_update()
             if train_result and train_result["train_step"] % 50 == 0:
                 engine.save_weights()
-                print(
-                    f"[RL] Train step {train_result['train_step']}: "
-                    f"loss={train_result['loss']:.4f}, epsilon={train_result['epsilon']:.3f}"
+                logger.info(
+                    "RL train step %s: loss=%.4f, epsilon=%.3f",
+                    train_result["train_step"], train_result["loss"], train_result["epsilon"],
                 )
         except Exception as exc:
-            print(f"[RL] Transition recording failed: {exc}")
+            logger.error("RL transition recording failed: %s", exc)
         finally:
             state.last_rl_state = None
             state.last_rl_action = None
+
+    # ── Dispatch Decision Selection ─────────────────────────────────
 
     def _select_dispatch_decision(
         self,
@@ -1112,7 +738,6 @@ class SimulationEngine:
         route_data: dict[int, RouteTemplate],
         risk_lookup: dict[int, dict[str, float]],
     ) -> CandidateDecision:
-        """Choose between rule-based and RL-driven dispatch decision."""
         rule_decision = self.decision_engine.score_dispatch_options(
             sim_time=self.simulation_time,
             vehicle=vehicle,
@@ -1129,7 +754,6 @@ class SimulationEngine:
 
         try:
             engine = get_rl_engine()
-            # Only trust RL after it has seen enough experiences
             if len(engine.replay_buffer) < 500:
                 return rule_decision
             dest = self.facilities.get(objective.destination_facility_id)
@@ -1159,9 +783,7 @@ class SimulationEngine:
             )
             valid = ["continue", "reroute_warehouse", "reroute_port", "wait", "defer_dispatch"]
             rl_action, rl_confidence = engine.select_action(state_vec, valid)
-            # Only trust RL if confidence is decent; otherwise fallback to rule
             if rl_confidence >= 0.5 and rl_action != rule_decision.action:
-                # Map RL action back to a CandidateDecision by finding matching candidate
                 for cand in [
                     rule_decision,
                     CandidateDecision(
@@ -1180,14 +802,15 @@ class SimulationEngine:
                     ),
                 ]:
                     if cand.action == rl_action:
-                        # Save state+action for RL feedback on trip completion
                         self.live_vehicle_states[vehicle.id].last_rl_state = state_vec
                         self.live_vehicle_states[vehicle.id].last_rl_action = rl_action
-                        print(f"[RL] Vehicle {vehicle.identifier} -> {rl_action} (conf={rl_confidence:.2f})")
+                        logger.info("Vehicle %s -> %s (conf=%.2f)", vehicle.identifier, rl_action, rl_confidence)
                         return cand
         except Exception as exc:
-            print(f"[RL] Decision fallback due to error: {exc}")
+            logger.error("RL decision fallback due to error: %s", exc)
         return rule_decision
+
+    # ── Driver Override ─────────────────────────────────────────────
 
     def _apply_driver_override(
         self,
@@ -1215,6 +838,20 @@ class SimulationEngine:
         )
         session.add(recommendation)
         session.flush()
+
+        if vehicle.driver_profile_id == self.spotlight_driver_id:
+            return CandidateDecision(
+                action="waiting_for_human",
+                destination_id=decision.destination_id,
+                score=decision.baseline_cost,
+                baseline_cost=decision.baseline_cost,
+                recommended_cost=decision.baseline_cost,
+                explanation="Awaiting human driver decision via Spotlight Mobile View.",
+                breakdown=decision.breakdown,
+                travel_minutes=decision.travel_minutes,
+                route_risk=decision.route_risk,
+                eta_multiplier=decision.eta_multiplier,
+            )
 
         driver = self.drivers[vehicle.driver_profile_id]
         decision_seed = self._stable_random_value(
@@ -1278,6 +915,8 @@ class SimulationEngine:
             self.current_metrics.co2_saved_kg += saved_idle * 0.14
         return final_decision
 
+    # ── Helpers ─────────────────────────────────────────────────────
+
     def _stable_random_value(self, key: str) -> float:
         digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
         return int(digest[:8], 16) / 0xFFFFFFFF
@@ -1313,30 +952,19 @@ class SimulationEngine:
     def _is_critical_objective(self, objective: Objective) -> bool:
         text = f"{objective.name} {objective.commodity}".lower()
         critical_terms = (
-            "medicine",
-            "vaccine",
-            "oxygen",
-            "blood",
-            "relief",
-            "food",
-            "grain",
-            "nutrition",
-            "essential",
+            "medicine", "vaccine", "oxygen", "blood", "relief",
+            "food", "grain", "nutrition", "essential",
         )
         return objective.priority >= 3 or any(term in text for term in critical_terms)
 
     def _is_perishable_objective(self, objective: Objective) -> bool:
         text = f"{objective.name} {objective.commodity}".lower()
         perishable_terms = (
-            "vaccine",
-            "insulin",
-            "blood",
-            "medicine",
-            "food",
-            "grain",
-            "nutrition",
+            "vaccine", "insulin", "blood", "medicine", "food", "grain", "nutrition",
         )
         return any(term in text for term in perishable_terms)
+
+    # ── Scenario Comparison ─────────────────────────────────────────
 
     def compare_scenario(self, session: Session, scenario: Any) -> dict[str, Any]:
         if not self.objectives or not self.facilities or not self.vehicles:
@@ -1392,9 +1020,7 @@ class SimulationEngine:
             payload_units = vehicle.payload_capacity_units
 
             base_trip_minutes = (
-                route.duration_minutes
-                + objective.loading_duration_minutes
-                + objective.unloading_duration_minutes
+                route.duration_minutes + objective.loading_duration_minutes + objective.unloading_duration_minutes
             )
             disrupted_leg = (
                 origin.city.lower() == scenario_city or destination.city.lower() == scenario_city
@@ -1466,21 +1092,14 @@ class SimulationEngine:
             "baseline": baseline_metrics,
             "ai": ai_metrics,
             "improvement": {
-                "on_time_delta_pct": round(
-                    ai_metrics["on_time_delivery_pct"] - baseline_metrics["on_time_delivery_pct"],
-                    2,
-                ),
-                "delay_reduction_minutes": round(
-                    baseline_metrics["average_delay_minutes"] - ai_metrics["average_delay_minutes"],
-                    2,
-                ),
-                "overflow_reduction": round(
-                    baseline_metrics["overflow_events"] - ai_metrics["overflow_events"],
-                    2,
-                ),
+                "on_time_delta_pct": round(ai_metrics["on_time_delivery_pct"] - baseline_metrics["on_time_delivery_pct"], 2),
+                "delay_reduction_minutes": round(baseline_metrics["average_delay_minutes"] - ai_metrics["average_delay_minutes"], 2),
+                "overflow_reduction": round(baseline_metrics["overflow_events"] - ai_metrics["overflow_events"], 2),
                 "stockout_delta": round(ai_metrics["stockouts_prevented"], 2),
             },
         }
+
+    # ── Snapshots ───────────────────────────────────────────────────
 
     async def _maybe_snapshot(self, session: Session) -> None:
         warehouse_facilities = [
@@ -1504,10 +1123,8 @@ class SimulationEngine:
         )
 
         current_hour = (
-            self.simulation_time.year,
-            self.simulation_time.month,
-            self.simulation_time.day,
-            self.simulation_time.hour,
+            self.simulation_time.year, self.simulation_time.month,
+            self.simulation_time.day, self.simulation_time.hour,
         )
         if current_hour == self.last_metrics_snapshot_hour:
             return
@@ -1523,6 +1140,52 @@ class SimulationEngine:
                 active_trucks=self.current_metrics.active_trucks,
                 queued_trucks=self.current_metrics.queued_trucks,
             )
+        )
+
+    def resolve_spotlight_decision(
+        self,
+        vehicle: Vehicle,
+        recommendation: Recommendation,
+        objective: Objective,
+        decision_str: str,
+    ) -> None:
+        state = self.live_vehicle_states.get(vehicle.id)
+        if not state or state.status != "waiting_for_human":
+            return
+
+        if decision_str == "accepted":
+            dest_id = recommendation.recommended_destination_id
+        else:
+            dest_id = recommendation.original_destination_id
+
+        state.status = "loading"
+        vehicle.status = "loading"
+
+        route = self.routes.get(
+            self.route_planner.route_key(recommendation.current_facility_id, dest_id)
+        )
+        if not route:
+            return
+
+        state.objective_id = objective.id
+        state.payload_units = vehicle.payload_capacity_units
+        state.route_template_id = route.id
+        state.route_distance_km = route.distance_km
+        vehicle.current_facility_id = recommendation.current_facility_id
+
+        load_complete_time = self.simulation_time + timedelta(minutes=objective.loading_duration_minutes)
+        self._schedule(
+            load_complete_time,
+            "load_complete",
+            vehicle_id=vehicle.id,
+            objective_id=objective.id,
+            payload={
+                "leg": "outbound",
+                "destination_id": dest_id,
+                "facility_id": recommendation.current_facility_id,
+                "route_id": route.id,
+                "eta_multiplier": 1.0,
+            },
         )
 
     def dashboard_snapshot(self, session: Session) -> DashboardSnapshot:
@@ -1592,24 +1255,94 @@ class SimulationEngine:
             weather = self.weather_map.get((sim_key, city))
             news = self.news_map.get((sim_key, city))
             if news:
-                entries.append(
-                    {
-                        "city": city,
-                        "kind": "news",
-                        "headline": news["headline"],
-                        "impact_score": news["impact_score"],
-                        "impact_type": news["impact_type"],
-                    }
-                )
+                entries.append({
+                    "city": city,
+                    "kind": "news",
+                    "headline": news["headline"],
+                    "impact_score": news["impact_score"],
+                    "impact_type": news["impact_type"],
+                })
             if weather and weather["closure_risk"] >= 0.2:
-                entries.append(
-                    {
-                        "city": city,
-                        "kind": "weather",
-                        "headline": f"Weather pressure in {city}",
-                        "impact_score": weather["closure_risk"],
-                        "impact_type": "weather_disruption",
-                    }
-                )
+                entries.append({
+                    "city": city,
+                    "kind": "weather",
+                    "headline": f"Weather pressure in {city}",
+                    "impact_score": weather["closure_risk"],
+                    "impact_type": "weather_disruption",
+                })
         entries.sort(key=lambda item: item["impact_score"], reverse=True)
         return entries[:10]
+
+    # ── Autonomous Cascade Detection ────────────────────────────────
+
+    def _check_autonomous_cascade(self, session: Session) -> None:
+        if self._last_cascade_check is not None:
+            elapsed = (self.simulation_time - self._last_cascade_check).total_seconds()
+            if elapsed < 300:
+                return
+        self._last_cascade_check = self.simulation_time
+
+        cascade_triggered = False
+        for facility in self.facilities.values():
+            utilization = facility.current_inventory_units / max(facility.base_capacity_units, 1)
+            if utilization < 0.85:
+                continue
+            sim_key = self.simulation_time.date().isoformat()
+            existing = self.news_map.get((sim_key, facility.city))
+            if existing and existing["impact_score"] >= utilization * 0.8:
+                continue
+
+            severity = min(0.95, utilization * 0.9)
+            event_date = self.simulation_time.date()
+            event = NewsEvent(
+                original_date=event_date,
+                simulation_date=event_date,
+                city=facility.city,
+                category="Autonomous Cascade Detection",
+                headline=(
+                    f"AI detected capacity overload at {facility.name} "
+                    f"({utilization:.0%} utilization) — cascade risk elevated"
+                ),
+                relevant=True,
+                impact_type="logistics_disruption",
+                impact_score=severity,
+                model_probability=severity,
+            )
+            session.add(event)
+            session.flush()
+            self.update_news_event_map(event)
+
+            for link in self.port_links:
+                linked_id = None
+                if link.warehouse_id == facility.id and link.active:
+                    linked_id = link.port_id
+                elif link.port_id == facility.id and link.active:
+                    linked_id = link.warehouse_id
+                if linked_id is None:
+                    continue
+                linked = self.facilities.get(linked_id)
+                if linked is None:
+                    continue
+                cascade_severity = min(0.85, severity * 0.7)
+                cascade_event = NewsEvent(
+                    original_date=event_date,
+                    simulation_date=event_date,
+                    city=linked.city,
+                    category="Cascade Propagation",
+                    headline=(
+                        f"Cascade from {facility.city} → {linked.name}: "
+                        f"spillover pressure detected"
+                    ),
+                    relevant=True,
+                    impact_type="port_congestion" if linked.facility_type == "port" else "logistics_disruption",
+                    impact_score=cascade_severity,
+                    model_probability=cascade_severity,
+                )
+                session.add(cascade_event)
+                self.update_news_event_map(cascade_event)
+
+            cascade_triggered = True
+
+        if cascade_triggered:
+            session.commit()
+            logger.info("Autonomous cascade detection triggered at %s", self.simulation_time.isoformat())

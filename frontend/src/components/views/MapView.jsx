@@ -201,6 +201,7 @@ function MapClickHandler({ onMapClick }) {
   return null;
 }
 
+
 export function MapView({
   facilities = [],
   vehicles = [],

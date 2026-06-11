@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from math import asin, cos, radians, sin, sqrt
 
 import httpx
@@ -76,7 +76,7 @@ class RoutePlanner:
             encoded_polyline=route_data["encoded_polyline"],
             steps=route_data["steps"],
             source=route_data["source"],
-            refreshed_at=datetime.utcnow(),
+            refreshed_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         session.add(route)
         session.flush()

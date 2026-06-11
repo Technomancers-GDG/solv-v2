@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import numpy as np
@@ -152,7 +152,7 @@ class PredictiveForecastService:
         return z * std * (1.0 + 0.1 * steps_ahead)
 
     def forecast_city(self, session: Session, city: str, forecast_hours: int = 12, reference_date: date | None = None) -> RiskForecast | None:
-        ref_dt = reference_date or datetime.utcnow().date()
+        ref_dt = reference_date or datetime.now(timezone.utc).date()
         history = self.get_city_history(session, city, ref_dt)
         if len(history) < 3:
             predicted_risk = history[-1]["combined_risk"] if history else 0.1

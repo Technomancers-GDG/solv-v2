@@ -6,7 +6,7 @@ BigQuery, and Cloud Messaging. Actual credentials required for production.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from config import settings
@@ -31,7 +31,7 @@ class FirebaseRealtimeDB:
         record = {
             "driver_id": driver_id,
             "state": state,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "synced": False,
         }
         if self.enabled:
@@ -55,10 +55,10 @@ class CloudPubSub:
         self._local_queue: list[CloudEvent] = []
 
     def publish(self, topic: str, payload: dict[str, Any]) -> dict[str, Any]:
-        event = CloudEvent(topic=topic, payload=payload, published_at=datetime.utcnow().isoformat())
+        event = CloudEvent(topic=topic, payload=payload, published_at=datetime.now(timezone.utc).isoformat())
         if self.enabled:
             # In production: publisher.publish(topic_path, data=json.dumps(payload).encode())
-            return {"status": "published", "topic": topic, "message_id": f"msg-{datetime.utcnow().timestamp()}"}
+            return {"status": "published", "topic": topic, "message_id": f"msg-{datetime.now(timezone.utc).timestamp()}"}
         self._local_queue.append(event)
         return {"status": "queued", "topic": topic, "queue_depth": len(self._local_queue)}
 
@@ -125,7 +125,7 @@ class CloudMessaging:
     def send_to_driver(self, driver_id: int, title: str, body: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
         if self.enabled:
             # In production: messaging.send(Message(..., token=driver_fcm_token))
-            return {"status": "sent", "driver_id": driver_id, "message_id": f"fcm-{driver_id}-{datetime.utcnow().timestamp()}"}
+            return {"status": "sent", "driver_id": driver_id, "message_id": f"fcm-{driver_id}-{datetime.now(timezone.utc).timestamp()}"}
         return {
             "status": "stub",
             "driver_id": driver_id,

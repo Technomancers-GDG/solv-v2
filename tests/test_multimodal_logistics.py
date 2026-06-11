@@ -131,7 +131,7 @@ def test_compute_routes_api_accepts_inline_graph() -> None:
 
     client = TestClient(app)
     response = client.post(
-        "/compute-routes",
+        "/api/compute-routes",
         json={
             "origin_node_id": "mine-1",
             "destination_node_id": "port-1",

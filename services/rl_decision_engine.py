@@ -6,10 +6,13 @@ reroute policies from simulation outcomes.
 from __future__ import annotations
 
 import json
+import logging
 import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import torch
@@ -167,9 +170,9 @@ class RLDecisionEngine:
                 self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
                 self.epsilon = max(self.epsilon_min, checkpoint.get("epsilon", 1.0))
                 self.train_step = checkpoint.get("train_step", 0)
-                print(f"[RL] Loaded PyTorch weights from {self.model_path}")
+                logger.info("Loaded PyTorch weights from %s", self.model_path)
             except Exception as exc:
-                print(f"[RL] Could not load PyTorch weights: {exc}. Starting fresh.")
+                logger.warning("Could not load PyTorch weights: %s. Starting fresh.", exc)
 
     def save_weights(self) -> None:
         checkpoint = {
