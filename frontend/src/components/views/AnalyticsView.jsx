@@ -125,21 +125,21 @@ export function AnalyticsView({ metrics = {}, vehicles = [], recommendations = [
   const onTimeDeliveryHistory = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => ({
       week: `W${i + 1}`,
-      value: 75 + Math.random() * 20,
+      value: 75 + (((i * 137) % 100) / 100) * 20,
     }));
   }, []);
 
   const warehouseUtilizationHistory = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => ({
       week: `W${i + 1}`,
-      value: 45 + Math.random() * 40,
+      value: 45 + (((i * 251) % 100) / 100) * 40,
     }));
   }, []);
 
   const co2SavedCumulative = useMemo(() => {
     let cumulative = 0;
     return Array.from({ length: 12 }, (_, i) => {
-      cumulative += 200 + Math.random() * 400;
+      cumulative += 200 + (((i * 313) % 100) / 100) * 400;
       return {
         week: `W${i + 1}`,
         value: cumulative,
@@ -175,7 +175,7 @@ export function AnalyticsView({ metrics = {}, vehicles = [], recommendations = [
   const recommendationAcceptanceHistory = useMemo(() => {
     return Array.from({ length: 10 }, (_, i) => ({
       week: `W${i + 1}`,
-      value: 55 + Math.random() * 30,
+      value: 55 + (((i * 199) % 100) / 100) * 30,
     }));
   }, []);
 

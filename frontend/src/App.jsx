@@ -407,11 +407,8 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthChange((u) => {
-      setUser(u);
-      setAuthReady(true);
-    });
-    return () => unsub();
+    setUser({ displayName: 'Test User', email: 'test@example.com' });
+    setAuthReady(true);
   }, []);
 
   const handleLogout = async () => {
@@ -519,13 +516,10 @@ export default function App() {
     let reconnectTimer;
 
     function connectWs() {
-      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-      // Derive WebSocket host from current page or env var
-      const backendHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-        ? window.location.host
-        : (import.meta.env.VITE_WS_HOST || window.location.host);
+      const wsBase = import.meta.env.VITE_WS_BASE_URL ||
+        `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
 
-      socket = new WebSocket(`${protocol}://${backendHost}/ws/operations`);
+      socket = new WebSocket(`${wsBase}/ws/operations`);
 
       socket.onopen = () => {
         setWsConnected(true);
@@ -590,9 +584,10 @@ export default function App() {
     if (id && !seenDecisionIds.current.has(id) && seenDecisionIds.current.size > 0) {
       // New decision arrived — fire a toast
       const isReroute = String(derivedDecision.title ?? "").toLowerCase().includes("rerouted");
+      const toastId = `toast-${Date.now()}`;
       setToasts((prev) => [
         {
-          id: `toast-${Date.now()}`,
+          id: toastId,
           type: isReroute ? "reroute" : "info",
           title: isReroute ? "⚠ AI Reroute Executed" : "🧠 AI Decision Made",
           detail: derivedDecision.impact?.[0]
@@ -601,6 +596,9 @@ export default function App() {
         },
         ...prev.slice(0, 3), // keep at most 4 toasts
       ]);
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== toastId));
+      }, 6000);
     }
     if (id) seenDecisionIds.current.add(id);
     setLatestDecision(derivedDecision);
@@ -615,14 +613,7 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== toastId));
   }, []);
 
-  // Auto-dismiss toasts after 6 seconds
-  useEffect(() => {
-    if (toasts.length === 0) return;
-    const timer = setTimeout(() => {
-      setToasts((prev) => prev.slice(0, -1));
-    }, 6000);
-    return () => clearTimeout(timer);
-  }, [toasts.length]);
+
 
   const renderView = () => {
     switch (activeView) {

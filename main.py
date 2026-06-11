@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 try:
@@ -28,7 +28,29 @@ from seed_data import seed_demo_data
 from app_state import simulation_engine
 from routes import crud_router, simulation_router, driver_router, ai_router, logistics_router
 
-app = FastAPI(title=settings.app_name, version="0.1.0")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global demo_disruption_task
+    init_db()
+    with SessionLocal() as session:
+        if settings.allow_demo_seed:
+            seed_demo_data(session)
+    if settings.demo_mode:
+        await simulation_engine.start(speed_multiplier=settings.simulation_speed)
+        if demo_disruption_task is None or demo_disruption_task.done():
+            demo_disruption_task = asyncio.create_task(_trigger_demo_disruption())
+    yield
+    if demo_disruption_task is not None and not demo_disruption_task.done():
+        demo_disruption_task.cancel()
+        try:
+            await demo_disruption_task
+        except asyncio.CancelledError:
+            pass
+    demo_disruption_task = None
+
+app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
 cors_origins_env = os.getenv("CORS_ORIGINS", "")
 if cors_origins_env:
@@ -50,6 +72,16 @@ else:
     )
 
 demo_disruption_task: asyncio.Task | None = None
+
+
+@app.exception_handler(Exception)
+async def cors_aware_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    origin = request.headers.get("origin", "")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+        headers={"Access-Control-Allow-Origin": origin or "*"},
+    )
 
 
 # --- Router registration ---
@@ -124,29 +156,6 @@ async def _trigger_demo_disruption() -> None:
         logger.error("Demo disruption task failed: %s", exc)
 
 
-@app.on_event("startup")
-async def startup() -> None:
-    global demo_disruption_task
-    init_db()
-    with SessionLocal() as session:
-        if settings.allow_demo_seed:
-            seed_demo_data(session)
-    if settings.demo_mode:
-        await simulation_engine.start(speed_multiplier=settings.simulation_speed)
-        if demo_disruption_task is None or demo_disruption_task.done():
-            demo_disruption_task = asyncio.create_task(_trigger_demo_disruption())
-
-
-@app.on_event("shutdown")
-async def shutdown() -> None:
-    global demo_disruption_task
-    if demo_disruption_task is not None and not demo_disruption_task.done():
-        demo_disruption_task.cancel()
-        try:
-            await demo_disruption_task
-        except asyncio.CancelledError:
-            pass
-    demo_disruption_task = None
 
 
 # --- WebSocket ---

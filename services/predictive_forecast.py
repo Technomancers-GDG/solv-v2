@@ -60,7 +60,7 @@ class PredictiveForecastService:
                 NewsEvent.city == city,
                 NewsEvent.simulation_date >= start_date,
                 NewsEvent.simulation_date <= end_date,
-                NewsEvent.relevant.is_(True),
+                NewsEvent.relevant == True,
             ).order_by(NewsEvent.simulation_date)
         ).all()
 
@@ -68,11 +68,13 @@ class PredictiveForecastService:
             lambda: {"closure_risk": 0.0, "eta_multiplier": 1.0, "impact_score": 0.0, "precip": 0.0}
         )
         for w in weather_rows:
+            if w is None or w.simulation_date is None: continue
             d = daily[w.simulation_date]
             d["closure_risk"] = max(d["closure_risk"], w.closure_risk)
             d["eta_multiplier"] = max(d["eta_multiplier"], w.eta_multiplier)
             d["precip"] = max(d["precip"], w.precipitation_mm)
         for n in news_rows:
+            if n is None or n.simulation_date is None: continue
             d = daily[n.simulation_date]
             d["impact_score"] = max(d["impact_score"], n.impact_score)
 
