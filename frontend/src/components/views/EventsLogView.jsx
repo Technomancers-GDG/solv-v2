@@ -191,7 +191,10 @@ export function EventsLogView({ importEvents, events = [] }) {
                   <div
                     key={event.id}
                     className={`event-item ${tone} ${isSelected ? "selected" : ""}`}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedEventId(isSelected ? null : event.id)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedEventId(isSelected ? null : event.id); } }}
                   >
                     <div className="event-marker" />
                     <div className="event-content">

@@ -1,7 +1,7 @@
 import { Panel, MetricCard, ProgressBar } from "../common/UiPrimitives";
 import { AIActivityFeed, AIDecisionPanel, RouteComparisonBlock } from "../common/AIDecisionWidgets";
 
-export function DashboardView({ metrics, criticalFacilities, proactiveDispatches, riskForecast, auditChain, blockchainVerify, facilityLookup, aiActivity, latestDecision, previousRoute, activityFeed }) {
+export function DashboardView({ metrics, criticalFacilities = [], proactiveDispatches = [], riskForecast = [], auditChain = [], blockchainVerify, facilityLookup, aiActivity, latestDecision, previousRoute, activityFeed }) {
   const rl = aiActivity?.rl_engine;
   const actionBreakdown = aiActivity?.recent_action_breakdown ?? {};
   const explorationPct = rl ? Math.round((rl.epsilon ?? 1) * 100) : 100;

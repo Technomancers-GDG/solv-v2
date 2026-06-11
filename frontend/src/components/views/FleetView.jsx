@@ -147,7 +147,7 @@ export function FleetView({
           <table>
             <thead>
               <tr>
-                <th>
+                <th scope="col">
                   <input
                     type="checkbox"
                     checked={visibleVehicles.length > 0 && selectedVehicleIds.length === visibleVehicles.length}
@@ -155,18 +155,18 @@ export function FleetView({
                     aria-label="Select all visible vehicles"
                   />
                 </th>
-                <th>
+                <th scope="col">
                   <button type="button" className="sort-button" onClick={() => toggleSort("identifier")}>
                     Identifier {sortIndicator("identifier")}
                   </button>
                 </th>
-                <th>Status</th>
-                <th>Home Facility</th>
-                <th>Current Facility</th>
-                <th>Driver</th>
-                <th>Objective</th>
-                <th>Available At</th>
-                <th>Actions</th>
+                <th scope="col">Status</th>
+                <th scope="col">Home Facility</th>
+                <th scope="col">Current Facility</th>
+                <th scope="col">Driver</th>
+                <th scope="col">Objective</th>
+                <th scope="col">Available At</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>

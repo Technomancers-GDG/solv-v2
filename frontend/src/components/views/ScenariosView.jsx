@@ -31,10 +31,10 @@ export function ScenariosView({ scenarios, scenarioKey, setScenarioKey, scenario
             <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "1.5rem" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid #334155", textAlign: "left" }}>
-                  <th style={{ padding: "0.5rem" }}>Metric</th>
-                  <th style={{ padding: "0.5rem" }}>Baseline (No AI)</th>
-                  <th style={{ padding: "0.5rem" }}>AI Optimized</th>
-                  <th style={{ padding: "0.5rem" }}>Delta</th>
+                  <th scope="col" style={{ padding: "0.5rem" }}>Metric</th>
+                  <th scope="col" style={{ padding: "0.5rem" }}>Baseline (No AI)</th>
+                  <th scope="col" style={{ padding: "0.5rem" }}>AI Optimized</th>
+                  <th scope="col" style={{ padding: "0.5rem" }}>Delta</th>
                 </tr>
               </thead>
               <tbody>

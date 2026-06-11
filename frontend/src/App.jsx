@@ -1,21 +1,22 @@
-import { Component, startTransition, useDeferredValue, useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { lazy, Suspense, Component, startTransition, useDeferredValue, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { AIRerouteToast } from "./components/common/AIDecisionWidgets";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { onAuthChange, logout } from "./firebase";
 import { LoginView } from "./components/views/LoginView";
-import { MapView } from "./components/views/MapView";
-import { DashboardView } from "./components/views/DashboardView";
-import { LiveOpsView } from "./components/views/LiveOpsView";
-import { ForecastView } from "./components/views/ForecastView";
-import { InventoryView } from "./components/views/InventoryView";
-import { ScenariosView } from "./components/views/ScenariosView";
-import { BlockchainView } from "./components/views/BlockchainView";
-import { CloudView } from "./components/views/CloudView";
-import { NetworkView } from "./components/views/NetworkView";
-import { ObjectivesView } from "./components/views/ObjectivesView";
-import { EventsView } from "./components/views/EventsView";
-import { ImpactView } from "./components/views/ImpactView";
-import { SettingsView } from "./components/views/SettingsView";
+
+const DashboardView = lazy(() => import("./components/views/DashboardView").then(m => ({ default: m.DashboardView })));
+const MapView = lazy(() => import("./components/views/MapView").then(m => ({ default: m.MapView })));
+const LiveOpsView = lazy(() => import("./components/views/LiveOpsView").then(m => ({ default: m.LiveOpsView })));
+const ForecastView = lazy(() => import("./components/views/ForecastView").then(m => ({ default: m.ForecastView })));
+const InventoryView = lazy(() => import("./components/views/InventoryView").then(m => ({ default: m.InventoryView })));
+const ScenariosView = lazy(() => import("./components/views/ScenariosView").then(m => ({ default: m.ScenariosView })));
+const BlockchainView = lazy(() => import("./components/views/BlockchainView").then(m => ({ default: m.BlockchainView })));
+const CloudView = lazy(() => import("./components/views/CloudView").then(m => ({ default: m.CloudView })));
+const NetworkView = lazy(() => import("./components/views/NetworkView").then(m => ({ default: m.NetworkView })));
+const ObjectivesView = lazy(() => import("./components/views/ObjectivesView").then(m => ({ default: m.ObjectivesView })));
+const EventsView = lazy(() => import("./components/views/EventsView").then(m => ({ default: m.EventsView })));
+const ImpactView = lazy(() => import("./components/views/ImpactView").then(m => ({ default: m.ImpactView })));
+const SettingsView = lazy(() => import("./components/views/SettingsView").then(m => ({ default: m.SettingsView })));
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -715,7 +716,9 @@ export default function App() {
         {loading && !dashboard ? <div className="loading">Loading intelligence layer...</div> : (
           <main className="view-area">
             <ErrorBoundary key={activeView}>
-              {renderView()}
+              <Suspense fallback={<div className="loading">Loading...</div>}>
+                {renderView()}
+              </Suspense>
             </ErrorBoundary>
           </main>
         )}

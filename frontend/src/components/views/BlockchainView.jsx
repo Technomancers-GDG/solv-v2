@@ -1,6 +1,6 @@
 import { Panel } from "../common/UiPrimitives";
 
-export function BlockchainView({ auditChain, blockchainVerify }) {
+export function BlockchainView({ auditChain = [], blockchainVerify }) {
   return (
     <div className="view-blockchain">
       <Panel title="Immutable Audit Chain">

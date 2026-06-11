@@ -37,12 +37,12 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Override Rating</th>
-                <th>Confidence</th>
-                <th>Accept Bias</th>
-                <th>Active</th>
-                <th># Vehicles</th>
+                <th scope="col">Name</th>
+                <th scope="col">Override Rating</th>
+                <th scope="col">Confidence</th>
+                <th scope="col">Accept Bias</th>
+                <th scope="col">Active</th>
+                <th scope="col"># Vehicles</th>
               </tr>
             </thead>
             <tbody>
@@ -54,7 +54,7 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
 
                 return (
                   <>
-                    <tr key={driver.id} onClick={() => setExpandedDriverId(isExpanded ? null : driver.id)}>
+                    <tr key={driver.id} role="button" tabIndex={0} onClick={() => setExpandedDriverId(isExpanded ? null : driver.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedDriverId(isExpanded ? null : driver.id); } }}>
                       <td>{driver.name}</td>
                       <td>
                         <span className={`status-badge ${driverTone(driver.override_rating)}`}>

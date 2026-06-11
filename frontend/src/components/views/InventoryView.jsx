@@ -1,6 +1,6 @@
 import { Panel } from "../common/UiPrimitives";
 
-export function InventoryView({ inventoryForecast, proactiveDispatches, facilityLookup }) {
+export function InventoryView({ inventoryForecast = [], proactiveDispatches = [], facilityLookup }) {
   return (
     <div className="view-inventory">
       <div className="inventory-grid">

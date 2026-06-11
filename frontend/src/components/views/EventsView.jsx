@@ -1,6 +1,6 @@
 import { Panel } from "../common/UiPrimitives";
 
-export function EventsView({ events }) {
+export function EventsView({ events = [] }) {
   return (
     <div className="view-events">
       <Panel title="Active Events Feed">
@@ -9,7 +9,7 @@ export function EventsView({ events }) {
             <div className="event-card" key={i}>
               <div className="event-top"><strong>{e.city}</strong><span>{e.category}</span></div>
               <p>{e.headline}</p>
-              <small>{e.impact_type} • impact {Number(e.impact_score).toFixed(2)}</small>
+              <small>{e.impact_type} • impact {Number(e.impact_score ?? 0).toFixed(2)}</small>
             </div>
           ))}
         </div>

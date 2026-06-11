@@ -207,13 +207,13 @@ export function RecommendationsLogView({
               <table className="recommendations-table-el">
                 <thead>
                   <tr>
-                    <th>Time</th>
-                    <th>Vehicle</th>
-                    <th>Driver</th>
-                    <th>Action</th>
-                    <th>Confidence</th>
-                    <th>Status</th>
-                    <th>Improvement</th>
+                    <th scope="col">Time</th>
+                    <th scope="col">Vehicle</th>
+                    <th scope="col">Driver</th>
+                    <th scope="col">Action</th>
+                    <th scope="col">Confidence</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Improvement</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -230,7 +230,10 @@ export function RecommendationsLogView({
                       <tr
                         key={rec.id}
                         className={`rec-row ${isSelected ? "selected" : ""}`}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setSelectedRecId(isSelected ? null : rec.id)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedRecId(isSelected ? null : rec.id); } }}
                       >
                         <td className="cell-time">{formatRelativeTime(rec.created_at)}</td>
                         <td className="cell-vehicle">{vehicle?.identifier || "Unknown"}</td>
@@ -279,6 +282,7 @@ export function RecommendationsLogView({
                   <button
                     className="close-btn"
                     onClick={() => setSelectedRecId(null)}
+                    aria-label="Close detail"
                   >
                     ✕
                   </button>

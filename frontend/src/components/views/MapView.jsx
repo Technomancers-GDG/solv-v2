@@ -497,7 +497,7 @@ export function MapView({
                   <Popup>
                     <strong>{rf.city} Risk Forecast</strong><br />
                     Risk: {(rf.risk * 100).toFixed(1)}%<br />
-                    ETA Multiplier: {rf.eta_multiplier.toFixed(2)}x<br />
+                    ETA Multiplier: {(rf.eta_multiplier ?? 1).toFixed(2)}x<br />
                     Closure Risk: {(rf.closure_risk * 100).toFixed(1)}%<br />
                     Factors: {rf.factors?.join(", ")}
                   </Popup>

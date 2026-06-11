@@ -1,6 +1,6 @@
 import { Panel, MetricCard, ProgressBar } from "../common/UiPrimitives";
 
-export function LiveOpsView({ metrics, deferredVehicles, objectiveLookup }) {
+export function LiveOpsView({ metrics, deferredVehicles = [], objectiveLookup }) {
   return (
     <div className="view-liveops">
       <div className="ops-metrics">
@@ -12,7 +12,7 @@ export function LiveOpsView({ metrics, deferredVehicles, objectiveLookup }) {
       <Panel title="Vehicle Progress">
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Vehicle</th><th>Status</th><th>Objective</th><th>Progress</th><th>Payload</th><th>ETA</th><th>AI Action</th></tr></thead>
+                <thead><tr><th scope="col">Vehicle</th><th scope="col">Status</th><th scope="col">Objective</th><th scope="col">Progress</th><th scope="col">Payload</th><th scope="col">ETA</th><th scope="col">AI Action</th></tr></thead>
             <tbody>
               {deferredVehicles.slice(0, 30).map((v) => (
                 <tr key={v.vehicle_id}>
