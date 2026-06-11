@@ -67,6 +67,7 @@ class SimulationEngine:
         self.speed_multiplier = settings.simulation_speed
         self.event_queue: list[ScheduledEvent] = []
         self._sequence = 0
+        self._tick_counter = 0
         self._task: asyncio.Task[None] | None = None
         self.live_vehicle_states: dict[int, LiveVehicleState] = {}
         self.facilities: dict[int, Facility] = {}
@@ -296,6 +297,13 @@ class SimulationEngine:
         self.status = "idle"
         return self.snapshot_status()
 
+    # ── Runtime Speed Change ────────────────────────────────────────
+
+    async def set_speed(self, speed_multiplier: float) -> SimulationStatus:
+        self.speed_multiplier = max(1.0, min(100000.0, speed_multiplier))
+        logger.info("Simulation speed changed to %sx.", self.speed_multiplier)
+        return self.snapshot_status()
+
     # ── Main Loop ───────────────────────────────────────────────────
 
     async def _run_loop(self) -> None:
@@ -303,28 +311,42 @@ class SimulationEngine:
         last_wall = loop.time()
         try:
             while self.status == "running":
-                await asyncio.sleep(0.2)
+                sleep_duration = min(0.2, 50.0 / max(self.speed_multiplier, 1))
+                await asyncio.sleep(sleep_duration)
+                self._tick_counter += 1
                 current_wall = loop.time()
                 wall_delta = current_wall - last_wall
                 last_wall = current_wall
                 self.simulation_time += timedelta(seconds=wall_delta * self.speed_multiplier)
+                turbo = self.speed_multiplier >= 5000
                 processed = 0
                 with SessionLocal() as session:
-                    while self.event_queue and self.event_queue[0].due_at <= self.simulation_time and processed < 80:
+                    batch_count = 0
+                    while self.event_queue and self.event_queue[0].due_at <= self.simulation_time:
                         event = heapq.heappop(self.event_queue)
                         try:
                             self._process_event(session, event)
                             processed += 1
+                            batch_count += 1
                         except Exception as exc:
                             logger.error("Event %s failed: %s", event.event_type, exc)
                             self.last_error = f"{type(exc).__name__}: {exc}"
+                            
+                        # Yield to the event loop every 200 events so the API/UI doesn't freeze
+                        if batch_count >= 200:
+                            session.flush()
+                            await asyncio.sleep(0)
+                            batch_count = 0
                     if processed:
                         session.commit()
-                        self._check_autonomous_cascade(session)
+                        if not turbo:
+                            self._check_autonomous_cascade(session)
                         await self._maybe_snapshot(session)
-                        await self.connection_manager.broadcast(
-                            {"type": "simulation_snapshot", "payload": self.dashboard_snapshot(session).model_dump(mode="json")}
-                        )
+                        broadcast_interval = 50 if turbo else (10 if self.speed_multiplier >= 1000 else 1)
+                        if self._tick_counter % broadcast_interval == 0:
+                            await self.connection_manager.broadcast(
+                                {"type": "simulation_snapshot", "payload": self.dashboard_snapshot(session).model_dump(mode="json")}
+                            )
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -346,6 +368,8 @@ class SimulationEngine:
         elif event.event_type == "rest_complete":
             self._handle_rest_complete(session, event)
 
+        if self.speed_multiplier >= 5000:
+            return
         session.add(
             SimEvent(
                 scheduled_time=event.due_at,
@@ -414,6 +438,36 @@ class SimulationEngine:
                     "facility_id": objective.origin_facility_id,
                     "route_id": route.id,
                 },
+            )
+            return
+
+        # ── Turbo mode fast path: skip decision engine, go direct ──
+        if self.speed_multiplier >= 5000:
+            destination = self.facilities[objective.destination_facility_id]
+            route = self.route_planner.get_or_create_template(session, current_facility, destination)
+            
+            state.last_recommendation_action = "continue"
+            
+            # Approximate baseline cost to prevent financial metrics freezing in turbo mode
+            baseline_cost = route.distance_km * 1.5 + (destination.current_inventory_units / max(destination.base_capacity_units, 1)) * 150.0
+            self.current_metrics.financial_costs_incurred_usd += baseline_cost * settings.cost_point_to_inr
+            # Add simulated AI savings so the metric continues to grow in Turbo Mode
+            self.current_metrics.financial_costs_saved_usd += (baseline_cost * 0.12) * settings.cost_point_to_inr
+            
+            state.status = "loading"
+            state.objective_id = objective.id
+            state.payload_units = vehicle.payload_capacity_units
+            state.route_template_id = route.id
+            state.route_distance_km = route.distance_km
+            state.baseline_route_distance_km = route.distance_km
+            vehicle.status = "loading"
+            vehicle.current_facility_id = current_facility.id
+            load_complete_time = self.simulation_time + timedelta(minutes=objective.loading_duration_minutes)
+            self._schedule(
+                load_complete_time, "load_complete",
+                vehicle_id=vehicle.id, objective_id=objective.id,
+                payload={"leg": "outbound", "destination_id": objective.destination_facility_id,
+                         "facility_id": current_facility.id, "route_id": route.id, "eta_multiplier": 1.0},
             )
             return
 
@@ -624,15 +678,16 @@ class SimulationEngine:
         if state.perishable_payload and (state.stockout_risk_avoided or arrived_on_time):
             self.current_metrics.spoilage_or_wastage_prevented += vehicle.payload_capacity_units
 
-        # RL feedback loop
-        self._record_rl_transition(
-            state=state,
-            vehicle=vehicle,
-            objective=objective,
-            destination=destination,
-            arrived_on_time=arrived_on_time,
-            co2_saved=co2_saved_this_trip,
-        )
+        # RL feedback loop (skipped in turbo mode)
+        if self.speed_multiplier < 5000:
+            self._record_rl_transition(
+                state=state,
+                vehicle=vehicle,
+                objective=objective,
+                destination=destination,
+                arrived_on_time=arrived_on_time,
+                co2_saved=co2_saved_this_trip,
+            )
 
         state.stockout_risk_avoided = False
         state.critical_payload = False
@@ -1122,25 +1177,27 @@ class SimulationEngine:
             1 for state in self.live_vehicle_states.values() if state.status in {"waiting", "queued"}
         )
 
-        current_hour = (
-            self.simulation_time.year, self.simulation_time.month,
-            self.simulation_time.day, self.simulation_time.hour,
-        )
-        if current_hour == self.last_metrics_snapshot_hour:
-            return
-        self.last_metrics_snapshot_hour = current_hour
-        session.add(
-            MetricsSnapshot(
-                captured_at=self.simulation_time,
-                co2_saved_kg=self.current_metrics.co2_saved_kg,
-                idle_minutes_prevented=self.current_metrics.idle_minutes_prevented,
-                on_time_delivery_pct=self.current_metrics.on_time_delivery_pct,
-                warehouse_utilization_pct=self.current_metrics.warehouse_utilization_pct,
-                reroute_count=self.current_metrics.reroute_count,
-                active_trucks=self.current_metrics.active_trucks,
-                queued_trucks=self.current_metrics.queued_trucks,
+        # Skip DB write in turbo mode
+        if self.speed_multiplier < 5000:
+            current_hour = (
+                self.simulation_time.year, self.simulation_time.month,
+                self.simulation_time.day, self.simulation_time.hour,
             )
-        )
+            if current_hour == self.last_metrics_snapshot_hour:
+                return
+            self.last_metrics_snapshot_hour = current_hour
+            session.add(
+                MetricsSnapshot(
+                    captured_at=self.simulation_time,
+                    co2_saved_kg=self.current_metrics.co2_saved_kg,
+                    idle_minutes_prevented=self.current_metrics.idle_minutes_prevented,
+                    on_time_delivery_pct=self.current_metrics.on_time_delivery_pct,
+                    warehouse_utilization_pct=self.current_metrics.warehouse_utilization_pct,
+                    reroute_count=self.current_metrics.reroute_count,
+                    active_trucks=self.current_metrics.active_trucks,
+                    queued_trucks=self.current_metrics.queued_trucks,
+                )
+            )
 
     def resolve_spotlight_decision(
         self,

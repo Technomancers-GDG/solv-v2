@@ -240,7 +240,7 @@ function StatusBar({ dashboard, metrics, t }) {
       </div>
       <div className="status-pill-group">
         <span className="status-label">{t.speed}</span>
-        <span className="status-value">{sim?.speed_multiplier ?? 0}x</span>
+        <span className="status-value">{sim?.speed_multiplier ?? 0}x{(sim?.speed_multiplier ?? 0) >= 5000 ? <span className="turbo-badge"> TURBO</span> : ""}</span>
       </div>
       <div className="status-pill-group">
         <span className="status-label">{t.active}</span>
@@ -258,13 +258,17 @@ function StatusBar({ dashboard, metrics, t }) {
   );
 }
 
-function SimControls({ onAction, t }) {
+function SimControls({ onAction, onSetSpeed, currentSpeed, t }) {
+  const options = [120, 180, 500, 1000, 5000, 50000, 100000];
   return (
     <div className="sim-controls">
       <button className="sim-btn primary" onClick={() => onAction("/api/simulation/start", { speed_multiplier: 180 }, t.start)}>{t.start}</button>
       <button className="sim-btn" onClick={() => onAction("/api/simulation/pause", {}, t.pause)}>{t.pause}</button>
       <button className="sim-btn" onClick={() => onAction("/api/simulation/resume", {}, t.resume)}>{t.resume}</button>
       <button className="sim-btn danger" onClick={() => onAction("/api/simulation/reset", {}, t.reset)}>{t.reset}</button>
+      <select className="speed-select" value={currentSpeed >= options[options.length-1] ? options[options.length-1] : currentSpeed} onChange={e => onSetSpeed(Number(e.target.value))}>
+        {options.map(s => <option key={s} value={s}>{s}x</option>)}
+      </select>
     </div>
   );
 }
@@ -566,6 +570,16 @@ export default function App() {
     } catch (err) { setError(err.message); }
   }, [refreshAll]);
 
+  const handleSetSpeed = useCallback(async (speed) => {
+    const clamped = Math.max(1, Math.min(100000, speed));
+    try {
+      await apiFetch("/api/simulation/speed", { method: "PUT", body: JSON.stringify({ speed_multiplier: clamped }) });
+      // Skipped refreshAll to prevent UI freeze; WebSockets will naturally update the UI
+    } catch (err) { setError(err.message); }
+  }, []);
+
+  const currentSpeed = dashboard?.simulation?.speed_multiplier ?? 120;
+
   const facilityLookup = Object.fromEntries(facilities.map((f) => [f.id, f]));
   const objectiveLookup = Object.fromEntries(objectives.map((o) => [o.id, o]));
   const criticalFacilities = (dashboard?.facilities ?? []).filter((f) => f.utilization_pct >= 70).slice(0, 6);
@@ -698,7 +712,7 @@ export default function App() {
                 {t.logout}
               </button>
             </div>
-            <SimControls onAction={runAction} t={t} />
+            <SimControls onAction={runAction} onSetSpeed={handleSetSpeed} currentSpeed={currentSpeed} t={t} />
           </div>
         </header>
         <StatusBar dashboard={dashboard} metrics={metrics} t={t} />

@@ -27,8 +27,8 @@ from schemas.news import (
     NewsEventRead, WeatherEventRead, ImportSummary,
 )
 from schemas.simulation import (
-    SimulationControlRequest, SimulationStatus, FleetScaleRequest,
-    FleetScaleResult, MetricsSnapshotRead, MetricsSummary,
+    SimulationControlRequest, SpeedChangeRequest, SimulationStatus,
+    FleetScaleRequest, FleetScaleResult, MetricsSnapshotRead, MetricsSummary,
     DashboardSnapshot, ScenarioPresetRead, ScenarioComparisonMetrics,
     ScenarioComparisonRead,
 )
@@ -76,7 +76,7 @@ __all__ = [
     "RouteTemplateRead",
     "RecommendationRead", "DriverDecisionRead",
     "NewsEventRead", "WeatherEventRead", "ImportSummary",
-    "SimulationControlRequest", "SimulationStatus", "FleetScaleRequest",
+    "SimulationControlRequest", "SpeedChangeRequest", "SimulationStatus", "FleetScaleRequest",
     "FleetScaleResult", "MetricsSnapshotRead", "MetricsSummary",
     "DashboardSnapshot", "ScenarioPresetRead", "ScenarioComparisonMetrics",
     "ScenarioComparisonRead",

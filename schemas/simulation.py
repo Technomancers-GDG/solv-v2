@@ -12,6 +12,10 @@ class SimulationControlRequest(BaseModel):
     speed_multiplier: float | None = None
 
 
+class SpeedChangeRequest(BaseModel):
+    speed_multiplier: float = Field(default=120.0)
+
+
 class SimulationStatus(BaseModel):
     status: str
     simulation_time: datetime

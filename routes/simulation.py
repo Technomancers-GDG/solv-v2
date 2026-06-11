@@ -33,6 +33,7 @@ from schemas import (
     DriverMetricsRead,
     ScenarioPresetRead,
     SimulationControlRequest,
+    SpeedChangeRequest,
     SimulationStatus,
     FleetScaleRequest,
     FleetScaleResult,
@@ -196,6 +197,11 @@ async def reset_simulation() -> SimulationStatus:
 @simulation_router.get("/api/simulation/status", response_model=SimulationStatus)
 def simulation_status() -> SimulationStatus:
     return simulation_engine.snapshot_status()
+
+
+@simulation_router.put("/api/simulation/speed", response_model=SimulationStatus)
+async def set_simulation_speed(payload: SpeedChangeRequest) -> SimulationStatus:
+    return await simulation_engine.set_speed(payload.speed_multiplier)
 
 
 # --- Demo Fleet Scaling ---

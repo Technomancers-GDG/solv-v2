@@ -1161,6 +1161,22 @@ button.scale-btn:disabled {
   border-color: rgba(239,68,68,0.25);
 }
 
+.speed-select {
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: #1f2128;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #e8e9ec;
+  outline: none;
+  cursor: pointer;
+}
+
+.speed-select:focus {
+  border-color: rgba(59,130,246,0.4);
+}
+
 .status-bar {
   display: flex;
   gap: 14px;
@@ -1199,6 +1215,17 @@ button.scale-btn:disabled {
 
 .status-value {
   font-weight: 700;
+}
+
+.turbo-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #f59e0b;
+  background: rgba(245,158,11,0.15);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  letter-spacing: 0.5px;
 }
 
 .view-area {
