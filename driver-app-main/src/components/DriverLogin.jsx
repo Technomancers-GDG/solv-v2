@@ -61,6 +61,18 @@ export function DriverLogin({ onLogin, error, setError }) {
               </button>
             </div>
           </form>
+          {(import.meta.env.DEV || window.location.hostname === 'localhost') && (
+            <div className="action-row" style={{ marginTop: '1rem' }}>
+              <button 
+                type="button" 
+                onClick={() => onLogin({ id: 1, identifier: "OPS-0001", driver_profile_id: 1, vehicle_type: "truck" })}
+                style={{ background: '#333', color: '#fff', width: '100%' }}
+              >
+                Quick Login (Local Dev)
+              </button>
+            </div>
+          )}
+
         </Panel>
       </main>
     </div>

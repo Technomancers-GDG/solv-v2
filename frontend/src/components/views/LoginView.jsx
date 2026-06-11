@@ -19,6 +19,17 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
     }
   };
 
+  const handleLocalLogin = () => {
+    if (onLogin) {
+      onLogin({
+        uid: "local-dev-user",
+        email: "admin@local.dev",
+        displayName: "Local Admin",
+        photoURL: ""
+      });
+    }
+  };
+
   return (
     <div className="login-view">
       <div className="login-card">
@@ -50,6 +61,17 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
               </>
             )}
           </button>
+
+          {(import.meta.env.DEV || window.location.hostname === 'localhost') && (
+            <button
+              className="google-btn"
+              onClick={handleLocalLogin}
+              style={{ marginTop: '1rem', background: '#333', color: '#fff', borderColor: '#444' }}
+            >
+              Login (Local Dev)
+            </button>
+          )}
+
 
           {error && (
             <div className="login-error" role="alert">
