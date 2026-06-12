@@ -131,10 +131,10 @@ export function RecommendationsLogView({
   const selectedRec = filteredRecs.find((r) => r.id === selectedRecId);
 
   return (
-    <section className="recommendations-log-layout">
+    <section className="recommendations-log-layout" aria-label="Recommendations Log">
       {/* Filters */}
       <Panel title="Filters & Sort">
-        <div className="filter-row">
+        <div className="filter-row" role="search" aria-label="Filter recommendations">
           <Select
             label="Status"
             value={filterStatus}
@@ -191,7 +191,7 @@ export function RecommendationsLogView({
           />
         </div>
 
-        <div className="filter-info">
+        <div className="filter-info" role="status" aria-live="polite">
           Showing {filteredRecs.length} of {recommendations.length} recommendations
         </div>
       </Panel>
@@ -199,21 +199,21 @@ export function RecommendationsLogView({
       {/* Recommendations List */}
       <Panel title={`Recommendations (${filteredRecs.length})`}>
         {filteredRecs.length === 0 ? (
-          <div className="empty">No recommendations match your filters.</div>
+          <p className="empty" role="status">No recommendations match your filters.</p>
         ) : (
           <div className="recommendations-table">
             {/* Desktop Table View */}
-            <div className="table-wrapper">
-              <table className="recommendations-table-el">
+            <div className="table-wrapper" role="region" aria-label="Recommendations table" tabIndex={0}>
+              <table className="recommendations-table-el" aria-label="List of recommendations">
                 <thead>
                   <tr>
-                    <th>Time</th>
-                    <th>Vehicle</th>
-                    <th>Driver</th>
-                    <th>Action</th>
-                    <th>Confidence</th>
-                    <th>Status</th>
-                    <th>Improvement</th>
+                    <th scope="col">Time</th>
+                    <th scope="col">Vehicle</th>
+                    <th scope="col">Driver</th>
+                    <th scope="col">Action</th>
+                    <th scope="col">Confidence</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Improvement</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -231,8 +231,13 @@ export function RecommendationsLogView({
                         key={rec.id}
                         className={`rec-row ${isSelected ? "selected" : ""}`}
                         onClick={() => setSelectedRecId(isSelected ? null : rec.id)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedRecId(isSelected ? null : rec.id); } }}
+                        tabIndex={0}
+                        role="button"
+                        aria-expanded={isSelected}
+                        aria-label={`View details for recommendation on ${vehicle?.identifier || "Unknown"}`}
                       >
-                        <td className="cell-time">{formatRelativeTime(rec.created_at)}</td>
+                        <td className="cell-time"><time dateTime={rec.created_at}>{formatRelativeTime(rec.created_at)}</time></td>
                         <td className="cell-vehicle">{vehicle?.identifier || "Unknown"}</td>
                         <td className="cell-driver">{driver?.name || "Unknown"}</td>
                         <td className="cell-action">
@@ -273,50 +278,51 @@ export function RecommendationsLogView({
 
             {/* Detail Panel */}
             {selectedRec && (
-              <div className="recommendation-detail-panel">
-                <div className="detail-header">
+              <article className="recommendation-detail-panel" aria-label="Recommendation details">
+                <header className="detail-header">
                   <h3>Recommendation Detail</h3>
                   <button
                     className="close-btn"
                     onClick={() => setSelectedRecId(null)}
+                    aria-label="Close details"
                   >
                     ✕
                   </button>
-                </div>
+                </header>
 
                 <div className="detail-body">
                   {/* Top Section: Basic Info */}
-                  <div className="detail-section">
-                    <div className="section-grid">
+                  <section className="detail-section">
+                    <dl className="section-grid" aria-label="Basic information">
                       <div className="info-item">
-                        <span className="label">Vehicle</span>
-                        <span className="value vehicle-id">
+                        <dt className="label">Vehicle</dt>
+                        <dd className="value vehicle-id">
                           {vehicles.find((v) => v.id === selectedRec.vehicle_id)?.identifier}
-                        </span>
+                        </dd>
                       </div>
                       <div className="info-item">
-                        <span className="label">Driver</span>
-                        <span className="value">
+                        <dt className="label">Driver</dt>
+                        <dd className="value">
                           {driverLookup[selectedRec.driver_id]?.name || "Unknown"}
-                        </span>
+                        </dd>
                       </div>
                       <div className="info-item">
-                        <span className="label">Timestamp</span>
-                        <span className="value">
-                          {new Date(selectedRec.created_at).toLocaleString()}
-                        </span>
+                        <dt className="label">Timestamp</dt>
+                        <dd className="value">
+                          <time dateTime={selectedRec.created_at}>{new Date(selectedRec.created_at).toLocaleString()}</time>
+                        </dd>
                       </div>
                       <div className="info-item">
-                        <span className="label">Confidence</span>
-                        <span className="value conf-badge">
+                        <dt className="label">Confidence</dt>
+                        <dd className="value conf-badge">
                           {Math.round((selectedRec.confidence ?? 0) * 100)}%
-                        </span>
+                        </dd>
                       </div>
-                    </div>
-                  </div>
+                    </dl>
+                  </section>
 
                   {/* Recommendation Section */}
-                  <div className="detail-section">
+                  <section className="detail-section">
                     <h4>Recommendation</h4>
                     <div className="rec-box">
                       <div className="rec-action">
@@ -332,64 +338,64 @@ export function RecommendationsLogView({
                       )}
                       <p className="rec-explanation">{selectedRec.explanation}</p>
                     </div>
-                  </div>
+                  </section>
 
                   {/* Explanation Breakdown */}
                   {selectedRec.score_breakdown && (
-                    <div className="detail-section">
+                    <section className="detail-section">
                       <h4>Confidence Breakdown</h4>
-                      <div className="breakdown-list">
+                      <ul className="breakdown-list" aria-label="Factors contributing to confidence">
                         {typeof selectedRec.score_breakdown === "string" ? (
-                          <p>{selectedRec.score_breakdown}</p>
+                          <li><p>{selectedRec.score_breakdown}</p></li>
                         ) : Array.isArray(selectedRec.score_breakdown) ? (
                           selectedRec.score_breakdown.map((factor, idx) => (
-                            <div key={idx} className="breakdown-item">
+                            <li key={idx} className="breakdown-item">
                               <p>{factor}</p>
-                            </div>
+                            </li>
                           ))
                         ) : typeof selectedRec.score_breakdown === "object" ? (
                           Object.entries(selectedRec.score_breakdown).map(([key, value], idx) => (
-                            <div key={idx} className="breakdown-item">
+                            <li key={idx} className="breakdown-item">
                               <p><strong>{key}:</strong> {value}</p>
-                            </div>
+                            </li>
                           ))
                         ) : (
-                          <p>No breakdown available</p>
+                          <li><p>No breakdown available</p></li>
                         )}
-                      </div>
-                    </div>
+                      </ul>
+                    </section>
                   )}
 
                   {/* Cost Analysis */}
-                  <div className="detail-section">
+                  <section className="detail-section">
                     <h4>Cost Analysis</h4>
-                    <div className="cost-grid">
+                    <dl className="cost-grid" aria-label="Cost comparison">
                       <div className="cost-item">
-                        <span className="label">Baseline Cost</span>
-                        <span className="value baseline">
+                        <dt className="label">Baseline Cost</dt>
+                        <dd className="value baseline">
                           {selectedRec.baseline_cost.toFixed(1)}
-                        </span>
+                        </dd>
                       </div>
                       <div className="cost-item">
-                        <span className="label">Recommended Cost</span>
-                        <span className="value recommended">
+                        <dt className="label">Recommended Cost</dt>
+                        <dd className="value recommended">
                           {selectedRec.recommended_cost.toFixed(1)}
-                        </span>
+                        </dd>
                       </div>
                       <div className="cost-item">
-                        <span className="label">Improvement</span>
-                        <span className="value improvement">
+                        <dt className="label">Improvement</dt>
+                        <dd className="value improvement">
                           {(selectedRec.improvement_value - selectedRec.baseline_cost).toFixed(1)}
-                        </span>
+                        </dd>
                       </div>
-                    </div>
-                  </div>
+                    </dl>
+                  </section>
 
                   {/* Decision Outcome */}
                   {(() => {
                     const decision = getDecision(selectedRec.id);
                     return (
-                      <div className="detail-section">
+                      <section className="detail-section">
                         <h4>Driver Decision</h4>
                         {!decision ? (
                           <div className="decision-box pending">

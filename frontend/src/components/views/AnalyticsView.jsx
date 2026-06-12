@@ -203,40 +203,40 @@ export function AnalyticsView({ metrics = {}, vehicles = [], recommendations = [
   }, [onTimeDeliveryHistory, warehouseUtilizationHistory, co2SavedCumulative, recommendations]);
 
   return (
-    <section className="analytics-layout">
+    <section className="analytics-layout" aria-label="Analytics Dashboard">
       {/* Key Metrics Summary */}
       <Panel title="Analytics Dashboard">
-        <div className="metrics-summary">
+        <dl className="metrics-summary" aria-label="Key performance indicators">
           <div className="metric-card">
-            <span className="metric-label">Average On-Time Delivery</span>
-            <span className="metric-value">{keyMetrics.avgOnTimeDelivery}%</span>
-            <span className={`metric-trend ${keyMetrics.trendOnTime >= 0 ? "positive" : "negative"}`}>
+            <dt className="metric-label">Average On-Time Delivery</dt>
+            <dd className="metric-value">{keyMetrics.avgOnTimeDelivery}%</dd>
+            <dd className={`metric-trend ${keyMetrics.trendOnTime >= 0 ? "positive" : "negative"}`}>
               {keyMetrics.trendOnTime >= 0 ? "↑" : "↓"} {Math.abs(keyMetrics.trendOnTime * 100).toFixed(1)}%
-            </span>
+            </dd>
           </div>
 
           <div className="metric-card">
-            <span className="metric-label">Total CO₂ Saved</span>
-            <span className="metric-value">{keyMetrics.totalCO2Saved}</span>
-            <span className="metric-unit">kg</span>
+            <dt className="metric-label">Total CO₂ Saved</dt>
+            <dd className="metric-value">{keyMetrics.totalCO2Saved}</dd>
+            <dd className="metric-unit">kg</dd>
           </div>
 
           <div className="metric-card">
-            <span className="metric-label">Recommendation Acceptance</span>
-            <span className="metric-value">{keyMetrics.acceptanceRate}%</span>
-            <span className="metric-trend positive">Growing driver trust</span>
+            <dt className="metric-label">Recommendation Acceptance</dt>
+            <dd className="metric-value">{keyMetrics.acceptanceRate}%</dd>
+            <dd className="metric-trend positive">Growing driver trust</dd>
           </div>
 
           <div className="metric-card">
-            <span className="metric-label">Active Vehicles</span>
-            <span className="metric-value">{vehicles.length}</span>
-            <span className="metric-unit">vehicles</span>
+            <dt className="metric-label">Active Vehicles</dt>
+            <dd className="metric-value">{vehicles.length}</dd>
+            <dd className="metric-unit">vehicles</dd>
           </div>
-        </div>
+        </dl>
       </Panel>
 
       {/* Charts Grid */}
-      <div className="charts-grid">
+      <div className="charts-grid" role="list" aria-label="Performance charts">
         {/* On-Time Delivery Trend */}
         <Panel title="On-Time Delivery Trend (12 weeks)">
           <LineChart
@@ -288,39 +288,39 @@ export function AnalyticsView({ metrics = {}, vehicles = [], recommendations = [
 
         {/* Performance Summary */}
         <Panel title="Performance Summary">
-          <div className="performance-summary">
-            <div className="performance-item">
-              <span className="icon">📈</span>
+          <ul className="performance-summary" aria-label="Performance highlights">
+            <li className="performance-item">
+              <span className="icon" aria-hidden="true">📈</span>
               <div className="details">
                 <strong>On-Time Delivery</strong>
                 <p>12-week average of {keyMetrics.avgOnTimeDelivery}%, trending {keyMetrics.trendOnTime >= 0 ? "up" : "down"}</p>
               </div>
-            </div>
+            </li>
 
-            <div className="performance-item">
-              <span className="icon">🌱</span>
+            <li className="performance-item">
+              <span className="icon" aria-hidden="true">🌱</span>
               <div className="details">
                 <strong>Environmental Impact</strong>
                 <p>{keyMetrics.totalCO2Saved} kg CO₂ avoided through optimized routing</p>
               </div>
-            </div>
+            </li>
 
-            <div className="performance-item">
-              <span className="icon">🤝</span>
+            <li className="performance-item">
+              <span className="icon" aria-hidden="true">🤝</span>
               <div className="details">
                 <strong>Driver Confidence</strong>
                 <p>{keyMetrics.acceptanceRate}% recommendation acceptance rate, increasing trust in AI suggestions</p>
               </div>
-            </div>
+            </li>
 
-            <div className="performance-item">
-              <span className="icon">🚚</span>
+            <li className="performance-item">
+              <span className="icon" aria-hidden="true">🚚</span>
               <div className="details">
                 <strong>Fleet Efficiency</strong>
                 <p>{vehicles.length} vehicles optimized with AI-powered routing and disruption awareness</p>
               </div>
-            </div>
-          </div>
+            </li>
+          </ul>
         </Panel>
       </div>
     </section>

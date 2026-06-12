@@ -1,19 +1,28 @@
 import { Panel } from "../common/UiPrimitives";
 
+/**
+ * EventsView — Active events feed with impact scoring.
+ */
 export function EventsView({ events }) {
   return (
-    <div className="view-events">
+    <section className="view-events" aria-label="Active Events">
       <Panel title="Active Events Feed">
-        <div className="event-stack">
+        <ul className="event-stack" aria-label="Events list">
           {events.slice(0, 20).map((e, i) => (
-            <div className="event-card" key={i}>
-              <div className="event-top"><strong>{e.city}</strong><span>{e.category}</span></div>
+            <li className="event-card" key={i}>
+              <header className="event-top">
+                <strong>{e.city}</strong>
+                <span className="event-category">{e.category}</span>
+              </header>
               <p>{e.headline}</p>
-              <small>{e.impact_type} • impact {Number(e.impact_score).toFixed(2)}</small>
-            </div>
+              <small className="event-meta">
+                <span className="event-type">{e.impact_type.replace(/_/g, " ")}</span>
+                <span className="event-impact">Impact: {Number(e.impact_score).toFixed(2)}</span>
+              </small>
+            </li>
           ))}
-        </div>
+        </ul>
       </Panel>
-    </div>
+    </section>
   );
 }

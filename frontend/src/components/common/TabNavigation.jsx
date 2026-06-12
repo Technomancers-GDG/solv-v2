@@ -1,13 +1,15 @@
 export function TabNavigation({ tabs, activeTab, onSelect, isLive }) {
   return (
     <div className="tab-nav-shell">
-      <nav className="tabs" aria-label="Primary sections">
+      <nav className="tabs" role="tablist" aria-label="Primary sections">
         {tabs.map((tab) => (
           <button
             key={tab}
+            role="tab"
             className={tab === activeTab ? "tab active" : "tab"}
             onClick={() => onSelect(tab)}
-            aria-pressed={tab === activeTab}
+            aria-selected={tab === activeTab}
+            tabIndex={tab === activeTab ? 0 : -1}
           >
             {tab}
           </button>

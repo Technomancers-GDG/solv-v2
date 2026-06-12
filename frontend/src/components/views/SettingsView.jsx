@@ -1,29 +1,24 @@
+/**
+ * SettingsView — User preferences (language selection).
+ */
 export function SettingsView({ lang, onSwitchLang, t }) {
   return (
-    <div className="view-settings" style={{ maxWidth: 640, margin: "0 auto" }}>
-      <h2 style={{ marginBottom: 24 }}>{t.settings}</h2>
+    <section className="view-settings" aria-label="Settings">
+      <h2>{t.settings}</h2>
 
-      <div
-        className="settings-card"
-        style={{
-          background: "var(--surface)",
-          borderRadius: 12,
-          padding: 24,
-          border: "1px solid var(--border)",
-        }}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <h3 style={{ margin: "0 0 6px", fontSize: "1.05rem" }}>{t.language}</h3>
-          <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.9rem" }}>
-            Choose your preferred interface language.
-          </p>
-        </div>
+      <article className="settings-card" aria-label="Language preferences">
+        <header className="settings-card-header">
+          <h3>{t.language}</h3>
+          <p>Choose your preferred interface language.</p>
+        </header>
 
-        <div style={{ display: "flex", gap: 12 }}>
+        <div className="settings-lang-options" role="radiogroup" aria-label="Language options">
           <button
             className={`sim-btn ${lang === "en" ? "primary" : ""}`}
             onClick={() => onSwitchLang("en")}
             aria-pressed={lang === "en"}
+            role="radio"
+            aria-checked={lang === "en"}
           >
             {t.english}
           </button>
@@ -31,11 +26,13 @@ export function SettingsView({ lang, onSwitchLang, t }) {
             className={`sim-btn ${lang === "hi" ? "primary" : ""}`}
             onClick={() => onSwitchLang("hi")}
             aria-pressed={lang === "hi"}
+            role="radio"
+            aria-checked={lang === "hi"}
           >
             {t.hindi}
           </button>
         </div>
-      </div>
-    </div>
+      </article>
+    </section>
   );
 }

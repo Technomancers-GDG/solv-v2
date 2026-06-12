@@ -38,8 +38,8 @@ export function AIDecisionPanel({ decision, confidence }) {
     resolvedConfidence >= 85 ? "#86efac" : resolvedConfidence >= 65 ? "#fbbf24" : "#fca5a5";
 
   return (
-    <div className={`decision-explanation-panel ${isNew ? "decision-flash" : ""}`}>
-      <div className="decision-panel-topline">
+    <article className={`decision-explanation-panel ${isNew ? "decision-flash" : ""}`} aria-label="Latest AI Decision">
+      <header className="decision-panel-topline">
         <span className="decision-kicker">
           <span className="decision-kicker-dot" />
           Latest AI Decision
@@ -55,27 +55,29 @@ export function AIDecisionPanel({ decision, confidence }) {
           <span className="confidence-pulse" style={{ background: confidenceColor }} />
           AI Confidence: {resolvedConfidence}%
         </span>
-      </div>
+      </header>
 
-      <div className="decision-title">→ {emptyText(safeDecision.title)}</div>
+      <div className="decision-title" aria-live="polite">→ {emptyText(safeDecision.title)}</div>
 
-      <div className="decision-section">
+      <section className="decision-section">
+        <h4 className="sr-only">Reason</h4>
         <span>Reason</span>
         <p>{emptyText(safeDecision.reason)}</p>
-      </div>
+      </section>
 
-      <div className="decision-section">
+      <section className="decision-section">
+        <h4 className="sr-only">Business Impact</h4>
         <span>Business Impact</span>
-        <ul className="impact-list-styled">
+        <ul className="impact-list-styled" aria-label="Impact details">
           {impactItems.map((item, index) => (
             <li key={`${item}-${index}`}>
-              <span className="impact-checkmark">✓</span>
+              <span className="impact-checkmark" aria-hidden="true">✓</span>
               {item}
             </li>
           ))}
         </ul>
-      </div>
-    </div>
+      </section>
+    </article>
   );
 }
 
@@ -88,12 +90,12 @@ export function RouteComparisonBlock({ comparison, previousRoute }) {
   if (!before || !after) return null;
 
   return (
-    <div className="route-comparison-block">
-      <div className="route-compare-header">
+    <article className="route-comparison-block" aria-label="Route Comparison">
+      <header className="route-compare-header">
         <span className="route-compare-eyebrow">Route Comparison</span>
-      </div>
+      </header>
       <div className="route-compare-cards-row">
-        <div className="route-compare-card before">
+        <section className="route-compare-card before" aria-label="Before AI Recommendation">
           <span className="compare-label">Before</span>
           <strong>{before.label}</strong>
           <div className="compare-metrics">
@@ -101,14 +103,14 @@ export function RouteComparisonBlock({ comparison, previousRoute }) {
             <span className="compare-sep">·</span>
             <span className="compare-time">{before.time}</span>
           </div>
-        </div>
+        </section>
 
-        <div className="route-compare-arrow">
+        <div className="route-compare-arrow" aria-hidden="true">
           <span>→</span>
           <span className="compare-arrow-label">AI Chose</span>
         </div>
 
-        <div className="route-compare-card after">
+        <section className="route-compare-card after" aria-label="After AI Recommendation">
           <span className="compare-label">After</span>
           <strong>{after.label}</strong>
           <div className="compare-metrics">
@@ -117,16 +119,16 @@ export function RouteComparisonBlock({ comparison, previousRoute }) {
             <span className="compare-time">{after.time}</span>
           </div>
           <span className="compare-badge-improved">Optimized</span>
-        </div>
+        </section>
       </div>
 
       {comparison?.decision && (
-        <div className="route-compare-decision">
+        <section className="route-compare-decision">
           <span className="compare-label">Decision Rationale</span>
           <p>{comparison.decision}</p>
-        </div>
+        </section>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -149,29 +151,29 @@ export function AIActivityFeed({ events = [] }) {
 
   if (!visibleEvents.length) {
     return (
-      <div className="ai-feed-empty">
-        <span className="ai-feed-empty-icon">🔍</span>
+      <div className="ai-feed-empty" role="status">
+        <span className="ai-feed-empty-icon" aria-hidden="true">🔍</span>
         <span>No AI actions recorded yet.</span>
       </div>
     );
   }
 
   return (
-    <div className="ai-activity-feed" aria-label="Recent AI actions" ref={containerRef}>
+    <ul className="ai-activity-feed" aria-label="Recent AI actions" ref={containerRef} role="log" aria-live="polite">
       {visibleEvents.map((event, idx) => {
         const isRecent = idx === 0;
         return (
-          <div className={`ai-feed-item ${isRecent ? "ai-feed-item-recent" : ""}`} key={event.id}>
-            <span className="ai-feed-time">{event.time}</span>
+          <li className={`ai-feed-item ${isRecent ? "ai-feed-item-recent" : ""}`} key={event.id}>
+            <time className="ai-feed-time">{event.time}</time>
             <div className="ai-feed-content">
               <strong>{event.title}</strong>
               {event.detail && <p>{event.detail}</p>}
             </div>
-            {isRecent && <span className="ai-feed-new-badge">New</span>}
-          </div>
+            {isRecent && <span className="ai-feed-new-badge" aria-label="New event">New</span>}
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }
 

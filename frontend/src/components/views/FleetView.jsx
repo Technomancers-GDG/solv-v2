@@ -132,9 +132,9 @@ export function FleetView({
   }
 
   return (
-    <section className="grid-two">
+    <section className="grid-two" aria-label="Fleet Management">
       <Panel title="Vehicle Fleet">
-        <div className="filter-row">
+        <div className="filter-row" role="search" aria-label="Filter fleet">
           <Select
             label="Status"
             value={statusFilter}
@@ -143,8 +143,8 @@ export function FleetView({
           />
         </div>
 
-        <div className="table-wrap section-divider">
-          <table>
+        <div className="table-wrap section-divider" role="region" aria-label="Fleet table" tabIndex={0}>
+          <table aria-label="Vehicles list">
             <thead>
               <tr>
                 <th>
@@ -155,18 +155,18 @@ export function FleetView({
                     aria-label="Select all visible vehicles"
                   />
                 </th>
-                <th>
-                  <button type="button" className="sort-button" onClick={() => toggleSort("identifier")}>
-                    Identifier {sortIndicator("identifier")}
+                <th scope="col">
+                  <button type="button" className="sort-button" onClick={() => toggleSort("identifier")} aria-label={`Sort by identifier ${sortConfig.key === "identifier" ? (sortConfig.direction === "asc" ? "descending" : "ascending") : ""}`}>
+                    Identifier <span aria-hidden="true">{sortIndicator("identifier")}</span>
                   </button>
                 </th>
-                <th>Status</th>
-                <th>Home Facility</th>
-                <th>Current Facility</th>
-                <th>Driver</th>
-                <th>Objective</th>
-                <th>Available At</th>
-                <th>Actions</th>
+                <th scope="col">Status</th>
+                <th scope="col">Home Facility</th>
+                <th scope="col">Current Facility</th>
+                <th scope="col">Driver</th>
+                <th scope="col">Objective</th>
+                <th scope="col">Available At</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -273,7 +273,7 @@ export function FleetView({
           </table>
         </div>
 
-        <div className="action-row section-divider">
+        <div className="action-row section-divider" role="group" aria-label="Bulk actions">
           <Select
             label="Assign objective"
             value={bulkObjectiveId}

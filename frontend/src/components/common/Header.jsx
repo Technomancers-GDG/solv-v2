@@ -9,8 +9,8 @@ export function Header({ onStart, onPause, onResume, onReset }) {
           across India, with explainable reroutes and beneficiary-focused impact tracking.
         </p>
       </div>
-      <div className="hero-controls">
-        <button onClick={onStart}>Start</button>
+      <div className="hero-controls" role="group" aria-label="Simulation Controls">
+        <button className="primary-btn" onClick={onStart}>Start</button>
         <button onClick={onPause}>Pause</button>
         <button onClick={onResume}>Resume</button>
         <button className="danger" onClick={onReset}>

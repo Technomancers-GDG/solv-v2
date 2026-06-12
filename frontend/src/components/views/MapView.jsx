@@ -364,9 +364,9 @@ export function MapView({
   }, [facilities]);
 
   return (
-    <section className="map-layout">
+    <section className="map-layout" aria-label="Map Dashboard">
       <Panel title="Route & Facility Map with Risk Heatmap">
-        <div className="map-controls">
+        <div className="map-controls" role="group" aria-label="Map filters">
           <div className="control-row">
             <Select label="Filter Vehicle" value={filterVehicleId} options={[["", "All Vehicles"], ...liveRoutes.map((r) => [String(r.vehicleId), r.identifier])]} onChange={(value) => { setFilterVehicleId(value); setHighlightedVehicleId(value ? String(value) : ""); }} />
             <Select label="Filter Objective" value={filterObjectiveId} options={[["", "All Objectives"], ...objectives.map((o) => [String(o.id), o.name])]} onChange={setFilterObjectiveId} />
@@ -532,66 +532,72 @@ export function MapView({
           </MapContainer>
         </div>
 
-        <div className="map-info-card">
+        <aside className="map-info-card" aria-label="Map statistics">
           <h4>Map Overview</h4>
-          <div className="info-grid">
-            <div className="info-item"><span className="label">Facilities Mapped</span><span className="value">{mapStats.facilitiesOnMap}</span></div>
-            <div className="info-item"><span className="label">Active Vehicles</span><span className="value">{mapStats.activeVehicles}</span></div>
-            <div className="info-item"><span className="label">Reroute Recommendations</span><span className="value">{mapStats.pendingReroutes}</span></div>
-            <div className="info-item"><span className="label">Route Span</span><span className="value">{mapStats.routeSpanKm.toFixed(0)} km</span></div>
-          </div>
-          {selectedRoute ? <div className="selected-route-meta">Selected route: <strong>{selectedRoute.identifier}</strong> ({selectedRoute.routeSource})</div> : null}
-        </div>
+          <dl className="info-grid" aria-label="Key map metrics">
+            <div className="info-item"><dt className="label">Facilities Mapped</dt><dd className="value">{mapStats.facilitiesOnMap}</dd></div>
+            <div className="info-item"><dt className="label">Active Vehicles</dt><dd className="value">{mapStats.activeVehicles}</dd></div>
+            <div className="info-item"><dt className="label">Reroute Recommendations</dt><dd className="value">{mapStats.pendingReroutes}</dd></div>
+            <div className="info-item"><dt className="label">Route Span</dt><dd className="value">{mapStats.routeSpanKm.toFixed(0)} km</dd></div>
+          </dl>
+          {selectedRoute ? <div className="selected-route-meta" role="status" aria-live="polite">Selected route: <strong>{selectedRoute.identifier}</strong> ({selectedRoute.routeSource})</div> : null}
+        </aside>
       </Panel>
 
       <Panel title="Active Routes">
-        {visibleRoutes.length === 0 ? <div className="empty">No active routes to display.</div> : (
-          <div className="routes-list">
+        {visibleRoutes.length === 0 ? <p className="empty" role="status">No active routes to display.</p> : (
+          <ul className="routes-list" aria-label="List of active routes">
             {visibleRoutes.map((route) => (
-              <div key={`active-route-${route.vehicleId}`} className="route-card" role="button" tabIndex={0} onClick={() => { setFilterVehicleId(String(route.vehicleId)); setHighlightedVehicleId(String(route.vehicleId)); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFilterVehicleId(String(route.vehicleId)); setHighlightedVehicleId(String(route.vehicleId)); } }}>
-                <div className="route-header"><strong>{route.identifier}</strong><span className={`route-status ${route.status.replaceAll("_", "-")}`}>{route.status.replaceAll("_", " ").toUpperCase()}</span></div>
-                <div className="route-details"><span className="route-objective">{route.objectiveName}</span><span>{route.payloadUnits} units</span></div>
-                <div className="route-details">
-                  <span className="route-source">Route source: {route.routeSource}</span>
-                  <span className={`route-risk-pill ${route.riskLevel}`}>{route.riskLevel} risk</span>
-                </div>
-                <div className="route-progress"><div className="progress-bar-mini"><div className="progress-fill-mini" style={{ width: `${route.progress}%` }} /></div><span className="progress-label">{route.progress.toFixed(0)}% complete</span></div>
-              </div>
+              <li key={`active-route-${route.vehicleId}`}>
+                <article className="route-card" role="button" tabIndex={0} onClick={() => { setFilterVehicleId(String(route.vehicleId)); setHighlightedVehicleId(String(route.vehicleId)); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFilterVehicleId(String(route.vehicleId)); setHighlightedVehicleId(String(route.vehicleId)); } }} aria-label={`View details for ${route.identifier}`}>
+                  <header className="route-header"><strong>{route.identifier}</strong><span className={`route-status ${route.status.replaceAll("_", "-")}`}>{route.status.replaceAll("_", " ").toUpperCase()}</span></header>
+                  <div className="route-details"><span className="route-objective">{route.objectiveName}</span><span>{route.payloadUnits} units</span></div>
+                  <div className="route-details">
+                    <span className="route-source">Route source: {route.routeSource}</span>
+                    <span className={`route-risk-pill ${route.riskLevel}`}>{route.riskLevel} risk</span>
+                  </div>
+                  <div className="route-progress" role="progressbar" aria-valuenow={route.progress} aria-valuemin={0} aria-valuemax={100}><div className="progress-bar-mini" aria-hidden="true"><div className="progress-fill-mini" style={{ width: `${route.progress}%` }} /></div><span className="progress-label">{route.progress.toFixed(0)}% complete</span></div>
+                </article>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </Panel>
 
       <Panel title="Facility Network">
         <div className="facility-summary">
           <h4>Facilities by City</h4>
-          <div className="cities-grid">
+          <ul className="cities-grid" aria-label="Facilities distributed by city">
             {Object.entries(facilitiesByCity).map(([city, cityFacilities]) => (
-              <div key={city} className="city-card">
-                <div className="city-header"><span className="city-name">{city}</span><span className="facility-count">{cityFacilities.length}</span></div>
-                <div className="facility-types">
-                  {cityFacilities.map((facility, index) => (
-                    <span key={index} className={`type-badge ${facility.facility_type}`} title={facility.name}>{facility.facility_type === "warehouse" ? "WH" : "PT"}</span>
-                  ))}
-                </div>
-              </div>
+              <li key={city}>
+                <article className="city-card">
+                  <header className="city-header"><span className="city-name">{city}</span><span className="facility-count" aria-label={`${cityFacilities.length} facilities`}>{cityFacilities.length}</span></header>
+                  <div className="facility-types" aria-label="Facility types">
+                    {cityFacilities.map((facility, index) => (
+                      <span key={index} className={`type-badge ${facility.facility_type}`} title={facility.name}>{facility.facility_type === "warehouse" ? "WH" : "PT"}</span>
+                    ))}
+                  </div>
+                </article>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       </Panel>
 
       {showDisruptions && (
         <Panel title="Active Disruption Zones">
-          {disruptionEvents.length === 0 ? <div className="empty">No weather or news disruptions exceed the alert threshold right now.</div> : (
-            <div className="disruption-zones">
+          {disruptionEvents.length === 0 ? <p className="empty" role="status">No weather or news disruptions exceed the alert threshold right now.</p> : (
+            <ul className="disruption-zones" aria-label="List of active disruptions">
               {disruptionEvents.map((event, index) => (
-                <div className="disruption-card" key={`${event.city}-${event.kind}-${index}`}>
-                  <div className="disruption-header"><h5>{event.city}</h5><span className={`disruption-severity ${eventSeverity(event.impact_score)}`}>{event.kind} impact</span></div>
-                  <p className="disruption-desc">{event.headline}</p>
-                  <div className="affected-facilities"><strong>Impact type:</strong> {event.impact_type} <strong>Score:</strong> {Number(event.impact_score || 0).toFixed(2)}</div>
-                </div>
+                <li key={`${event.city}-${event.kind}-${index}`}>
+                  <article className="disruption-card">
+                    <header className="disruption-header"><h5>{event.city}</h5><span className={`disruption-severity ${eventSeverity(event.impact_score)}`}>{event.kind} impact</span></header>
+                    <p className="disruption-desc">{event.headline}</p>
+                    <div className="affected-facilities"><strong>Impact type:</strong> {event.impact_type} <strong>Score:</strong> {Number(event.impact_score || 0).toFixed(2)}</div>
+                  </article>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </Panel>
       )}

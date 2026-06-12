@@ -161,38 +161,44 @@ function getNavSections(t) {
   ];
 }
 
-function Sidebar({ active, onNavigate, collapsed, onToggle, t }) {
+function Sidebar({ active, onNavigate, collapsed, setCollapsed, t }) {
   const sections = getNavSections(t);
   return (
-    <aside className={`sidebar ${collapsed ? "collapsed" : "open"}`}>
-      <div className="sidebar-header">
-        <div className="logo-mark">SOLV</div>
+    <aside 
+      className={`sidebar ${collapsed ? "collapsed" : "open"}`} 
+      aria-label="Main navigation"
+      onMouseEnter={() => setCollapsed && setCollapsed(false)}
+      onMouseLeave={() => setCollapsed && setCollapsed(true)}
+    >
+      <header className="sidebar-header">
+        <div className="logo-mark" aria-hidden="true">SOLV</div>
         {!collapsed && <span className="logo-text">Intelligent Logistics</span>}
-        <button className="collapse-btn" onClick={onToggle} aria-label="Toggle sidebar">
-          {collapsed ? "\u203A" : "\u2039"}
-        </button>
-      </div>
-      <nav className="sidebar-nav">
+      </header>
+      <nav className="sidebar-nav" aria-label="Primary navigation">
         {sections.map((section) => (
-          <div key={section.label} className="nav-section">
-            {!collapsed && <div className="nav-section-label">{section.label}</div>}
-            {section.items.map((item) => (
-              <button
-                key={item.key}
-                className={`nav-item ${active === item.key ? "active" : ""}`}
-                onClick={() => onNavigate(item.key)}
-                title={collapsed ? item.label : undefined}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                {!collapsed && <span className="nav-label">{item.label}</span>}
-              </button>
-            ))}
+          <div key={section.label} className="nav-section" role="group" aria-label={section.label}>
+            {!collapsed && <div className="nav-section-label" aria-hidden="true">{section.label}</div>}
+            <ul className="nav-list">
+              {section.items.map((item) => (
+                <li key={item.key}>
+                  <button
+                    className={`nav-item ${active === item.key ? "active" : ""}`}
+                    onClick={() => onNavigate(item.key)}
+                    title={collapsed ? item.label : undefined}
+                    aria-current={active === item.key ? "page" : undefined}
+                  >
+                    <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+                    {!collapsed && <span className="nav-label">{item.label}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         ))}
       </nav>
-      <div className="sidebar-footer">
-        {!collapsed && <div className="version">{t.version}</div>}
-      </div>
+      <footer className="sidebar-footer">
+        {!collapsed && <small className="version">{t.version}</small>}
+      </footer>
     </aside>
   );
 }
@@ -227,9 +233,9 @@ function StatusBar({ dashboard, metrics, t }) {
   }, [sim?.status, sim?.simulation_time, sim?.speed_multiplier]);
 
   return (
-    <div className="status-bar">
+    <div className="status-bar" role="status" aria-label="Simulation status" aria-live="polite">
       <div className="status-pill-group">
-        <span className={`status-dot ${sim?.status === "running" ? "live" : ""}`} />
+        <span className={`status-dot ${sim?.status === "running" ? "live" : ""}`} aria-hidden="true" />
         <span className="status-text">{sim?.status ?? "idle"}</span>
       </div>
       <div className="status-pill-group">
@@ -258,11 +264,11 @@ function StatusBar({ dashboard, metrics, t }) {
 
 function SimControls({ onAction, t }) {
   return (
-    <div className="sim-controls">
-      <button className="sim-btn primary" onClick={() => onAction("/api/simulation/start", { speed_multiplier: 180 }, t.start)}>{t.start}</button>
-      <button className="sim-btn" onClick={() => onAction("/api/simulation/pause", {}, t.pause)}>{t.pause}</button>
-      <button className="sim-btn" onClick={() => onAction("/api/simulation/resume", {}, t.resume)}>{t.resume}</button>
-      <button className="sim-btn danger" onClick={() => onAction("/api/simulation/reset", {}, t.reset)}>{t.reset}</button>
+    <div className="sim-controls" role="group" aria-label="Simulation controls">
+      <button className="sim-btn primary" onClick={() => onAction("/api/simulation/start", { speed_multiplier: 180 }, t.start)} aria-label={`${t.start} simulation`}>{t.start}</button>
+      <button className="sim-btn" onClick={() => onAction("/api/simulation/pause", {}, t.pause)} aria-label={`${t.pause} simulation`}>{t.pause}</button>
+      <button className="sim-btn" onClick={() => onAction("/api/simulation/resume", {}, t.resume)} aria-label={`${t.resume} simulation`}>{t.resume}</button>
+      <button className="sim-btn danger" onClick={() => onAction("/api/simulation/reset", {}, t.reset)} aria-label={`${t.reset} simulation`}>{t.reset}</button>
     </div>
   );
 }
@@ -397,13 +403,13 @@ function buildActivityFeed(recommendations, aiActivity) {
     { id: "mock-1", time: "16:23", title: "Rerouted SHP-001", detail: "avoided port delay" },
     { id: "mock-2", time: "16:20", title: "Predicted congestion at Mumbai port", detail: `${aiActivity?.cascade_detections_today ?? 1} cascade signal detected` },
     { id: "mock-3", time: "16:18", title: "Switched to rail route", detail: "optimized for cost efficiency" },
-  ];
+    ];
 }
 
 export default function App() {
   const { lang, t, switchLang } = useLanguage();
   const [activeView, setActiveView] = useState("dashboard");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -635,12 +641,12 @@ export default function App() {
 
   if (!authReady) {
     return (
-      <div className="login-view">
+      <section className="login-view" aria-label="Loading">
         <div className="login-card" style={{ textAlign: "center" }}>
-          <div className="logo-mark large" style={{ margin: "0 auto 16px" }}>SOLV</div>
-          <p style={{ color: "#8b8d93" }}>Loading authentication...</p>
+          <div className="logo-mark large" style={{ margin: "0 auto 16px" }} aria-hidden="true">SOLV</div>
+          <p style={{ color: "#8b8d93" }} role="status" aria-live="polite">Loading authentication...</p>
         </div>
-      </div>
+      </section>
     );
   }
 
@@ -651,27 +657,28 @@ export default function App() {
   return (
     <div className="app-shell">
       <AIRerouteToast toasts={toasts} onDismiss={dismissToast} />
-      <Sidebar active={activeView} onNavigate={setActiveView} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)} t={t} />
+      <Sidebar active={activeView} onNavigate={setActiveView} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} t={t} />
       <div className={`main-content ${sidebarCollapsed ? "expanded" : ""}`}>
-        <header className="top-bar" lang={lang}>
+        <header className="top-bar" lang={lang} role="banner">
           <div className="top-bar-left">
             <button
               className="mobile-menu-btn"
               onClick={() => setSidebarCollapsed((c) => !c)}
-              aria-label="Toggle sidebar"
+              aria-label="Toggle navigation menu"
+              aria-expanded={!sidebarCollapsed}
             >
               ☰
             </button>
             <h1>{t.commandCenter}</h1>
-            <span className="prototype-badge">{t.prototypeBadge}</span>
+            <span className="prototype-badge" aria-label="Hackathon prototype">{t.prototypeBadge}</span>
           </div>
           <div className="top-bar-right">
-            <div className="user-chip">
+            <div className="user-chip" aria-label={`Signed in as ${user.displayName || user.email || "User"}`}>
               {user.photoURL && (
-                <img src={user.photoURL} alt="" className="user-avatar" referrerPolicy="no-referrer" />
+                <img src={user.photoURL} alt={`${user.displayName || "User"} avatar`} className="user-avatar" referrerPolicy="no-referrer" />
               )}
               <span className="user-name">{user.displayName || user.email || "User"}</span>
-              <button className="logout-btn" onClick={handleLogout} title={t.logout}>
+              <button className="logout-btn" onClick={handleLogout} title={t.logout} aria-label={t.logout}>
                 {t.logout}
               </button>
             </div>

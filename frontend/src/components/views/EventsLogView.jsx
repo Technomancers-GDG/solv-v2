@@ -101,10 +101,10 @@ export function EventsLogView({ importEvents, events = [] }) {
   const selectedEvent = events.find((e) => e.id === selectedEventId);
 
   return (
-    <section className="events-log-layout">
+    <section className="events-log-layout" aria-label="Events Log">
       {/* Header with Import Controls */}
       <Panel title="Events Log">
-        <div className="import-controls">
+        <div className="import-controls" role="group" aria-label="Import tools">
           <button className="primary-btn" onClick={() => importEvents(false)}>
             📥 Import Event Replay
           </button>
@@ -116,7 +116,7 @@ export function EventsLogView({ importEvents, events = [] }) {
 
       {/* Filters */}
       <Panel title="Filters">
-        <div className="filter-row">
+        <div className="filter-row" role="search" aria-label="Filter events">
           <Select
             label="Event Type"
             value={filterEventType}
@@ -171,7 +171,7 @@ export function EventsLogView({ importEvents, events = [] }) {
           />
         </div>
 
-        <div className="filter-info">
+        <div className="filter-info" role="status" aria-live="polite">
           Showing {filteredEvents.length} of {events.length} events
         </div>
       </Panel>
@@ -180,40 +180,44 @@ export function EventsLogView({ importEvents, events = [] }) {
       <div className="events-container">
         <Panel title={`Events (${filteredEvents.length})`}>
           {filteredEvents.length === 0 ? (
-            <div className="empty">No events match your filters.</div>
+            <p className="empty" role="status">No events match your filters.</p>
           ) : (
-            <div className="events-timeline">
+            <ul className="events-timeline" aria-label="Timeline of events">
               {filteredEvents.map((event) => {
                 const isSelected = event.id === selectedEventId;
                 const tone = getEventTone(event.severity ?? 0.5);
 
                 return (
-                  <div
-                    key={event.id}
-                    className={`event-item ${tone} ${isSelected ? "selected" : ""}`}
-                    onClick={() => setSelectedEventId(isSelected ? null : event.id)}
-                  >
-                    <div className="event-marker" />
-                    <div className="event-content">
-                      <div className="event-header">
-                        <span className="event-icon">{getEventIcon(event.event_type)}</span>
-                        <div className="event-title-section">
-                          <h4 className="event-title">{event.title || event.event_type}</h4>
-                          <div className="event-meta">
-                            <span className="event-time">{formatRelativeTime(event.created_at)}</span>
-                            {event.city && <span className="event-city">📍 {event.city}</span>}
-                            {event.status && (
-                              <span className={`event-status ${event.status}`}>
-                                {event.status.toUpperCase()}
-                              </span>
-                            )}
+                  <li key={event.id}>
+                    <article
+                      className={`event-item ${tone} ${isSelected ? "selected" : ""}`}
+                      onClick={() => setSelectedEventId(isSelected ? null : event.id)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedEventId(isSelected ? null : event.id); } }}
+                      tabIndex={0}
+                      role="button"
+                      aria-expanded={isSelected}
+                    >
+                      <div className="event-marker" aria-hidden="true" />
+                      <div className="event-content">
+                        <header className="event-header">
+                          <span className="event-icon" aria-hidden="true">{getEventIcon(event.event_type)}</span>
+                          <div className="event-title-section">
+                            <h4 className="event-title">{event.title || event.event_type}</h4>
+                            <div className="event-meta">
+                              <time className="event-time" dateTime={event.created_at}>{formatRelativeTime(event.created_at)}</time>
+                              {event.city && <span className="event-city">📍 {event.city}</span>}
+                              {event.status && (
+                                <span className={`event-status ${event.status}`}>
+                                  {event.status.toUpperCase()}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="event-severity">
-                          <div className={`severity-dot ${tone}`} />
-                          <span>{Math.round((event.severity ?? 0.5) * 100)}</span>
-                        </div>
-                      </div>
+                          <div className="event-severity" aria-label={`Severity: ${Math.round((event.severity ?? 0.5) * 100)}`}>
+                            <div className={`severity-dot ${tone}`} aria-hidden="true" />
+                            <span>{Math.round((event.severity ?? 0.5) * 100)}</span>
+                          </div>
+                        </header>
 
                       <p className="event-summary">{event.summary || event.note || event.description}</p>
 
@@ -335,12 +339,12 @@ export function EventsLogView({ importEvents, events = [] }) {
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  </div>
+                      </div>
+                    </article>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
         </Panel>
       </div>

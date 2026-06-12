@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { signInWithGoogle } from "../../firebase";
 
+/**
+ * LoginView — Full-screen authentication gate.
+ * Uses semantic HTML (<section>, <header>, <footer>) and ARIA attributes
+ * for accessibility. Preserves all auth logic (Google + local dev).
+ */
 export function LoginView({ t, onLogin, lang, onSwitchLang }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -31,23 +36,27 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
   };
 
   return (
-    <div className="login-view">
-      <div className="login-card">
-        <div className="login-brand">
-          <div className="logo-mark large">SOLV</div>
+    <section className="login-view" aria-label="Sign in to SOLV">
+      <article className="login-card">
+        {/* Brand header */}
+        <header className="login-brand">
+          <div className="logo-mark large" aria-hidden="true">SOLV</div>
           <h1>{t.welcome || "Welcome to SOLV"}</h1>
-          <p>{t.loginTagline || "Intelligent Essential Goods Logistics"}</p>
-        </div>
+          <p className="login-tagline">{t.loginTagline || "Intelligent Essential Goods Logistics"}</p>
+        </header>
 
-        <div className="login-actions">
+        {/* Auth actions */}
+        <div className="login-actions" role="group" aria-label="Sign in options">
           <button
             className="google-btn"
             onClick={handleGoogleSignIn}
             disabled={loading}
             aria-busy={loading}
+            aria-label={t.signInWithGoogle || "Sign in with Google"}
+            id="google-signin-btn"
           >
             {loading ? (
-              <span className="spinner" />
+              <span className="spinner" aria-hidden="true" />
             ) : (
               <>
                 <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
@@ -57,35 +66,47 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
                   <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
                   <path fill="none" d="M0 0h48v48H0z" />
                 </svg>
-                {t.signInWithGoogle || "Sign in with Google"}
+                <span>{t.signInWithGoogle || "Sign in with Google"}</span>
               </>
             )}
           </button>
 
+          {/* Local dev login — only in development */}
           {(import.meta.env.DEV || window.location.hostname === 'localhost') && (
             <button
-              className="google-btn"
+              className="google-btn login-dev-btn"
               onClick={handleLocalLogin}
-              style={{ marginTop: '1rem', background: '#333', color: '#fff', borderColor: '#444' }}
+              aria-label="Sign in as local dev user"
+              id="local-signin-btn"
             >
-              Login (Local Dev)
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M9.25 4.75h5.5a2 2 0 012 2v10.5a2 2 0 01-2 2h-5.5a2 2 0 01-2-2V6.75a2 2 0 012-2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M12 16.25v.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              <span>Login (Local Dev)</span>
             </button>
           )}
 
-
+          {/* Error alert */}
           {error && (
-            <div className="login-error" role="alert">
-              {error}
+            <div className="login-error" role="alert" aria-live="assertive">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M12 8v4m0 4h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              <span>{error}</span>
             </div>
           )}
         </div>
 
-        <div className="login-footer">
-          <div className="login-lang-toggle">
+        {/* Footer — language toggle + version */}
+        <footer className="login-footer">
+          <nav className="login-lang-toggle" aria-label="Language selection">
             <button
               className={`lang-pill ${lang === "en" ? "active" : ""}`}
               onClick={() => onSwitchLang("en")}
               aria-pressed={lang === "en"}
+              aria-label="Switch to English"
             >
               {t.english || "English"}
             </button>
@@ -93,13 +114,14 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
               className={`lang-pill ${lang === "hi" ? "active" : ""}`}
               onClick={() => onSwitchLang("hi")}
               aria-pressed={lang === "hi"}
+              aria-label="Switch to Hindi"
             >
               {t.hindi || "Hindi"}
             </button>
-          </div>
+          </nav>
           <span className="login-version">{t.version || "Google Solution Challenge 2026"}</span>
-        </div>
-      </div>
-    </div>
+        </footer>
+      </article>
+    </section>
   );
 }

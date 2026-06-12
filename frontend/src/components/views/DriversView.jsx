@@ -31,18 +31,18 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
   }
 
   return (
-    <section className="grid-two">
+    <section className="grid-two" aria-label="Drivers Management">
       <Panel title="Driver Profiles">
-        <div className="table-wrap">
-          <table>
+        <div className="table-wrap" role="region" aria-label="Drivers table" tabIndex={0}>
+          <table aria-label="List of drivers">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Override Rating</th>
-                <th>Confidence</th>
-                <th>Accept Bias</th>
-                <th>Active</th>
-                <th># Vehicles</th>
+                <th scope="col">Name</th>
+                <th scope="col">Override Rating</th>
+                <th scope="col">Confidence</th>
+                <th scope="col">Accept Bias</th>
+                <th scope="col">Active</th>
+                <th scope="col"># Vehicles</th>
               </tr>
             </thead>
             <tbody>
@@ -70,50 +70,52 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
                       <tr key={`${driver.id}-details`}>
                         <td colSpan={6}>
                           <div className="lane-stack">
-                            <div className="lane-card">
-                              <div className="lane-head">
+                            <article className="lane-card">
+                              <header className="lane-head">
                                 <h3>Assigned Vehicles</h3>
-                              </div>
-                              <div className="chip-row">
+                              </header>
+                              <div className="chip-row" role="list" aria-label="Vehicles">
                                 {assignedVehicles.length === 0
-                                  ? "No assigned vehicles"
+                                  ? <span className="empty-text">No assigned vehicles</span>
                                   : assignedVehicles.map((vehicle) => (
-                                      <span key={vehicle.id} className="chip">
+                                      <span key={vehicle.id} className="chip" role="listitem">
                                         {vehicle.identifier}
                                       </span>
                                     ))}
                               </div>
-                            </div>
+                            </article>
 
-                            <div className="lane-card">
-                              <div className="lane-head">
+                            <article className="lane-card">
+                              <header className="lane-head">
                                 <h3>Recent Decisions</h3>
-                              </div>
-                              <div className="lane-stack">
+                              </header>
+                              <ul className="lane-stack" aria-label="Recent decisions">
                                 {decisions
                                   .filter((decision) => decision.driver_profile_id === driver.id)
                                   .slice(0, 6)
                                   .map((decision) => (
-                                    <div key={decision.id} className="event-card">
-                                      <div className="event-top">
-                                        <strong>{decision.decision}</strong>
-                                        <span className={`status-badge ${decisionOutcome(decision) === "better" ? "good" : decisionOutcome(decision) === "worse" ? "danger" : "warning"}`}>
-                                          {decisionOutcome(decision)}
-                                        </span>
-                                      </div>
-                                      <small>
-                                        rating delta {decision.rating_delta.toFixed(2)}
-                                      </small>
-                                      <p>{decision.note || "No note provided"}</p>
-                                    </div>
+                                    <li key={decision.id}>
+                                      <article className="event-card">
+                                        <header className="event-top">
+                                          <strong>{decision.decision}</strong>
+                                          <span className={`status-badge ${decisionOutcome(decision) === "better" ? "good" : decisionOutcome(decision) === "worse" ? "danger" : "warning"}`}>
+                                            {decisionOutcome(decision)}
+                                          </span>
+                                        </header>
+                                        <small>
+                                          rating delta {decision.rating_delta.toFixed(2)}
+                                        </small>
+                                        <p>{decision.note || "No note provided"}</p>
+                                      </article>
+                                    </li>
                                   ))}
-                              </div>
-                            </div>
+                              </ul>
+                            </article>
 
-                            <div className="lane-card">
-                              <div className="lane-head">
+                            <article className="lane-card">
+                              <header className="lane-head">
                                 <h3>Bias Tuning</h3>
-                              </div>
+                              </header>
                               <label className="field">
                                 <span>Override Rating: {driver.override_rating.toFixed(2)}</span>
                                 <input
@@ -151,7 +153,7 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
                                   }
                                 />
                               </label>
-                            </div>
+                            </article>
                           </div>
                         </td>
                       </tr>
@@ -165,7 +167,7 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
       </Panel>
 
       <Panel title="Driver Insights">
-        <div className="lane-stack">
+        <ul className="lane-stack" aria-label="Driver insights">
           {drivers.map((driver) => {
             const driverDecisions = decisions.filter(
               (decision) => decision.driver_profile_id === driver.id,
@@ -174,22 +176,24 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
             const ignored = driverDecisions.filter((decision) => decision.decision === "ignored").length;
 
             return (
-              <div className="lane-card" key={driver.id}>
-                <div className="lane-head">
-                  <h3>{driver.name}</h3>
-                  <span className={`status-badge ${driverTone(driver.override_rating)}`}>
-                    {driver.override_rating.toFixed(2)}
-                  </span>
-                </div>
-                <div className="lane-meta">
-                  <span>Decisions: {driverDecisions.length}</span>
-                  <span>Accepted: {accepted}</span>
-                  <span>Ignored: {ignored}</span>
-                </div>
-              </div>
+              <li key={driver.id}>
+                <article className="lane-card">
+                  <header className="lane-head">
+                    <h3>{driver.name}</h3>
+                    <span className={`status-badge ${driverTone(driver.override_rating)}`}>
+                      {driver.override_rating.toFixed(2)}
+                    </span>
+                  </header>
+                  <dl className="lane-meta">
+                    <div className="info-item"><dt>Decisions:</dt><dd>{driverDecisions.length}</dd></div>
+                    <div className="info-item"><dt>Accepted:</dt><dd>{accepted}</dd></div>
+                    <div className="info-item"><dt>Ignored:</dt><dd>{ignored}</dd></div>
+                  </dl>
+                </article>
+              </li>
             );
           })}
-        </div>
+        </ul>
       </Panel>
     </section>
   );
