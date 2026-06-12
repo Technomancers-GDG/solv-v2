@@ -222,7 +222,7 @@ export function RecommendationsLogView({
                     const driver = driverLookup[rec.driver_id];
                     const decision = getDecision(rec.id);
                     const isSelected = rec.id === selectedRecId;
-                    const improvement = rec.improvement_value - rec.baseline_cost;
+                    const improvement = (rec.improvement_value ?? 0) - (rec.baseline_cost ?? 0);
                     const improvementPct =
                       rec.baseline_cost > 0 ? ((improvement / rec.baseline_cost) * 100).toFixed(0) : 0;
 
@@ -371,19 +371,19 @@ export function RecommendationsLogView({
                       <div className="cost-item">
                         <span className="label">Baseline Cost</span>
                         <span className="value baseline">
-                          {selectedRec.baseline_cost.toFixed(1)}
+                          {(selectedRec.baseline_cost ?? 0).toFixed(1)}
                         </span>
                       </div>
                       <div className="cost-item">
                         <span className="label">Recommended Cost</span>
                         <span className="value recommended">
-                          {selectedRec.recommended_cost.toFixed(1)}
+                          {(selectedRec.recommended_cost ?? 0).toFixed(1)}
                         </span>
                       </div>
                       <div className="cost-item">
                         <span className="label">Improvement</span>
                         <span className="value improvement">
-                          {(selectedRec.improvement_value - selectedRec.baseline_cost).toFixed(1)}
+                          {((selectedRec.improvement_value ?? 0) - (selectedRec.baseline_cost ?? 0)).toFixed(1)}
                         </span>
                       </div>
                     </div>

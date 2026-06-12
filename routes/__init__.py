@@ -3,5 +3,7 @@ from .simulation import simulation_router
 from .driver import driver_router
 from .ai import ai_router
 from .logistics import logistics_router
+from .rl import rl_router
+from .comparison import router as comparison_router
 
-__all__ = ["crud_router", "simulation_router", "driver_router", "ai_router", "logistics_router"]
+__all__ = ["crud_router", "simulation_router", "driver_router", "ai_router", "logistics_router", "rl_router", "comparison_router"]

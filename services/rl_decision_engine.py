@@ -156,6 +156,7 @@ class RLDecisionEngine:
         self.batch_size = 32
         self.target_update_freq = 200
         self.train_step = 0
+        self._last_selection_type: str = "exploitation"
         
         # Keep original extension but we load as torch now
         self.model_path = model_path or Path(settings.rl_model_path)
@@ -194,9 +195,11 @@ class RLDecisionEngine:
 
         if random.random() < self.epsilon:
             action_idx = random.choice(valid_indices)
+            self._last_selection_type = "exploration"
             with torch.no_grad():
                 q_value = self.q_network(state_tensor)[0, action_idx].item()
         else:
+            self._last_selection_type = "exploitation"
             with torch.no_grad():
                 q_values = self.q_network(state_tensor)[0]
                 masked = torch.full_like(q_values, -1e9)
@@ -277,6 +280,56 @@ class RLDecisionEngine:
             exp_q = torch.exp(q_values - torch.max(q_values))
             probs = exp_q / torch.sum(exp_q)
         return {action: float(probs[i].item()) for i, action in enumerate(self.ACTIONS)}
+
+    def get_training_summary(self) -> dict[str, Any]:
+        """Return current training state summary."""
+        warmup_threshold = 500
+        buffer_size = len(self.replay_buffer)
+        exploration_pct = round(self.epsilon * 100, 2)
+        exploitation_pct = round((1.0 - self.epsilon) * 100, 2)
+        return {
+            "epsilon": round(self.epsilon, 4),
+            "train_step": self.train_step,
+            "buffer_size": buffer_size,
+            "buffer_capacity": self.replay_buffer.capacity,
+            "warmup_complete": buffer_size >= warmup_threshold,
+            "warmup_progress_pct": round(
+                min(100.0, buffer_size / warmup_threshold * 100), 1
+            ),
+            "last_selection_type": self._last_selection_type,
+            "gamma": self.gamma,
+            "batch_size": self.batch_size,
+            "target_update_freq": self.target_update_freq,
+            "exploration_rate_pct": exploration_pct,
+            "exploitation_rate_pct": exploitation_pct,
+        }
+
+    def get_q_value_snapshot(self, sample_count: int = 5) -> dict[str, Any]:
+        """Sample states from replay buffer and return Q-values for visualization."""
+        if len(self.replay_buffer) < sample_count:
+            return {"states": [], "q_values": [], "actions": []}
+
+        batch = self.replay_buffer.sample(sample_count, self.device)
+        if batch is None:
+            return {"states": [], "q_values": [], "actions": []}
+
+        states_tensor = batch[0]  # (sample_count, 10)
+        with torch.no_grad():
+            q_values = self.q_network(states_tensor)  # (sample_count, 5)
+
+        states_list = states_tensor.cpu().numpy().tolist()
+        q_values_list = q_values.cpu().numpy().tolist()
+        actions_list = [
+            self.ACTIONS[int(torch.argmax(q_values[i]).item())]
+            for i in range(sample_count)
+        ]
+
+        return {
+            "states": states_list,
+            "q_values": q_values_list,
+            "actions": actions_list,
+            "action_labels": self.ACTIONS,
+        }
 
 
 # Singleton instance

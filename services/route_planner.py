@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from config import settings
 from models import Facility, RouteTemplate
 
+logger = logging.getLogger(__name__)
+
 
 def encode_polyline(points: list[tuple[float, float]]) -> str:
     """Basic Google Polyline encoding for lat/lng pairs."""
@@ -89,9 +91,15 @@ class RoutePlanner:
         objective_destinations: list[tuple[int, list[int]]],
     ) -> None:
         for origin_id, destinations in objective_destinations:
-            origin = facilities[origin_id]
+            origin = facilities.get(origin_id)
+            if origin is None:
+                logger.warning("prewarm: origin facility %s not found, skipping", origin_id)
+                continue
             for destination_id in destinations:
-                destination = facilities[destination_id]
+                destination = facilities.get(destination_id)
+                if destination is None:
+                    logger.warning("prewarm: destination facility %s not found, skipping", destination_id)
+                    continue
                 # outbound
                 self.get_or_create_template(session, origin, destination)
                 # return (common case for round-trip objectives)

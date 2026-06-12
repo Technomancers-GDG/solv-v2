@@ -1,6 +1,7 @@
 import { lazy, Suspense, Component, startTransition, useDeferredValue, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { AIRerouteToast } from "./components/common/AIDecisionWidgets";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import { AIChatPanel } from "./components/common/AIChatPanel";
 import { onAuthChange, logout } from "./firebase";
 import { LoginView } from "./components/views/LoginView";
 
@@ -17,6 +18,9 @@ const ObjectivesView = lazy(() => import("./components/views/ObjectivesView").th
 const EventsView = lazy(() => import("./components/views/EventsView").then(m => ({ default: m.EventsView })));
 const ImpactView = lazy(() => import("./components/views/ImpactView").then(m => ({ default: m.ImpactView })));
 const SettingsView = lazy(() => import("./components/views/SettingsView").then(m => ({ default: m.SettingsView })));
+const RLTrainingView = lazy(() => import("./components/views/RLTrainingView").then(m => ({ default: m.RLTrainingView })));
+const AIExplainerView = lazy(() => import("./components/views/AIExplainerView").then(m => ({ default: m.AIExplainerView })));
+const ComparisonView = lazy(() => import("./components/views/ComparisonView").then(m => ({ default: m.ComparisonView })));
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -37,6 +41,7 @@ const TRANSLATIONS = {
   en: {
     operations: "Operations",
     intelligence: "Intelligence",
+    aiIntelligence: "AI Intelligence",
     network: "Network",
     analytics: "Analytics",
     settings: "Settings",
@@ -52,6 +57,9 @@ const TRANSLATIONS = {
     events: "Events",
     impact: "Impact & SDG",
     cloud: "Cloud",
+    rlTraining: "RL Training",
+    aiExplainer: "AI Decisions",
+    aiComparison: "AI vs Baseline",
     commandCenter: "Command Center",
     prototypeBadge: "Hackathon Prototype",
     simTime: "Sim Time",
@@ -75,6 +83,7 @@ const TRANSLATIONS = {
   hi: {
     operations: "संचालन",
     intelligence: "खुफिया",
+    aiIntelligence: "AI खुफिया",
     network: "नेटवर्क",
     analytics: "विश्लेषण",
     settings: "सेटिंग्स",
@@ -90,6 +99,9 @@ const TRANSLATIONS = {
     events: "घटनाएँ",
     impact: "प्रभाव और SDG",
     cloud: "क्लाउड",
+    rlTraining: "RL प्रशिक्षण",
+    aiExplainer: "AI निर्णय",
+    aiComparison: "AI बनाम आधारभूत",
     commandCenter: "कमांड केंद्र",
     prototypeBadge: "हैकथॉन प्रोटोटाइप",
     simTime: "सिम समय",
@@ -138,6 +150,14 @@ function getNavSections(t) {
         { key: "forecast", label: t.forecast, icon: "🔮" },
         { key: "inventory", label: t.inventory, icon: "📦" },
         { key: "scenarios", label: t.scenarios, icon: "🎬" },
+      ],
+    },
+    {
+      label: t.aiIntelligence,
+      items: [
+        { key: "rlTraining", label: t.rlTraining, icon: "🧠" },
+        { key: "aiExplainer", label: t.aiExplainer, icon: "🔍" },
+        { key: "aiComparison", label: t.aiComparison, icon: "📈" },
       ],
     },
     {
@@ -202,6 +222,11 @@ function Sidebar({ active, onNavigate, collapsed, onToggle, t }) {
 function StatusBar({ dashboard, metrics, t }) {
   const sim = dashboard?.simulation;
   const [displayTime, setDisplayTime] = useState(sim?.simulation_time);
+  const speedRef = useRef(sim?.speed_multiplier ?? 1);
+
+  useEffect(() => {
+    speedRef.current = sim?.speed_multiplier ?? 1;
+  }, [sim?.speed_multiplier]);
 
   useEffect(() => {
     setDisplayTime(sim?.simulation_time);
@@ -220,7 +245,7 @@ function StatusBar({ dashboard, metrics, t }) {
         if (!prev) return prev;
         const d = new Date(prev.endsWith("Z") ? prev : prev + "Z");
         if (isNaN(d.getTime())) return prev;
-        d.setMilliseconds(d.getMilliseconds() + dtSec * sim.speed_multiplier * 1000);
+        d.setMilliseconds(d.getMilliseconds() + dtSec * speedRef.current * 1000);
         return d.toISOString().replace("Z", "");
       });
     }, 100);
@@ -293,7 +318,7 @@ function useVoiceInput() {
     rec.onerror = () => setIsListening(false);
     rec.onend = () => setIsListening(false);
     recognitionRef.current = rec;
-    rec.start();
+    try { rec.start(); } catch { setIsListening(false); return; }
     setIsListening(true);
   }, []);
 
@@ -596,23 +621,7 @@ export default function App() {
     if (!derivedDecision) return;
     const id = String(derivedDecision.id ?? derivedDecision.title ?? "");
     if (id && !seenDecisionIds.current.has(id) && seenDecisionIds.current.size > 0) {
-      // New decision arrived — fire a toast
-      const isReroute = String(derivedDecision.title ?? "").toLowerCase().includes("rerouted");
-      const toastId = `toast-${Date.now()}`;
-      setToasts((prev) => [
-        {
-          id: toastId,
-          type: isReroute ? "reroute" : "info",
-          title: isReroute ? "⚠ AI Reroute Executed" : "🧠 AI Decision Made",
-          detail: derivedDecision.impact?.[0]
-            ? `${derivedDecision.impact[0]}${derivedDecision.impact[1] ? " · " + derivedDecision.impact[1] : ""}`
-            : derivedDecision.reason,
-        },
-        ...prev.slice(0, 3), // keep at most 4 toasts
-      ]);
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== toastId));
-      }, 6000);
+      // Toast feature disabled by request
     }
     if (id) seenDecisionIds.current.add(id);
     setLatestDecision(derivedDecision);
@@ -657,6 +666,12 @@ export default function App() {
         return <CloudView cloudHealth={cloudHealth} />;
       case "settings":
         return <SettingsView lang={lang} onSwitchLang={switchLang} t={t} />;
+      case "rlTraining":
+        return <RLTrainingView apiFetch={apiFetch} />;
+      case "aiExplainer":
+        return <AIExplainerView apiFetch={apiFetch} dashboard={dashboard} vehicles={dashboard?.vehicles ?? []} recommendations={recommendations} facilities={facilities} facilityLookup={facilityLookup} />;
+      case "aiComparison":
+        return <ComparisonView apiFetch={apiFetch} metrics={metrics} />;
       default:
         return <DashboardView metrics={metrics} criticalFacilities={criticalFacilities} proactiveDispatches={proactiveDispatches} riskForecast={riskForecast} auditChain={auditChain} blockchainVerify={blockchainVerify} facilityLookup={facilityLookup} aiActivity={aiActivity} latestDecision={latestDecision} previousRoute={previousRoute} activityFeed={activityFeed} />;
     }
@@ -728,6 +743,7 @@ export default function App() {
           </main>
         )}
       </div>
+      <AIChatPanel apiFetch={apiFetch} />
     </div>
   );
 }

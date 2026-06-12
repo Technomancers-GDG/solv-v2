@@ -12,10 +12,10 @@ const statusOptions = [
 ];
 
 export function FleetView({
-  vehicles,
-  facilities,
-  drivers,
-  objectives,
+  vehicles = [],
+  facilities = [],
+  drivers = [],
+  objectives = [],
   vehicleForm,
   setVehicleForm,
   handleVehicleSubmit,

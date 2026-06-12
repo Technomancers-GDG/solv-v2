@@ -1,7 +1,11 @@
 """Driver-facing routes: mobile snapshot, decisions, incidents, and performance metrics."""
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -175,8 +179,15 @@ def submit_driver_decision(
 # --- Spotlight ---
 @driver_router.post("/api/simulation/spotlight")
 def set_spotlight(payload: dict) -> dict:
-    driver_id = payload.get("driver_id")
-    simulation_engine.spotlight_driver_id = int(driver_id) if driver_id else None
+    raw = payload.get("driver_id")
+    if raw is not None:
+        try:
+            simulation_engine.spotlight_driver_id = int(raw)
+        except (ValueError, TypeError):
+            logger.warning("spotlight: invalid driver_id %r", raw)
+            simulation_engine.spotlight_driver_id = None
+    else:
+        simulation_engine.spotlight_driver_id = None
     return {"spotlight_driver_id": simulation_engine.spotlight_driver_id}
 
 

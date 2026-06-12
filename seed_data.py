@@ -1097,8 +1097,7 @@ def seed_demo_data(session: Session) -> None:
         emission = 1.1 + (index % 5) * 0.12
         identifier = f"OPS-{index:04d}"
         while identifier in existing_identifiers:
-            index += 1
-            identifier = f"OPS-{index:04d}"
+            identifier = f"OPS-{len(existing_identifiers) + len(vehicles) + 1:04d}"
         existing_identifiers.add(identifier)
 
         vehicles.append(

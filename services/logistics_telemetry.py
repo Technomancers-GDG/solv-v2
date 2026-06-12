@@ -32,7 +32,7 @@ class TelemetrySimulationService:
                 speed = 42.0 if segment.transport_mode == "road" else 55.0 if segment.transport_mode == "rail" else 18.0
                 distance = speed * (segment.time / 60.0)
             load_factor = 1.0 + min(payload_tons, 60.0) / 300.0
-            segment_fuel = distance * self.FUEL_LITERS_PER_KM[segment.transport_mode] * load_factor
+            segment_fuel = distance * self.FUEL_LITERS_PER_KM.get(segment.transport_mode, 0.34) * load_factor
             fuel += segment_fuel
             details[segment.edge_id] = round(segment_fuel, 2)
 

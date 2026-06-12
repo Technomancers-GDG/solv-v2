@@ -133,7 +133,7 @@ class DecisionEngine:
                 "baseline_overload_risk": round(baseline_overload_risk, 3),
                 "baseline_event_severity": round(baseline_risk["route_risk"], 3),
             }
-            explanation = self._explain(action, destination, breakdown, risk)
+            explanation, structured, counterfactual = self._explain(action, destination, breakdown, risk)
             candidates.append(
                 CandidateDecision(
                     action=action,
@@ -146,6 +146,8 @@ class DecisionEngine:
                     travel_minutes=route.duration_minutes,
                     route_risk=risk["route_risk"],
                     eta_multiplier=risk["eta_multiplier"],
+                    structured_explanation=structured,
+                    counterfactual=counterfactual,
                 )
             )
 
@@ -186,6 +188,11 @@ class DecisionEngine:
                 travel_minutes=0.0,
                 route_risk=baseline_risk["route_risk"],
                 eta_multiplier=1.0,
+                structured_explanation={
+                    "insights": ["Waiting reduces pressure downstream", f"Facility capacity constrained by {max(0, vehicle.payload_capacity_units - original_available)} units"],
+                    "impact": [f"Idle time increased by {int(wait_minutes)} minutes", "Avoided severe downstream congestion"]
+                },
+                counterfactual="If dispatch proceeded -> High overload risk and gridlock at destination.",
             )
         )
         candidates.append(
@@ -213,6 +220,11 @@ class DecisionEngine:
                 travel_minutes=0.0,
                 route_risk=baseline_risk["route_risk"],
                 eta_multiplier=1.0,
+                structured_explanation={
+                    "insights": ["Lane clearing needed", "Severe bottleneck detected"],
+                    "impact": [f"Dispatch deferred by {int(objective.dispatch_interval_minutes)} minutes"]
+                },
+                counterfactual="If dispatch proceeded -> Guaranteed bottleneck and SLA violation.",
             )
         )
         return min(candidates, key=lambda candidate: candidate.score)
@@ -254,14 +266,45 @@ class DecisionEngine:
         destination: Facility,
         breakdown: dict[str, float],
         risk: dict[str, float],
-    ) -> str:
+    ) -> tuple[str, dict[str, Any], str]:
         if action == "continue":
-            return (
+            explanation = (
                 f"Continue to {destination.name}; capacity remains viable and combined weather/news "
                 f"risk stays at {risk['route_risk']:.2f}."
             )
-        return (
+            structured = {
+                "insights": ["Capacity is viable", "Risk is acceptable"],
+                "impact": ["No immediate intervention required"]
+            }
+            counterfactual = "If baseline was rejected -> Unnecessary delay or cost added."
+            return explanation, structured, counterfactual
+            
+        explanation = (
             f"{action.replace('_', ' ')} to {destination.name} because overload risk is "
             f"{breakdown['overload_risk']:.2f}, event severity is {breakdown['event_severity']:.2f}, "
             f"and downstream congestion is {breakdown['downstream_congestion']:.2f}."
         )
+        
+        impact = []
+        if breakdown.get("added_travel_minutes", 0) > 0:
+            impact.append(f"Travel time increased by {breakdown['added_travel_minutes']} minutes")
+        else:
+            impact.append("Travel time optimal")
+            
+        if breakdown.get("overload_risk", 0) < breakdown.get("baseline_overload_risk", 0):
+            impact.append("Overload risk reduced compared to baseline")
+            
+        if breakdown.get("co2_delta_kg", 0) < 0:
+            impact.append(f"CO2 footprint reduced by {abs(breakdown['co2_delta_kg'])} kg")
+            
+        structured = {
+            "insights": [
+                f"Event severity: {breakdown.get('event_severity', 0):.2f}",
+                f"Baseline overload risk was {breakdown.get('baseline_overload_risk', 0):.2f}"
+            ],
+            "impact": impact
+        }
+        
+        counterfactual = f"If baseline was selected -> Potential overload (risk: {breakdown.get('baseline_overload_risk', 0):.2f}) or severe delay (risk: {breakdown.get('baseline_event_severity', 0):.2f})."
+        
+        return explanation, structured, counterfactual

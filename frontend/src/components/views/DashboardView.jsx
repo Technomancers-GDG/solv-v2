@@ -27,6 +27,8 @@ export function DashboardView({ metrics, criticalFacilities = [], proactiveDispa
         <MetricCard label="CO₂ Saved" value={`${co2Saved.toFixed(1)} kg`} context={co2Baseline ? `vs ${co2Baseline.toFixed(1)} kg road baseline` : "baseline estimated from road-only route"} tone="green" />
         <MetricCard label="On-Time Delivery" value={`${metrics?.on_time_delivery_pct ?? 0}%`} context="compared with delayed-route baseline" tone="blue" />
       </div>
+
+
       <div className="dashboard-grid">
         {/* AI Decisions Panel — shows judges what the AI is doing */}
         <Panel title="🧠 AI Decision Engine — Live" className="ai-panel">

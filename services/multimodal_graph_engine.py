@@ -423,9 +423,9 @@ class MultimodalGraphEngine:
         for segment in route.segments:
             distance = segment.distance_km
             if distance is None:
-                speed = self.MODE_SPEED_KMPH[segment.transport_mode]
+                speed = self.MODE_SPEED_KMPH.get(segment.transport_mode, 42.0)
                 distance = speed * ((segment.base_time or segment.time) / 60.0)
-            fuel += distance * self.FUEL_LITERS_PER_KM[segment.transport_mode]
+            fuel += distance * self.FUEL_LITERS_PER_KM.get(segment.transport_mode, 0.34)
         return round(fuel, 2)
 
     @staticmethod

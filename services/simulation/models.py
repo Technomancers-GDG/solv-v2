@@ -28,6 +28,7 @@ class LiveVehicleState:
     perishable_payload: bool = False
     last_rl_state: Any = None
     last_rl_action: str | None = None
+    decision_trace: dict[str, Any] | None = None
 
 
 @dataclass(slots=True, order=True)
@@ -55,3 +56,5 @@ class CandidateDecision:
     eta_multiplier: float
     ai_confidence: float = 0.85
     ai_engine: str = "Deterministic_Heuristics"
+    counterfactual: str | None = None
+    structured_explanation: dict[str, Any] | None = None

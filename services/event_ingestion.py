@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from datetime import date
 
@@ -11,6 +12,8 @@ from models import NewsEvent, WeatherEvent
 from schemas import ImportSummary
 from services.news_relevance import NewsRelevanceService
 from services.workbook_reader import WorkbookXmlReader
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_simulation_date(
@@ -87,7 +90,11 @@ class EventIngestionService:
                 headline = (row.get("News") or "").strip()
                 if not date_text or not headline:
                     continue
-                original_date = date.fromisoformat(str(date_text))
+                try:
+                    original_date = date.fromisoformat(str(date_text))
+                except ValueError:
+                    logger.warning("Skipping news row with bad date: %s", date_text)
+                    continue
                 prediction = self.news_model.predict(
                     str(row.get("Category") or ""), headline
                 )
@@ -135,10 +142,18 @@ class EventIngestionService:
             city = row.get("City")
             if not date_text or not city:
                 continue
-            original_date = date.fromisoformat(str(date_text))
-            max_temp = float(row.get("Max Temp (°C)") or 0.0)
-            min_temp = float(row.get("Min Temp (°C)") or 0.0)
-            precipitation = float(row.get("Precipitation (mm)") or 0.0)
+            try:
+                original_date = date.fromisoformat(str(date_text))
+            except ValueError:
+                logger.warning("Skipping weather row with bad date: %s", date_text)
+                continue
+            try:
+                max_temp = float(row.get("Max Temp (°C)") or 0.0)
+                min_temp = float(row.get("Min Temp (°C)") or 0.0)
+                precipitation = float(row.get("Precipitation (mm)") or 0.0)
+            except (ValueError, TypeError):
+                logger.warning("Skipping weather row with bad numeric data at %s", date_text)
+                continue
             closure_risk, eta_multiplier = compute_weather_risk(
                 precipitation, max_temp, min_temp
             )

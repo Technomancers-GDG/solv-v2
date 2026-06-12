@@ -24,3 +24,10 @@ class RLDecisionResponse(BaseModel):
     confidence: float
     action_probs: dict[str, float]
     engine: str = "dqn_numpy"
+
+class AIChatRequest(BaseModel):
+    query: str
+    history: list[dict[str, str]] | None = None
+
+class AIChatResponse(BaseModel):
+    response: str

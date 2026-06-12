@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Panel } from "../common/UiPrimitives";
 
 function driverTone(overrideRating) {
@@ -53,16 +53,16 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
                 const isExpanded = expandedDriverId === driver.id;
 
                 return (
-                  <>
-                    <tr key={driver.id} role="button" tabIndex={0} onClick={() => setExpandedDriverId(isExpanded ? null : driver.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedDriverId(isExpanded ? null : driver.id); } }}>
+                  <React.Fragment key={driver.id}>
+                    <tr role="button" tabIndex={0} onClick={() => setExpandedDriverId(isExpanded ? null : driver.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedDriverId(isExpanded ? null : driver.id); } }}>
                       <td>{driver.name}</td>
                       <td>
                         <span className={`status-badge ${driverTone(driver.override_rating)}`}>
-                          {driver.override_rating.toFixed(2)}
+                          {(driver.override_rating ?? 1.0).toFixed(2)}
                         </span>
                       </td>
-                      <td>{(driver.confidence * 100).toFixed(0)}%</td>
-                      <td>{(driver.accept_recommendation_bias * 100).toFixed(0)}%</td>
+                      <td>{((driver.confidence ?? 0.5) * 100).toFixed(0)}%</td>
+                      <td>{((driver.accept_recommendation_bias ?? 0.5) * 100).toFixed(0)}%</td>
                       <td>{driver.active ? "yes" : "no"}</td>
                       <td>{assignedVehicles.length}</td>
                     </tr>
@@ -115,7 +115,7 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
                                 <h3>Bias Tuning</h3>
                               </div>
                               <label className="field">
-                                <span>Override Rating: {driver.override_rating.toFixed(2)}</span>
+                                <span>Override Rating: {(driver.override_rating ?? 1.0).toFixed(2)}</span>
                                 <input
                                   type="range"
                                   min="0.4"
@@ -126,7 +126,7 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
                                 />
                               </label>
                               <label className="field">
-                                <span>Confidence: {driver.confidence.toFixed(2)}</span>
+                                <span>Confidence: {(driver.confidence ?? 0.5).toFixed(2)}</span>
                                 <input
                                   type="range"
                                   min="0"
@@ -138,7 +138,7 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
                               </label>
                               <label className="field">
                                 <span>
-                                  Accept Recommendation Bias: {driver.accept_recommendation_bias.toFixed(2)}
+                                  Accept Recommendation Bias: {(driver.accept_recommendation_bias ?? 0.5).toFixed(2)}
                                 </span>
                                 <input
                                   type="range"
@@ -156,7 +156,7 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
                         </td>
                       </tr>
                     ) : null}
-                  </>
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -178,7 +178,7 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
                 <div className="lane-head">
                   <h3>{driver.name}</h3>
                   <span className={`status-badge ${driverTone(driver.override_rating)}`}>
-                    {driver.override_rating.toFixed(2)}
+                    {(driver.override_rating ?? 1.0).toFixed(2)}
                   </span>
                 </div>
                 <div className="lane-meta">

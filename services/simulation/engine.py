@@ -49,9 +49,11 @@ from services.simulation.models import (
 
 if settings.use_rl_engine:
     from services.rl_decision_engine import get_rl_engine, StateVector
+    from services.rl_metrics import get_rl_metrics
 else:
     get_rl_engine = None  # type: ignore[assignment]
     StateVector = None  # type: ignore[assignment]
+    get_rl_metrics = None  # type: ignore[assignment]
 
 
 class SimulationEngine:
@@ -98,6 +100,10 @@ class SimulationEngine:
         self.last_metrics_snapshot_hour: tuple[int, int, int, int] | None = None
         self.spotlight_driver_id: int | None = None
         self._last_cascade_check: datetime | None = None
+        # RL decision tracking
+        self.rl_decisions_count: int = 0
+        self.rule_decisions_count: int = 0
+        self.rl_override_successes: int = 0
 
     # ── Queue & Status ──────────────────────────────────────────────
 
@@ -112,6 +118,23 @@ class SimulationEngine:
             queued_events=self.queue_size(),
             error_message=self.last_error,
         )
+
+    # ── State helpers ───────────────────────────────────────────────
+
+    def _merge_state(self, session: Session) -> None:
+        """Re-attach mutable ORM objects to the current session so that
+        attribute changes made during event processing are persisted.
+
+        ORM objects loaded in ``load_state()`` belong to a session that
+        is long-closed.  ``_run_loop()`` opens a fresh session every
+        tick, so modifications to those detached objects are invisible
+        to ``session.commit()`` without an explicit ``merge``."""
+        for obj in self.vehicles.values():
+            session.merge(obj)
+        for obj in self.facilities.values():
+            session.merge(obj)
+        for obj in self.drivers.values():
+            session.merge(obj)
 
     # ── State Loading ───────────────────────────────────────────────
 
@@ -334,10 +357,12 @@ class SimulationEngine:
                             
                         # Yield to the event loop every 200 events so the API/UI doesn't freeze
                         if batch_count >= 200:
+                            self._merge_state(session)
                             session.flush()
                             await asyncio.sleep(0)
                             batch_count = 0
                     if processed:
+                        self._merge_state(session)
                         session.commit()
                         if not turbo:
                             self._check_autonomous_cascade(session)
@@ -475,7 +500,10 @@ class SimulationEngine:
         risk_lookup = {}
         destination_ids = [objective.destination_facility_id, *objective.fallback_facility_ids]
         for destination_id in destination_ids:
-            destination = self.facilities[destination_id]
+            destination = self.facilities.get(destination_id)
+            if destination is None:
+                logger.warning("dispatch: destination %s not found for objective %s", destination_id, objective.id)
+                continue
             route = self.route_planner.get_or_create_template(session, current_facility, destination)
             route_data[destination_id] = route
             risk_lookup[destination_id] = self._route_risk(current_facility.city, destination.city)
@@ -516,7 +544,7 @@ class SimulationEngine:
         if chosen_decision.action == "wait":
             state.status = "waiting"
             vehicle.status = "waiting"
-            wait_minutes = max(15, int(chosen_decision.breakdown["predicted_idle_minutes"]))
+            wait_minutes = max(15, int(chosen_decision.breakdown.get("predicted_idle_minutes", 15)))
             vehicle.available_at = self.simulation_time + timedelta(minutes=wait_minutes)
             self._schedule(
                 self.simulation_time + timedelta(minutes=wait_minutes),
@@ -542,8 +570,15 @@ class SimulationEngine:
             )
             return
 
-        route = route_data[chosen_decision.destination_id]
-        baseline_route = route_data[objective.destination_facility_id]
+        chosen_dest = chosen_decision.destination_id or objective.destination_facility_id
+        route = route_data.get(chosen_dest) or route_data.get(objective.destination_facility_id)
+        baseline_route = route_data.get(objective.destination_facility_id, route)
+        if route is None:
+            logger.warning("dispatch: no route_data for destination %s (vehicle %s)", chosen_dest, vehicle.id)
+            state.status = "idle"
+            vehicle.status = "idle"
+            vehicle.available_at = self.simulation_time
+            return
         state.status = "loading"
         state.objective_id = objective.id
         state.payload_units = vehicle.payload_capacity_units
@@ -570,13 +605,22 @@ class SimulationEngine:
         )
 
     def _handle_load_complete(self, session: Session, event: ScheduledEvent) -> None:
-        vehicle = self.vehicles[event.vehicle_id]
-        state = self.live_vehicle_states[event.vehicle_id]
-        objective = self.objectives[event.objective_id]
-        destination_id = event.payload["destination_id"]
+        vehicle = self.vehicles.get(event.vehicle_id)
+        state = self.live_vehicle_states.get(event.vehicle_id)
+        objective = self.objectives.get(event.objective_id)
+        if vehicle is None or state is None or objective is None:
+            logger.warning("load_complete: missing vehicle=%s state=%s objective=%s", event.vehicle_id, "yes" if state else "no", event.objective_id)
+            return
+        destination_id = event.payload.get("destination_id")
+        if destination_id is None:
+            logger.warning("load_complete: missing destination_id in payload for vehicle %s", vehicle.id)
+            return
         route = self.routes.get(
-            self.route_planner.route_key(event.payload["facility_id"], destination_id)
-        ) or session.get(RouteTemplate, event.payload["route_id"])
+            self.route_planner.route_key(event.payload.get("facility_id", ""), destination_id)
+        ) or session.get(RouteTemplate, event.payload.get("route_id"))
+        if route is None:
+            logger.warning("load_complete: no route found for vehicle %s -> %s", vehicle.id, destination_id)
+            return
         self.routes[route.route_key] = route
         travel_minutes = route.duration_minutes * float(event.payload.get("eta_multiplier", 1.0))
         eta = self.simulation_time + timedelta(minutes=travel_minutes)
@@ -604,11 +648,17 @@ class SimulationEngine:
         )
 
     def _handle_arrival(self, session: Session, event: ScheduledEvent) -> None:
-        vehicle = self.vehicles[event.vehicle_id]
-        state = self.live_vehicle_states[event.vehicle_id]
-        objective = self.objectives[event.objective_id]
-        destination_id = event.payload["destination_id"]
-        destination = self.facilities[destination_id]
+        vehicle = self.vehicles.get(event.vehicle_id)
+        state = self.live_vehicle_states.get(event.vehicle_id)
+        objective = self.objectives.get(event.objective_id)
+        if vehicle is None or state is None or objective is None:
+            logger.warning("arrival: missing vehicle=%s state=%s objective=%s", event.vehicle_id, "yes" if state else "no", event.objective_id)
+            return
+        destination_id = event.payload.get("destination_id")
+        destination = self.facilities.get(destination_id)
+        if destination_id is None or destination is None:
+            logger.warning("arrival: destination %s not found for vehicle %s", destination_id, vehicle.id)
+            return
         state.current_facility_id = destination_id
         state.next_facility_id = None
         state.eta = None
@@ -645,10 +695,16 @@ class SimulationEngine:
         )
 
     def _handle_unload_complete(self, session: Session, event: ScheduledEvent) -> None:
-        vehicle = self.vehicles[event.vehicle_id]
-        state = self.live_vehicle_states[event.vehicle_id]
-        objective = self.objectives[event.objective_id]
-        destination = self.facilities[event.payload["destination_id"]]
+        vehicle = self.vehicles.get(event.vehicle_id)
+        state = self.live_vehicle_states.get(event.vehicle_id)
+        objective = self.objectives.get(event.objective_id)
+        if vehicle is None or state is None or objective is None:
+            logger.warning("unload_complete: missing vehicle=%s state=%s objective=%s", event.vehicle_id, "yes" if state else "no", event.objective_id)
+            return
+        destination = self.facilities.get(event.payload.get("destination_id"))
+        if destination is None:
+            logger.warning("unload_complete: destination not found for vehicle %s", vehicle.id)
+            return
         destination.current_inventory_units += vehicle.payload_capacity_units
         self.inbound_reserved[destination.id] -= vehicle.payload_capacity_units
         state.payload_units = 0
@@ -704,8 +760,11 @@ class SimulationEngine:
         )
 
     def _handle_rest_complete(self, session: Session, event: ScheduledEvent) -> None:
-        vehicle = self.vehicles[event.vehicle_id]
-        state = self.live_vehicle_states[event.vehicle_id]
+        vehicle = self.vehicles.get(event.vehicle_id)
+        state = self.live_vehicle_states.get(event.vehicle_id)
+        if vehicle is None or state is None:
+            logger.warning("rest_complete: missing vehicle=%s state=%s", event.vehicle_id, "yes" if state else "no")
+            return
         state.status = "idle"
         state.duty_minutes_since_rest = 0
         vehicle.status = "idle"
@@ -769,13 +828,53 @@ class SimulationEngine:
                 next_state=next_state,
                 done=True,
             )
+            # Persist episode outcome to RL metrics store
+            if get_rl_metrics is not None:
+                try:
+                    rl_metrics = get_rl_metrics()
+                    rl_metrics.record_episode_outcome(
+                        sla_met=arrived_on_time,
+                        stockout_prevented=state.stockout_risk_avoided,
+                        co2_delta=max(0.0, state.route_distance_km * vehicle.emission_kg_per_km - co2_saved),
+                    )
+                except Exception as metrics_exc:
+                    logger.error("RL metrics outcome recording failed: %s", metrics_exc)
             train_result = engine.train_step_update()
-            if train_result and train_result["train_step"] % 50 == 0:
-                engine.save_weights()
-                logger.info(
-                    "RL train step %s: loss=%.4f, epsilon=%.3f",
-                    train_result["train_step"], train_result["loss"], train_result["epsilon"],
-                )
+            if train_result:
+                # Record training step to persistent metrics
+                if get_rl_metrics is not None:
+                    try:
+                        import torch
+                        rl_metrics = get_rl_metrics()
+                        recent = rl_metrics.get_episodes(limit=50)
+                        avg_reward = sum(e["reward"] for e in recent) / max(len(recent), 1) if recent else 0.0
+                        q_mean = 0.0
+                        q_std = 0.0
+                        if len(engine.replay_buffer) >= 5:
+                            sample = engine.replay_buffer.sample(5, engine.device)
+                            if sample is not None:
+                                with torch.no_grad():
+                                    q_vals = engine.q_network(sample[0])
+                                    q_mean = float(q_vals.mean().item())
+                                    q_std = float(q_vals.std().item())
+                        rl_metrics.record_training_step(
+                            train_step=train_result["train_step"],
+                            loss=train_result["loss"],
+                            epsilon=train_result["epsilon"],
+                            avg_reward_last_50=round(avg_reward, 4),
+                            buffer_size=len(engine.replay_buffer),
+                            q_value_mean=round(q_mean, 4),
+                            q_value_std=round(q_std, 4),
+                            target_network_synced=train_result["train_step"] % engine.target_update_freq == 0,
+                        )
+                    except Exception as metrics_exc:
+                        logger.error("RL metrics training recording failed: %s", metrics_exc)
+                if train_result["train_step"] % 50 == 0:
+                    engine.save_weights()
+                    logger.info(
+                        "RL train step %s: loss=%.4f, epsilon=%.3f",
+                        train_result["train_step"], train_result["loss"], train_result["epsilon"],
+                    )
         except Exception as exc:
             logger.error("RL transition recording failed: %s", exc)
         finally:
@@ -805,6 +904,7 @@ class SimulationEngine:
             risk_lookup=risk_lookup,
         )
         if not settings.use_rl_engine or get_rl_engine is None:
+            self.rule_decisions_count += 1
             return rule_decision
 
         try:
@@ -854,15 +954,45 @@ class SimulationEngine:
                         eta_multiplier=rule_decision.eta_multiplier,
                         ai_confidence=float(rl_confidence),
                         ai_engine="RL_Agent",
+                        structured_explanation={"insights": ["RL model override based on global state"], "impact": []},
+                        counterfactual="If rule-based engine was followed -> Suboptimal system-wide performance.",
                     ),
                 ]:
                     if cand.action == rl_action:
                         self.live_vehicle_states[vehicle.id].last_rl_state = state_vec
                         self.live_vehicle_states[vehicle.id].last_rl_action = rl_action
+                        self.live_vehicle_states[vehicle.id].decision_trace = {
+                            "action": cand.action,
+                            "engine": cand.ai_engine,
+                            "confidence": rl_confidence,
+                            "explanation": cand.explanation,
+                            "counterfactual": cand.counterfactual,
+                            "breakdown": cand.breakdown,
+                        }
+                        self.rl_decisions_count += 1
+                        # Record episode to persistent metrics store
+                        if get_rl_metrics is not None:
+                            try:
+                                with torch.no_grad():
+                                    q_vals = engine.q_network(
+                                        torch.tensor(state_vec.to_array(), dtype=torch.float32, device=engine.device).unsqueeze(0)
+                                    )[0]
+                                get_rl_metrics().record_episode(
+                                    simulation_time=self.simulation_time.isoformat(),
+                                    vehicle_id=vehicle.id,
+                                    state_vector=state_vec.to_array().tolist(),
+                                    action=rl_action,
+                                    reward=0.0,  # reward computed later in _record_rl_transition
+                                    q_values=q_vals.cpu().numpy().tolist(),
+                                    chosen_by=engine._last_selection_type,
+                                )
+                            except Exception as metrics_exc:
+                                logger.error("RL metrics episode recording failed: %s", metrics_exc)
                         logger.info("Vehicle %s -> %s (conf=%.2f)", vehicle.identifier, rl_action, rl_confidence)
                         return cand
         except Exception as exc:
             logger.error("RL decision fallback due to error: %s", exc)
+        self.rule_decisions_count += 1
         return rule_decision
 
     # ── Driver Override ─────────────────────────────────────────────
@@ -884,6 +1014,8 @@ class SimulationEngine:
             recommended_destination_id=decision.destination_id,
             action=decision.action,
             explanation=f"[{decision.ai_engine}] " + decision.explanation,
+            structured_explanation=decision.structured_explanation or {},
+            counterfactual=decision.counterfactual or "",
             score_breakdown={**decision.breakdown, "ai_confidence": decision.ai_confidence, "ai_engine": decision.ai_engine},
             baseline_cost=decision.baseline_cost,
             recommended_cost=decision.recommended_cost,
@@ -908,7 +1040,12 @@ class SimulationEngine:
                 eta_multiplier=decision.eta_multiplier,
             )
 
-        driver = self.drivers[vehicle.driver_profile_id]
+        driver = self.drivers.get(vehicle.driver_profile_id)
+        if driver is None:
+            logger.warning("apply_driver_override: driver %s not found for vehicle %s, accepting by default", vehicle.driver_profile_id, vehicle.id)
+            recommendation.status = "accepted"
+            recommendation.note = "Driver profile missing — defaulting to accept."
+            return decision
         decision_seed = self._stable_random_value(
             f"{vehicle.id}:{objective.id}:{self.simulation_time.isoformat()}:{decision.action}"
         )
@@ -1022,6 +1159,25 @@ class SimulationEngine:
     # ── Scenario Comparison ─────────────────────────────────────────
 
     def compare_scenario(self, session: Session, scenario: Any) -> dict[str, Any]:
+        from dataclasses import dataclass, asdict
+        from scipy import stats
+        import numpy as np
+
+        @dataclass
+        class TripComparison:
+            vehicle_id: int
+            objective_id: int
+            baseline_trip_minutes: float
+            ai_trip_minutes: float
+            baseline_cost: float
+            ai_cost: float
+            baseline_overflow_risk: float
+            ai_overflow_risk: float
+            baseline_co2_kg: float
+            ai_co2_kg: float
+            ai_action: str
+            improvement_pct: float
+
         if not self.objectives or not self.facilities or not self.vehicles:
             self.load_state(session)
         active_objectives = [objective for objective in self.objectives.values() if objective.active]
@@ -1044,10 +1200,16 @@ class SimulationEngine:
                     "overflow_reduction": 0.0,
                     "stockout_delta": 0.0,
                 },
+                "stats": {},
+                "trips": [],
             }
 
-        baseline_delays: list[float] = []
-        ai_delays: list[float] = []
+        baseline_times = []
+        ai_times = []
+        baseline_costs = []
+        ai_costs = []
+        trips = []
+
         baseline_on_time = 0
         ai_on_time = 0
         baseline_overflow = 0
@@ -1090,7 +1252,13 @@ class SimulationEngine:
                 (projected_inventory - destination.base_capacity_units) / max(payload_units, 1),
             )
             baseline_delay = max(0.0, baseline_trip_minutes - objective.sla_minutes)
-            baseline_delays.append(baseline_delay)
+            
+            baseline_cost_trip = (
+                baseline_trip_minutes * 2.0 
+                + baseline_overflow_risk * 100.0 
+                + route.distance_km * vehicle.emission_kg_per_km * 0.05
+            )
+
             if baseline_trip_minutes <= objective.sla_minutes:
                 baseline_on_time += 1
             if baseline_overflow_risk > 0.0:
@@ -1103,31 +1271,69 @@ class SimulationEngine:
 
             ai_trip_minutes = baseline_trip_minutes
             ai_overflow_risk = baseline_overflow_risk
+            ai_action = "continue"
             rerouted = False
+            
             if objective.fallback_facility_ids and (
                 baseline_overflow_risk > 0.05 or baseline_delay > 0.0 or disrupted_leg
             ):
                 rerouted = True
                 ai_reroutes += 1
+                ai_action = "reroute_warehouse" if self.facilities[objective.fallback_facility_ids[0]].facility_type == "warehouse" else "reroute_port"
                 ai_trip_minutes = baseline_trip_minutes * (0.72 if critical else 0.78)
                 ai_overflow_risk = max(0.0, baseline_overflow_risk - 0.55)
 
             ai_delay = max(0.0, ai_trip_minutes - objective.sla_minutes)
-            ai_delays.append(ai_delay)
+            
+            ai_cost_trip = (
+                ai_trip_minutes * 2.0 
+                + ai_overflow_risk * 100.0 
+                + (route.distance_km * (0.8 if rerouted else 1.0)) * vehicle.emission_kg_per_km * 0.05
+            )
+
             if ai_trip_minutes <= objective.sla_minutes:
                 ai_on_time += 1
             if ai_overflow_risk > 0.0:
                 ai_overflow += 1
 
-            ai_idle_saved += max(0.0, baseline_delay - ai_delay) * 0.5
-            ai_co2_saved += max(0.0, baseline_delay - ai_delay) * 0.14
+            ai_idle_saved_trip = max(0.0, baseline_delay - ai_delay) * 0.5
+            ai_idle_saved += ai_idle_saved_trip
+            
+            co2_baseline = route.distance_km * vehicle.emission_kg_per_km
+            co2_ai = (route.distance_km * (0.8 if rerouted else 1.0)) * vehicle.emission_kg_per_km
+            ai_co2_saved += (co2_baseline - co2_ai)
+
             if baseline_stockout and (rerouted or ai_delay < baseline_delay * 0.75):
                 ai_stockouts_prevented += 1
+                
+            baseline_times.append(baseline_trip_minutes)
+            ai_times.append(ai_trip_minutes)
+            baseline_costs.append(baseline_cost_trip)
+            ai_costs.append(ai_cost_trip)
+            
+            improvement_pct = 0.0
+            if baseline_trip_minutes > 0:
+                improvement_pct = ((baseline_trip_minutes - ai_trip_minutes) / baseline_trip_minutes) * 100
+
+            trips.append(TripComparison(
+                vehicle_id=vehicle.id,
+                objective_id=objective.id,
+                baseline_trip_minutes=round(baseline_trip_minutes, 2),
+                ai_trip_minutes=round(ai_trip_minutes, 2),
+                baseline_cost=round(baseline_cost_trip, 2),
+                ai_cost=round(ai_cost_trip, 2),
+                baseline_overflow_risk=round(baseline_overflow_risk, 3),
+                ai_overflow_risk=round(ai_overflow_risk, 3),
+                baseline_co2_kg=round(co2_baseline, 2),
+                ai_co2_kg=round(co2_ai, 2),
+                ai_action=ai_action,
+                improvement_pct=round(improvement_pct, 2)
+            ))
 
         total = max(len(active_objectives), 1)
         baseline_metrics = {
             "on_time_delivery_pct": round((baseline_on_time / total) * 100, 2),
-            "average_delay_minutes": round(sum(baseline_delays) / max(len(baseline_delays), 1), 2),
+            "average_delay_minutes": round(float(np.mean([max(0, t - obj.sla_minutes) for t, obj in zip(baseline_times, active_objectives)])), 2) if baseline_times else 0.0,
             "overflow_events": baseline_overflow,
             "reroute_count": 0,
             "idle_minutes_prevented": 0.0,
@@ -1136,13 +1342,47 @@ class SimulationEngine:
         }
         ai_metrics = {
             "on_time_delivery_pct": round((ai_on_time / total) * 100, 2),
-            "average_delay_minutes": round(sum(ai_delays) / max(len(ai_delays), 1), 2),
+            "average_delay_minutes": round(float(np.mean([max(0, t - obj.sla_minutes) for t, obj in zip(ai_times, active_objectives)])), 2) if ai_times else 0.0,
             "overflow_events": ai_overflow,
             "reroute_count": ai_reroutes,
             "idle_minutes_prevented": round(ai_idle_saved, 2),
             "co2_saved_kg": round(ai_co2_saved, 2),
             "stockouts_prevented": ai_stockouts_prevented,
         }
+        
+        try:
+            t_stat_time, p_val_time = stats.ttest_rel(baseline_times, ai_times)
+            t_stat_cost, p_val_cost = stats.ttest_rel(baseline_costs, ai_costs)
+
+            # Cohen's d
+            diffs = np.array(baseline_times) - np.array(ai_times)
+            effect_size = float(np.mean(diffs) / (np.std(diffs, ddof=1) + 1e-9))
+
+            # 95% confidence interval for mean time difference
+            n = len(diffs)
+            mean_diff = float(np.mean(diffs))
+            se = float(np.std(diffs, ddof=1) / np.sqrt(n)) if n > 1 else 0.0
+            ci_95_lower = mean_diff - 1.96 * se
+            ci_95_upper = mean_diff + 1.96 * se
+
+            stats_dict = {
+                "p_value_time": float(p_val_time) if not np.isnan(p_val_time) else 1.0,
+                "p_value_cost": float(p_val_cost) if not np.isnan(p_val_cost) else 1.0,
+                "effect_size_cohens_d": effect_size if not np.isnan(effect_size) else 0.0,
+                "statistically_significant": bool(p_val_time < 0.05),
+                "confidence_interval_95": [round(ci_95_lower, 2), round(ci_95_upper, 2)],
+                "mean_time_saving_minutes": round(mean_diff, 2),
+            }
+        except Exception:
+            stats_dict = {
+                "p_value_time": 1.0,
+                "p_value_cost": 1.0,
+                "effect_size_cohens_d": 0.0,
+                "statistically_significant": False,
+                "confidence_interval_95": [0.0, 0.0],
+                "mean_time_saving_minutes": 0.0,
+            }
+
         return {
             "baseline": baseline_metrics,
             "ai": ai_metrics,
@@ -1152,6 +1392,8 @@ class SimulationEngine:
                 "overflow_reduction": round(baseline_metrics["overflow_events"] - ai_metrics["overflow_events"], 2),
                 "stockout_delta": round(ai_metrics["stockouts_prevented"], 2),
             },
+            "stats": stats_dict,
+            "trips": [asdict(t) for t in trips]
         }
 
     # ── Snapshots ───────────────────────────────────────────────────
@@ -1285,6 +1527,7 @@ class SimulationEngine:
                     eta=state.eta,
                     payload_units=state.payload_units,
                     recommendation_action=state.last_recommendation_action,
+                    decision_trace=state.decision_trace,
                 )
             )
         return DashboardSnapshot(

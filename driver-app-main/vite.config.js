@@ -8,12 +8,12 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://sim-backend-1029069183045.us-central1.run.app",
+        target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
       },
       "/ws": {
-        target: "wss://sim-backend-1029069183045.us-central1.run.app",
+        target: "ws://127.0.0.1:8000",
         ws: true,
         changeOrigin: true,
         secure: false,

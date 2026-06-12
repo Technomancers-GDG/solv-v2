@@ -269,3 +269,50 @@ def ai_activity_metrics(session: Session = Depends(get_session)) -> dict[str, An
         "cascade_detections_today": len(cascade_events),
         "completed_trips": simulation_engine.completed_trips,
     }
+
+from schemas.ai import AIChatRequest, AIChatResponse
+from google import genai
+from google.genai import types
+
+@ai_router.post("/api/ai/chat", response_model=AIChatResponse)
+def ai_chat(payload: AIChatRequest, session: Session = Depends(get_session)) -> AIChatResponse:
+    if not settings.gemini_api_key:
+        raise HTTPException(status_code=503, detail="Gemini API Key not configured")
+    
+    client = genai.Client(api_key=settings.gemini_api_key)
+    metrics = simulation_engine.current_metrics
+    
+    context = (
+        f"You are the SOLV Ops Assistant, an expert supply chain AI.\n"
+        f"Current Status:\n"
+        f"- SLA Compliance: {metrics.on_time_delivery_pct}%\n"
+        f"- Active Vehicles: {metrics.active_trucks}\n"
+        f"- Queued Vehicles: {metrics.queued_trucks}\n"
+        f"- CO2 Saved: {metrics.co2_saved_kg} kg\n"
+        f"- Warehouse Utilization: {metrics.warehouse_utilization_pct}%\n"
+        f"- Reroutes today: {metrics.reroute_count}\n"
+        f"- Stockouts prevented: {metrics.stockouts_prevented}\n"
+    )
+
+    messages = [
+        types.Content(role="user", parts=[types.Part.from_text(text=context)]),
+        types.Content(role="model", parts=[types.Part.from_text(text="I am ready to assist. What is your question?")])
+    ]
+    
+    if payload.history:
+        for msg in payload.history:
+            messages.append(types.Content(role=msg.get("role", "user"), parts=[types.Part.from_text(text=msg.get("content", ""))]))
+    
+    messages.append(types.Content(role="user", parts=[types.Part.from_text(text=payload.query)]))
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=messages,
+            config=types.GenerateContentConfig(
+                temperature=0.3,
+            )
+        )
+        return AIChatResponse(response=response.text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

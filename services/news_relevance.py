@@ -103,7 +103,11 @@ class NewsRelevanceService:
         model_probability = heuristic_probability
         if self.model is not None and self.vectorizer is not None:
             matrix = self.vectorizer.transform([self._compose_text(category, headline)])
-            model_probability = float(self.model.predict_proba(matrix)[0][1])
+            proba = self.model.predict_proba(matrix)
+            if proba.shape[1] >= 2:
+                model_probability = float(proba[0][1])
+            else:
+                model_probability = float(proba[0][0])
 
         probability = max(heuristic_probability, model_probability)
         impact_type = self._impact_type(category, headline, probability)

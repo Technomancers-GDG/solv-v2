@@ -1,505 +1,574 @@
-# SOLV — Round 2 Advanced Improvements Master Plan
+# SOLV — Round 2 Advanced Improvements Master Plan (v2)
 
-> Post-Tier 1–5 Fixes: The "Wow Factor" Roadmap for Judges
-
-This plan assumes all 30 items from your current improvement plan are **already complete**. Everything below is designed to differentiate SOLV from the competition — the kind of depth that makes judges say *"they actually built this?"*
+> **Restructured around AI credibility.** Every phase exists to answer: *"Prove your AI actually works."*
 
 ---
 
-## Executive Summary
+## Strategic Context
 
-Your current Round 1 codebase already has impressive bones: a **DQN reinforcement learning engine**, **NSGA-II multi-objective optimizer**, **multimodal graph search (Yen's k-shortest)**, **blockchain audit trail**, and a **predictive forecasting pipeline**. The problem? Most of these are underconnected — powerful engines running in isolation without visible impact.
+An independent audit found:
 
-This plan focuses on **three strategic pillars**:
+| Component | Verdict |
+|-----------|---------|
+| **RL Decision Engine (DQN)** | ✅ Strongest AI — real PyTorch DQN with replay buffer, target network, epsilon-greedy |
+| **NSGA-II Optimizer** | ⚠️ Optimization, not ML — judges may not count it as "AI" |
+| **Multimodal Graph Engine** | ⚠️ Dijkstra + Yen's — classical algorithms, not ML |
+| **Inventory Optimizer** | ⚠️ Statistical (exponential smoothing) — not AI |
+| **News Relevance Model** | ⚠️ TF-IDF + LogReg trained on 8 examples — will not survive scrutiny |
 
-1. **Make the AI visible** — Judges need to *see* the intelligence working
-2. **Production hardening** — Show you understand real-world deployment
-3. **Competitive differentiators** — Features that no other team will have
+**The risk**: Judges see a project that *claims* AI but can't demonstrate it learning, improving, or outperforming a baseline with statistical evidence.
+
+**The fix**: Make the RL engine's training, learning, and decision-making **fully transparent and provably better**.
 
 ```mermaid
-graph LR
-    A["Round 1 Fixes<br/>(Tiers 1-5)"] --> B["Phase 1: AI Visibility<br/>(~12 hrs)"]
-    B --> C["Phase 2: Production<br/>Hardening (~8 hrs)"]
-    C --> D["Phase 3: Competitive<br/>Differentiators (~10 hrs)"]
-    D --> E["Phase 4: Demo<br/>Polish (~6 hrs)"]
-    style A fill:#374151,stroke:#6b7280,color:#f9fafb
-    style B fill:#dc2626,stroke:#ef4444,color:#fff
-    style C fill:#d97706,stroke:#f59e0b,color:#fff
-    style D fill:#2563eb,stroke:#3b82f6,color:#fff
-    style E fill:#059669,stroke:#10b981,color:#fff
+graph TB
+    A["Phase 1: RL Training Pipeline<br/>& Evaluation Metrics<br/>⏱ ~6 hrs"] --> B["Phase 2: AI Explainability<br/>& Decision Transparency<br/>⏱ ~5 hrs"]
+    B --> C["Phase 3: AI vs Baseline<br/>Statistical Evidence<br/>⏱ ~4 hrs"]
+    C --> D["Phase 4: Gemini Assistant<br/>& Demo Polish<br/>⏱ ~5 hrs"]
+    D --> E["Phase 5: Infrastructure<br/>(Only if time permits)<br/>⏱ ~8 hrs"]
+    
+    style A fill:#dc2626,stroke:#fca5a5,color:#fff
+    style B fill:#ea580c,stroke:#fdba74,color:#fff
+    style C fill:#d97706,stroke:#fcd34d,color:#fff
+    style D fill:#2563eb,stroke:#93c5fd,color:#fff
+    style E fill:#6b7280,stroke:#9ca3af,color:#fff
 ```
 
 ---
 
-## Phase 1: 🔴 Make the AI Visible (~12 hrs)
+## Phase 1: 🔴 RL Training Pipeline & Evaluation Metrics (~6 hrs)
 
-> **Goal**: Every AI decision should be explainable, traceable, and visually compelling.
+> **The single most important phase.** Without this, judges will dismiss the RL as window dressing.
 
-Judges can't evaluate what they can't see. Your RL engine, NSGA-II optimizer, and prediction engine are powerful — but currently buried behind generic API responses.
+### Problem
 
----
+Your DQN agent ([rl_decision_engine.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/rl_decision_engine.py)) is architecturally sound — replay buffer, target network sync, epsilon decay — but it has **zero observability**:
 
-### 1.1 — AI Decision Explainability Dashboard
+- No training logs persist between restarts
+- No way to show the agent learned anything
+- No episode reward tracking
+- No loss curve history
+- `train_step_update()` returns stats but nobody stores them
+- The 500-sample warmup period is invisible — judges won't know when RL "activates"
 
-**Why**: Your `DecisionEngine.score_dispatch_options()` computes rich score breakdowns (overload risk, event severity, route risk) but the frontend never surfaces them. The `RecommendationsLogView` shows raw data but no visual explanation.
+### 1.1 — Persistent Training Metrics Store
 
-**What to build**:
+#### [NEW] `services/rl_metrics.py`
 
-#### [NEW] `frontend/src/components/views/AIExplainerView.jsx`
-A dedicated "AI Brain" view that shows:
-- **Decision Waterfall Chart**: For each active vehicle, show the scoring breakdown as a waterfall/funnel chart — `route_risk`, `overload_risk`, `event_severity`, `eta_penalty`, `port_pressure` → final action
-- **Confidence Gauge**: Display `ai_confidence` from the RL engine vs rule-based engine, showing which engine "won" the decision
-- **Counterfactual Panel**: "If the AI had chosen *continue* instead of *reroute_warehouse*, estimated delay would be +47 min, overflow risk +23%"
-- **Decision History Timeline**: Scrollable timeline showing every AI decision with outcome (did the reroute actually save time?)
+A lightweight metrics recorder that persists training data to disk (JSON or SQLite):
 
-#### [MODIFY] [engine.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/simulation/engine.py)
-- Add `decision_trace` field to `LiveVehicleState` that stores the full score breakdown from the last dispatch decision
-- Emit `decision_trace` events through the WebSocket alongside `simulation_snapshot`
-- Track decision outcome: when a trip completes, compute `actual_savings_vs_predicted` and store it
+```python
+@dataclass
+class RLEpisodeRecord:
+    episode_id: int
+    timestamp: str              # ISO format
+    simulation_time: str
+    vehicle_id: int
+    state_vector: list[float]   # 10-dim input
+    action: str                 # chosen action
+    reward: float               # computed reward
+    q_values: list[float]       # Q-values for all 5 actions
+    chosen_by: str              # "exploration" | "exploitation" | "rule_fallback"
+    sla_met: bool
+    stockout_prevented: bool
+    co2_delta: float
 
-#### [MODIFY] [decision_engine.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/simulation/decision_engine.py)
-- Return counterfactual analysis: for each non-chosen action, estimate what would have happened
-- Add `explanation_text` generator that produces human-readable explanations like:
-  *"Rerouted truck KA-01-1234 to Port Tuticorin because Chennai warehouse is at 94% capacity and cyclone pressure increases ETA by 1.3x"*
+@dataclass  
+class RLTrainingRecord:
+    train_step: int
+    timestamp: str
+    loss: float
+    epsilon: float
+    avg_reward_last_50: float
+    buffer_size: int
+    q_value_mean: float         # average Q across recent batch
+    q_value_std: float
+    target_network_synced: bool
+```
 
-**Estimated effort**: 4 hrs
-
----
-
-### 1.2 — RL Learning Curve Visualization
-
-**Why**: You have a full DQN with replay buffer, target network, and epsilon-greedy exploration. But there's zero visibility into whether it's actually learning.
-
-**What to build**:
-
-#### [NEW] `frontend/src/components/views/RLInsightsView.jsx`
-- **Epsilon Decay Curve**: Real-time chart showing epsilon declining from 1.0 → 0.05 as the agent learns
-- **Reward Distribution**: Histogram of rewards per episode, grouped by action type
-- **Q-Value Heatmap**: 10×5 heatmap showing Q-values for each state dimension × action
-- **Policy Stability Indicator**: Show how often the RL agent overrides the rule-based engine, and success rate
-- **Training Loss Plot**: Real-time loss curve from `train_step_update()`
+- Store as append-only JSONL file at `data/rl_training_log.jsonl`
+- Ring buffer in memory (last 2000 records) for API queries
+- Survive server restarts — load from disk on init
 
 #### [MODIFY] [rl_decision_engine.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/rl_decision_engine.py)
-- Add `get_training_stats()` method that returns epsilon, train_step, average reward, loss history
-- Store per-episode reward history (ring buffer of last 500 episodes)
-- Add `get_q_value_matrix(sample_states)` for heatmap generation
 
-#### [NEW] `routes/rl.py`
-- `GET /api/rl/stats` → training stats
-- `GET /api/rl/q-values` → Q-value samples for visualization
-- `POST /api/rl/reset` → reset the RL agent (useful for demo)
+- After every `select_action()`: record an `RLEpisodeRecord` with the full decision context
+- Tag whether the action was **exploration** (random due to epsilon) vs **exploitation** (Q-value argmax) vs **rule_fallback** (RL confidence too low)
+- After every `train_step_update()`: record a `RLTrainingRecord` with loss, epsilon, buffer stats
+- Add method `get_training_summary()`:
+  ```python
+  def get_training_summary(self) -> dict:
+      return {
+          "total_episodes": self.episode_count,
+          "total_train_steps": self.train_step,
+          "epsilon": self.epsilon,
+          "buffer_size": len(self.replay_buffer),
+          "buffer_capacity": self.replay_buffer.capacity,
+          "warmup_complete": len(self.replay_buffer) >= 500,
+          "warmup_progress_pct": min(100, len(self.replay_buffer) / 500 * 100),
+          "avg_reward_last_100": ...,
+          "avg_loss_last_100": ...,
+          "exploration_rate_pct": self.epsilon * 100,
+          "exploitation_rate_pct": (1 - self.epsilon) * 100,
+          "action_distribution": {  # last 200 decisions
+              "continue": 45, "reroute_warehouse": 28, ...
+          },
+          "reward_trend": "improving" | "stable" | "declining",
+      }
+  ```
+
+#### [MODIFY] [engine.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/simulation/engine.py)
+
+- In `_record_rl_transition()` (line 667): after computing reward, record the full episode with outcome
+- In `_select_dispatch_decision()` (line 730): record the decision context (which engine won, confidence gap)
+- Track cumulative RL vs rule-based decision counts in `SimulationEngine` state
+
+**Estimated effort**: 2 hrs
+
+---
+
+### 1.2 — Offline Batch Training Mode
+
+#### [NEW] `services/rl_batch_trainer.py`
+
+The current RL trains one step per simulation tick. For demo credibility, add a batch training mode:
+
+```python
+class RLBatchTrainer:
+    """Run N training epochs over the accumulated replay buffer."""
+    
+    def train_batch(self, epochs: int = 100, batch_size: int = 64) -> TrainingReport:
+        """
+        Called after a simulation run completes.
+        Trains the DQN on all accumulated experience.
+        Returns loss curve, reward curve, Q-value evolution.
+        """
+        engine = get_rl_engine()
+        results = []
+        for epoch in range(epochs):
+            step_result = engine.train_step_update()
+            if step_result:
+                results.append(step_result)
+        return TrainingReport(
+            epochs_completed=len(results),
+            final_loss=results[-1]["loss"] if results else None,
+            final_epsilon=engine.epsilon,
+            loss_curve=[r["loss"] for r in results],
+            epsilon_curve=[r["epsilon"] for r in results],
+        )
+```
+
+#### [NEW] API endpoints in `routes/rl.py`:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/rl/stats` | Current training summary (epsilon, buffer, rewards) |
+| `GET /api/rl/training-history` | Loss curve, reward curve, epsilon decay (from persistent log) |
+| `GET /api/rl/episodes?limit=100` | Recent episode records with full decision context |
+| `GET /api/rl/q-values` | Q-value snapshot for sample states (for heatmap) |
+| `POST /api/rl/train-batch` | Trigger offline batch training (N epochs) |
+| `POST /api/rl/reset` | Reset RL agent to fresh state (re-demo the learning) |
+| `GET /api/rl/action-distribution` | Action frequency breakdown (exploration vs exploitation) |
+
+**Estimated effort**: 1.5 hrs
+
+---
+
+### 1.3 — RL Training Dashboard (Frontend)
+
+#### [NEW] `frontend/src/components/views/RLTrainingView.jsx`
+
+This is the **crown jewel** — the view that proves the AI is real:
+
+**Section 1: Training Status Banner**
+- Large indicator: "🟢 RL Agent Active — 1,247 decisions made, 842 training steps"
+- Or during warmup: "🟡 RL Warmup — 312/500 experiences collected (62%)" with progress bar
+- Epsilon gauge: visual slider showing exploration (random) ↔ exploitation (learned) balance
+
+**Section 2: Learning Curves** (custom SVG charts — you already have these in AnalyticsView)
+- **Loss Curve**: Training loss over steps — should trend downward = agent is learning
+- **Reward Curve**: Average reward per 50 episodes — should trend upward
+- **Epsilon Decay**: Smooth curve from 1.0 → 0.05 showing exploration dying off
+- All three on time-synced x-axis
+
+**Section 3: Q-Value Insights**
+- **Action Q-Value Bar Chart**: For a sample "high-risk" state, show Q-values for all 5 actions — the tallest bar is what the agent "prefers"
+- **Q-Value Heatmap**: 10 state dimensions × 5 actions, showing which state features drive which actions
+- **Policy Evolution**: Side-by-side "Early Policy" vs "Current Policy" — show how action preferences shifted
+
+**Section 4: Decision Breakdown**
+- **Pie/Donut Chart**: Action distribution — how often does the agent choose each action?
+- **Exploration vs Exploitation Timeline**: Stacked area chart showing the ratio shifting from random → learned
+- **RL Override Rate**: "RL agent overrode the rule-based engine 34% of the time, with 78% success rate"
+
+**Section 5: Live Training Controls**
+- "Run Batch Training" button → triggers `/api/rl/train-batch` and animates the loss curve in real-time
+- "Reset Agent" button → resets to fresh weights, lets judges watch learning from scratch
+- Speed controls for how fast training runs
+
+**Estimated effort**: 2.5 hrs
+
+---
+
+## Phase 2: 🟠 AI Explainability & Decision Transparency (~5 hrs)
+
+> **Goal**: Every AI decision should be understandable by a non-technical judge in 5 seconds.
+
+### 2.1 — Decision Explainability Engine
+
+#### [MODIFY] [decision_engine.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/simulation/decision_engine.py)
+
+Currently, `score_dispatch_options()` returns a `CandidateDecision` with a `breakdown` dict and a terse `explanation` string. Extend this:
+
+- **Add `explanation_builder()`** that produces structured, human-readable explanations:
+  ```
+  "Rerouted truck KA-01-AB-1234 from Chennai Warehouse → Tuticorin Port because:
+   • Chennai warehouse at 94% capacity (overload risk: HIGH)
+   • Cyclone Michaung increasing ETA by 1.3× on original route
+   • Tuticorin has 340 available units (vs 12 at Chennai)
+   • Estimated savings: ₹2,100 and 47 min delivery time"
+  ```
+- **Add counterfactual analysis**: For each non-chosen action, compute what would have happened:
+  ```python
+  counterfactuals = {
+      "continue": {"estimated_delay": "+47 min", "overflow_risk": "HIGH (94%)", "cost": "₹8,400"},
+      "reroute_warehouse": {"estimated_delay": "-12 min", "overflow_risk": "LOW (23%)", "cost": "₹6,300"},
+      "wait": {"estimated_delay": "+120 min", "overflow_risk": "MEDIUM (65%)", "cost": "₹7,100"},
+  }
+  ```
+- **Add engine attribution**: Tag each decision with which engine made it:
+  - `"decided_by": "rule_engine"` — default
+  - `"decided_by": "rl_agent"` with `"rl_confidence": 0.73`
+  - `"decided_by": "rl_agent_overridden_by_driver"` with driver personality factors
+
+#### [MODIFY] [engine.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/simulation/engine.py)
+
+- Add `decision_trace` field to `LiveVehicleState` storing the full decision context
+- Include `decision_trace` in the WebSocket `simulation_snapshot` payload
+- Track **decision outcomes**: when a trip completes, compare actual result vs predicted — was the AI right?
+  ```python
+  outcome = {
+      "predicted_savings_minutes": 47,
+      "actual_savings_minutes": 42,
+      "prediction_accuracy": 89.4,
+      "was_correct_choice": True,
+  }
+  ```
+
+**Estimated effort**: 2 hrs
+
+---
+
+### 2.2 — AI Explainability View (Frontend)
+
+#### [NEW] `frontend/src/components/views/AIExplainerView.jsx`
+
+**Section 1: Active Decisions Panel**
+- Card per active vehicle showing the latest AI decision
+- Each card has:
+  - **Waterfall/funnel chart** showing score breakdown factors → final score
+  - **Engine badge**: "🤖 RL Agent" or "📐 Rule Engine" or "👤 Driver Override"
+  - Confidence bar (from `ai_confidence`)
+
+**Section 2: Counterfactual Panel**
+- "What if?" comparison table:
+  | Action | Delay | Cost | Risk | CO₂ | ← AI Chose This |
+  |--------|-------|------|------|-----|-----------------|
+  | Continue | +47 min | ₹8,400 | HIGH | 12.3 kg | |
+  | **Reroute → Tuticorin** | **-12 min** | **₹6,300** | **LOW** | **8.1 kg** | ✅ |
+  | Wait 2hrs | +120 min | ₹7,100 | MED | 0 kg | |
+
+**Section 3: Decision Outcome Tracker**
+- After trips complete, show prediction vs reality:
+  - "AI predicted 42 min savings → actual was 38 min (90% accurate)"
+  - Running accuracy percentage with trend arrow
+- Table of last 20 completed decisions with outcome comparison
+
+**Section 4: AI Performance Summary**
+- "AI made 847 decisions this session"
+- "Correct calls: 78.3% | Prediction accuracy: 86.2%"
+- "Total savings attributed to AI: ₹4.7L, 2,340 kg CO₂, 847 minutes"
 
 **Estimated effort**: 3 hrs
 
 ---
 
-### 1.3 — NSGA-II Pareto Front Visualization
+## Phase 3: 🟡 AI vs Baseline — Statistical Evidence (~4 hrs)
 
-**Why**: Your NSGA-II optimizer computes Pareto-optimal solutions across 5 objectives. This is a *research-grade* feature that judges will love — if they can see it.
+> **Goal**: Irrefutable proof that the AI outperforms no-AI operation.
 
-**What to build**:
+### 3.1 — Rigorous Comparison Engine
 
-#### [NEW] `frontend/src/components/views/OptimizerView.jsx`
-- **Pareto Scatter Plot**: Interactive 2D projection of the Pareto front (user selects which 2 of 5 objectives to plot as axes)
-- **Radar/Spider Chart**: For the selected compromise solution, show all 5 objectives vs the worst/best in the front
-- **Trade-off Slider**: Let users adjust objective weights interactively and see how the "best compromise" shifts
-- **Generation Animation**: Replay how the population evolved over NSGA-II generations (animate the scatter plot)
+#### [MODIFY] [engine.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/simulation/engine.py) — `compare_scenario()`
 
-#### [MODIFY] [multi_objective_optimizer.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/multi_objective_optimizer.py)
-- Cache generation snapshots during `optimize()` for replay
-- Return `ParetoFrontResult` with all individuals, not just top 10
+The existing `compare_scenario()` method (line 967) does a simplified analytical comparison. Extend it:
 
-**Estimated effort**: 3 hrs
+- **Track per-trip metrics** for both baseline and AI paths:
+  ```python
+  @dataclass
+  class TripComparison:
+      vehicle_id: int
+      objective_id: int
+      baseline_trip_minutes: float
+      ai_trip_minutes: float
+      baseline_cost: float
+      ai_cost: float
+      baseline_overflow_risk: float
+      ai_overflow_risk: float
+      baseline_co2_kg: float
+      ai_co2_kg: float
+      ai_action: str  # what the AI chose
+      improvement_pct: float
+  ```
+
+- **Aggregate with statistical significance**:
+  ```python
+  def compute_comparison_stats(trips: list[TripComparison]) -> dict:
+      return {
+          "n_trips": len(trips),
+          "avg_time_saved_minutes": mean(t.baseline - t.ai for t in trips),
+          "avg_cost_saved_inr": mean(...),
+          "total_co2_saved_kg": sum(...),
+          "time_improvement_pct": ...,
+          "cost_improvement_pct": ...,
+          # Statistical significance
+          "p_value_time": paired_t_test(baseline_times, ai_times),
+          "p_value_cost": paired_t_test(baseline_costs, ai_costs),
+          "confidence_interval_95": ...,
+          "effect_size_cohens_d": ...,
+          "statistically_significant": p_value < 0.05,
+      }
+  ```
+
+#### [NEW] API endpoints:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/comparison/summary` | Aggregate AI vs baseline with p-values |
+| `GET /api/comparison/per-trip` | Per-trip comparison data |
+| `GET /api/comparison/by-objective` | Grouped by delivery objective |
+| `GET /api/comparison/by-disruption` | Performance during disruptions vs calm periods |
+
+**Estimated effort**: 2 hrs
 
 ---
 
-### 1.4 — Gemini-Powered Natural Language Ops Assistant
+### 3.2 — AI vs Baseline Dashboard (Frontend)
 
-**Why**: You already have `google-genai` in requirements and a `gemini_api_key` in config, plus routes in `routes/ai.py`. Extend this into a first-class conversational assistant.
+#### [NEW] `frontend/src/components/views/ComparisonView.jsx`
 
-**What to build**:
+This is the view you pull up when a judge asks *"prove it works"*:
+
+**Section 1: Headline KPIs**
+```
+┌─────────────────────────────────────────────────────────┐
+│  AI vs Baseline (847 trips analyzed)                    │
+│                                                         │
+│  ⏱ 23.4% faster deliveries    (p < 0.001) ✅           │
+│  💰 ₹4.7L costs saved          (p < 0.001) ✅           │
+│  🌱 2,340 kg CO₂ reduced       (p = 0.003) ✅           │
+│  📦 14 stockouts prevented     (effect size: 0.82)     │
+│                                                         │
+│  All improvements are statistically significant (α=0.05)│
+└─────────────────────────────────────────────────────────┘
+```
+
+**Section 2: Distribution Comparison**
+- Side-by-side histograms: "Baseline delivery times" vs "AI delivery times"
+- Box plots showing median, quartiles, outliers for both
+- Visible shift between distributions = AI is helping
+
+**Section 3: Performance by Condition**
+- Grouped bar chart:
+  | Condition | Baseline | AI | Improvement |
+  |-----------|----------|-----|-------------|
+  | Normal operations | 142 min | 131 min | 7.7% |
+  | Weather disruption | 198 min | 149 min | **24.7%** |
+  | Port congestion | 221 min | 162 min | **26.7%** |
+  | Cascade event | 267 min | 184 min | **31.1%** |
+- Key insight: **AI provides biggest gains during disruptions** (exactly when you need it)
+
+**Section 4: Learning Progression**
+- "AI performance over time" chart showing improvement as the RL agent trains:
+  - X-axis: simulation time or decision count
+  - Y-axis: average reward or improvement %
+  - Clear upward trend = the AI is **learning**, not just memorizing rules
+
+**Section 5: Per-Trip Scatter**
+- Scatter plot: x = baseline time, y = AI time
+- Points below the diagonal = AI was faster
+- Color by action type (reroute_warehouse = blue, reroute_port = green, etc.)
+- Most points should cluster below the diagonal
+
+**Estimated effort**: 2 hrs
+
+---
+
+## Phase 4: 🔵 Gemini Assistant & Demo Polish (~5 hrs)
+
+> Only after Phases 1-3 prove the AI. Now add the polish that makes the demo memorable.
+
+### 4.1 — Gemini-Powered Ops Assistant
 
 #### [MODIFY] [ai.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/routes/ai.py)
-- Add `POST /api/ai/chat` endpoint that accepts natural language queries
-- System prompt includes current simulation state (vehicle statuses, active disruptions, metrics)
-- Support queries like:
-  - *"Why was truck KA-07 rerouted?"* → pulls from blockchain audit trail + decision trace
-  - *"What's the risk outlook for Chennai routes?"* → aggregates weather + news maps
-  - *"Compare AI performance vs baseline today"* → pulls from MetricsSnapshot history
-  - *"Suggest optimal fleet scaling for next week"* → triggers NSGA-II with forecast data
+
+Add `POST /api/ai/chat` that accepts natural language queries with simulation context:
+
+- *"Why was truck KA-07 rerouted?"* → pulls from decision trace + blockchain audit
+- *"What's the RL agent's current performance?"* → calls `get_training_summary()`
+- *"Compare AI vs baseline for Chennai routes"* → filters comparison data by city
+- *"Explain the NSGA-II optimization for objective #12"* → describes trade-offs
+
+System prompt includes: current simulation state, active disruptions, recent decisions, RL training stats.
 
 #### [NEW] `frontend/src/components/common/AIChatPanel.jsx`
-- Slide-out chat panel accessible from any view
+
+- Slide-out panel accessible from any view
+- Context-aware: includes current view's data automatically
+- Suggested questions: "Ask about the latest AI decision", "Explain RL training progress"
 - Streaming responses via SSE
-- Context-aware: automatically includes current view's data in the prompt
-- Suggested questions based on current simulation state
 
 **Estimated effort**: 2 hrs
 
 ---
 
-## Phase 2: 🟡 Production Hardening (~8 hrs)
-
-> **Goal**: Demonstrate you understand what it takes to run this in the real world.
-
----
-
-### 2.1 — Database Migration System
-
-**Why**: You use `init_db()` which calls `Base.metadata.create_all()`. This works for demos but is a red flag for judges evaluating production readiness. Schema changes require dropping the database.
-
-**What to build**:
-
-#### [NEW] `alembic/` directory + migration config
-- Set up Alembic with auto-generation from SQLAlchemy models
-- Create initial migration from current schema
-- Add migration runner to `build.sh`
-
-#### [MODIFY] [database.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/database.py)
-- Replace `create_all()` with Alembic migration check on startup
-- Add connection pooling configuration for production
-
-**Estimated effort**: 2 hrs
-
----
-
-### 2.2 — API Rate Limiting & Request Validation
-
-**Why**: No rate limiting means a single client can DOS the simulation engine. No request validation means malformed input crashes the server silently.
-
-**What to build**:
-
-#### [NEW] `middleware/rate_limiter.py`
-- Token bucket rate limiter: 100 req/min per IP for API, 10 req/min for AI endpoints
-- Separate limits for WebSocket connections (max 50 concurrent)
-
-#### [MODIFY] [main.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/main.py)
-- Add rate limiting middleware
-- Add structured error responses (RFC 7807 problem details)
-- Add request ID middleware for traceability
-
-**Estimated effort**: 1.5 hrs
-
----
-
-### 2.3 — Structured Logging with OpenTelemetry
-
-**Why**: 95+ `print()` calls (you're already fixing these), but go further — add distributed tracing so you can see the full lifecycle of a simulation event.
-
-**What to build**:
-
-#### [NEW] `middleware/telemetry.py`
-- OpenTelemetry integration with trace context propagation
-- Structured JSON logging with correlation IDs
-- Custom spans for: simulation tick, AI decision, route planning, event ingestion
-- Export to console (dev) or OTLP endpoint (production)
-
-#### [MODIFY] All service files
-- Replace `print()` with structured logger that includes:
-  - `simulation_time`, `vehicle_id`, `action`, `duration_ms`
-  - Trace/span IDs for correlating across services
-
-**Estimated effort**: 2.5 hrs
-
----
-
-### 2.4 — PostgreSQL Support + Connection Pooling
-
-**Why**: SQLite is great for demos but judges know it doesn't scale. Your `database_url` config already supports it — you just need to prove it works.
-
-**What to build**:
-
-#### [MODIFY] [database.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/database.py)
-- Add `asyncpg` driver support for async PostgreSQL
-- Configure connection pool (min=2, max=10, overflow=5)
-- Add `DATABASE_URL=postgresql://...` option to render.yaml
-
-#### [MODIFY] `render.yaml`
-- Add PostgreSQL database service
-- Configure connection string as environment variable
-
-**Estimated effort**: 2 hrs
-
----
-
-## Phase 3: 🔵 Competitive Differentiators (~10 hrs)
-
-> **Goal**: Features that put you in a different league from competitors.
-
----
-
-### 3.1 — Predictive Disruption Forecasting with Gemini
-
-**Why**: Your current disruption system is reactive — it ingests weather/news data that already happened. A predictive system that *forecasts* disruptions would be genuinely novel.
-
-**What to build**:
-
-#### [MODIFY] [predictive_forecast.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/predictive_forecast.py)
-- Implement time-series forecasting on `WeatherEvent` history:
-  - Use exponential smoothing on precipitation/closure_risk trends
-  - Detect cyclone season patterns (June-November for Bay of Bengal)
-  - Generate 72-hour ahead disruption probability per city
-- Feed Gemini with recent weather + news context for situational analysis
-
-#### [NEW] `frontend/src/components/views/ForecastDashboardView.jsx`
-Replace the existing empty [ForecastView.jsx](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/frontend/src/components/views/ForecastView.jsx) with:
-- **72-Hour Risk Heatmap**: Map overlay showing predicted disruption probability by city
-- **Proactive Reroute Suggestions**: "Based on forecast, pre-position 3 trucks at Vizag warehouse before cyclone hits Chennai"
-- **Historical Accuracy Tracker**: Show how past predictions compared to actual disruptions
-
-**Estimated effort**: 3 hrs
-
----
-
-### 3.2 — Multi-Modal Route Optimization with Live Comparison
-
-**Why**: Your `MultimodalGraphEngine` supports road/rail/water with Yen's k-shortest paths, driver reliability penalties, and time windows. But the frontend doesn't expose this power.
-
-**What to build**:
-
-#### [NEW] `frontend/src/components/views/MultiModalRouteView.jsx`
-- **Route Comparison Table**: Side-by-side comparison of road vs rail vs water vs multimodal routes
-- **Interactive Map Overlay**: Draw all k routes on the map with color-coded transport modes
-- **Business Metrics Panel**: Show fuel savings, CO2 reduction, time trade-offs from [RouteBusinessMetrics](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/multimodal_graph_engine.py#L401-L419)
-- **Drag-and-Drop Waypoints**: Let users add intermediate stops and see how routes adjust
-- **Mode Switch Visualization**: Highlight where road→rail or rail→water transitions happen, with associated penalties
-
-**Estimated effort**: 3 hrs
-
----
-
-### 3.3 — Digital Twin: Scenario Sandbox
-
-**Why**: Your `compare_scenario()` method runs baseline vs AI comparison, but it's a one-shot calculation. A true digital twin would let judges play "what-if" scenarios in real-time.
-
-**What to build**:
-
-#### [NEW] `services/simulation/sandbox.py`
-- Fork the simulation engine state into an isolated sandbox
-- Allow parameter tweaking without affecting the live simulation:
-  - "What if we add 5 trucks to the fleet?"
-  - "What if Mumbai port closes for 48 hours?"
-  - "What if we switch all Mumbai→Chennai routes to rail?"
-- Run sandbox 10x faster than live simulation
-- Show side-by-side metrics comparison
-
-#### [MODIFY] [ScenariosView.jsx](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/frontend/src/components/views/ScenariosView.jsx)
-- Add "Sandbox Mode" toggle
-- Split-screen view: live simulation on left, sandbox on right
-- Parameter adjustment panel with sliders for severity, fleet size, route preferences
-
-**Estimated effort**: 4 hrs
-
----
-
-## Phase 4: 🟢 Demo Day Polish (~6 hrs)
-
-> **Goal**: Make the 5-minute demo unforgettable.
-
----
-
-### 4.1 — Guided Demo Mode with Narration Points
-
-**Why**: In a competition demo, you need the system to tell a story, not just show data.
-
-**What to build**:
-
-#### [NEW] `frontend/src/components/common/DemoNarrator.jsx`
-- Floating "Demo Script" panel with step-by-step narration
-- Auto-advance triggers:
-  1. "Starting simulation..." → waits for first dispatch
-  2. "Watch: cyclone detected in Chennai..." → waits for disruption event
-  3. "AI rerouting 3 trucks to Tuticorin..." → highlights reroute decisions
-  4. "Compared to baseline: 23% fewer delays, 340kg CO2 saved" → shows scenario comparison
-  5. "RL agent has learned from 1,200 decisions..." → shows RL insights
-- Hotkeys for quick navigation between demo points
-
-**Estimated effort**: 2 hrs
-
----
-
-### 4.2 — Real-Time SDG Impact Counter
-
-**Why**: You track SDG metrics (stockouts prevented, critical deliveries saved, beneficiary locations served) but they're buried in the metrics object. For a competition about essential goods, these should be front and center.
-
-**What to build**:
+### 4.2 — SDG Impact Counter with AI Attribution
 
 #### [MODIFY] [DashboardView.jsx](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/frontend/src/components/views/DashboardView.jsx)
-- Add animated SDG impact strip at the top:
-  - 🏥 **14 stockouts prevented** (counter animates up)
-  - 🚚 **892 critical deliveries completed** 
-  - 📍 **67 beneficiary locations served**
-  - 🌱 **2,340 kg CO₂ saved** (with tree equivalent)
-  - 💰 **₹4.7L operational costs saved**
-- Each counter links to a detail drill-down showing which specific decisions contributed
 
-**Estimated effort**: 1.5 hrs
+Add animated impact strip at the top that **attributes savings to AI decisions**:
 
----
+```
+🏥 14 stockouts prevented (by AI rerouting)
+🚚 892 critical deliveries saved (87% AI-assisted)
+🌱 2,340 kg CO₂ saved (vs baseline routing)
+💰 ₹4.7L operational costs saved (AI vs manual)
+```
 
-### 4.3 — Map Enhancements
-
-**Why**: Your [MapView.jsx](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/frontend/src/components/views/MapView.jsx) is already 29KB — impressive. But for demo day, these additions make it *memorable*.
-
-**What to build**:
-
-#### [MODIFY] `MapView.jsx`
-- **Animated truck markers** that move along routes in real-time (interpolate position from progress_pct)
-- **Disruption heat overlay**: Red/orange zones over cities with active weather/news events
-- **Route glow effect**: AI-rerouted routes glow green, baseline routes are gray
-- **Click-on-truck**: Popup showing full decision trace, current objective, ETA, AI confidence
-- **Cascade ripple animation**: When cascade detection triggers, show expanding ripple from the overloaded facility
-
-**Estimated effort**: 2.5 hrs
-
----
-
-## Phase 5: ⚡ Performance & Scalability (Bonus, ~4 hrs)
-
-> If time permits — these show engineering maturity.
-
----
-
-### 5.1 — WebSocket Message Batching
-
-**Why**: Currently, every simulation tick broadcasts a full `dashboard_snapshot` to all connected clients. With 86 facilities and 12 vehicles, that's a lot of JSON per tick.
-
-#### [MODIFY] [connection_manager.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/simulation/connection_manager.py)
-- Implement delta-only updates: only send changed fields
-- Batch broadcast to max 1 update per 500ms
-- Add message compression (gzip)
-
-**Estimated effort**: 1.5 hrs
-
----
-
-### 5.2 — Background Event Ingestion with Async Workers
-
-**Why**: Event ingestion (weather/news from Excel) runs synchronously on startup, blocking the server for seconds. If workbooks grow, this becomes untenable.
-
-#### [MODIFY] [event_ingestion.py](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/services/event_ingestion.py)
-- Move workbook parsing to background tasks using `asyncio.to_thread()`
-- Add progress reporting via WebSocket
-- Implement incremental ingestion (only new rows since last import)
-
-**Estimated effort**: 1.5 hrs
-
----
-
-### 5.3 — Simulation State Persistence & Resume
-
-**Why**: If the server restarts, the simulation resets. For a production system, you should be able to resume.
-
-#### [NEW] `services/simulation/state_persistence.py`
-- Serialize `SimulationEngine` state to JSON periodically (every 50 ticks)
-- On startup, detect persisted state and offer to resume
-- Add `POST /api/simulation/save` and `POST /api/simulation/load` endpoints
+Each counter links to the specific AI decisions that produced it. This directly ties SDG impact to AI capability.
 
 **Estimated effort**: 1 hr
 
 ---
 
-## Priority Matrix
+### 4.3 — Map Enhancements: AI Decision Visualization
 
-| Phase | Item | Judge Impact | Effort | ROI |
-|-------|------|-------------|--------|-----|
-| 1 | AI Explainability Dashboard | 🔥🔥🔥🔥🔥 | 4 hrs | **Critical** |
-| 1 | Gemini Chat Assistant | 🔥🔥🔥🔥🔥 | 2 hrs | **Critical** |
-| 4 | SDG Impact Counter | 🔥🔥🔥🔥🔥 | 1.5 hrs | **Critical** |
-| 4 | Map Enhancements | 🔥🔥🔥🔥 | 2.5 hrs | **Very High** |
-| 1 | RL Learning Curve Viz | 🔥🔥🔥🔥 | 3 hrs | **Very High** |
-| 3 | Predictive Forecasting | 🔥🔥🔥🔥 | 3 hrs | **Very High** |
-| 4 | Demo Narrator | 🔥🔥🔥🔥 | 2 hrs | **High** |
-| 3 | Digital Twin Sandbox | 🔥🔥🔥🔥 | 4 hrs | **High** |
-| 1 | NSGA-II Pareto Viz | 🔥🔥🔥 | 3 hrs | **High** |
-| 3 | Multi-Modal Route View | 🔥🔥🔥 | 3 hrs | **High** |
-| 2 | Alembic Migrations | 🔥🔥🔥 | 2 hrs | **Medium** |
-| 2 | Structured Logging | 🔥🔥 | 2.5 hrs | **Medium** |
-| 2 | Rate Limiting | 🔥🔥 | 1.5 hrs | **Medium** |
-| 2 | PostgreSQL Support | 🔥🔥 | 2 hrs | **Medium** |
-| 5 | WS Message Batching | 🔥 | 1.5 hrs | **Low** |
-| 5 | Async Event Ingestion | 🔥 | 1.5 hrs | **Low** |
-| 5 | State Persistence | 🔥 | 1 hr | **Low** |
+#### [MODIFY] [MapView.jsx](file:///c:/Users/sam/Documents/Projects/sim-pro-max/modern%20ui/frontend/src/components/views/MapView.jsx)
+
+- **Route glow**: AI-rerouted routes glow green, baseline routes are gray/dashed
+- **Decision popups**: Click a truck → see the AI decision waterfall, confidence, engine attribution
+- **Disruption overlay**: Red zones over cities with active weather/news events
+- **Cascade ripple**: Animated expanding ring when cascade detection triggers
+
+**Estimated effort**: 1.5 hrs
 
 ---
 
-## Recommended Execution Order
+### 4.4 — Demo Narrator
 
-If you have **limited time**, do these in order:
+#### [NEW] `frontend/src/components/common/DemoNarrator.jsx`
 
-```
- 1. SDG Impact Counter (1.5 hrs)         ← Instant visual win
- 2. AI Explainability Dashboard (4 hrs)  ← Shows the AI is real
- 3. Gemini Chat Assistant (2 hrs)        ← Wow factor, uses existing infra
- 4. Map Enhancements (2.5 hrs)           ← Makes the demo memorable
- 5. Demo Narrator (2 hrs)                ← Controls the demo story
- 6. RL Learning Curve Viz (3 hrs)        ← Proves ML is working
- 7. Predictive Forecasting (3 hrs)       ← Novel differentiator
-```
+Step-by-step guided demo with auto-trigger points:
 
-Total for top 7: **~18 hrs** — achievable in a focused 2–3 day sprint.
+1. "Simulation starting — RL agent in warmup mode, collecting experiences..."
+2. "Cyclone detected in Chennai — watch the AI respond..."
+3. "RL agent rerouted 3 trucks (confidence: 0.73) — see the explanation..."
+4. "After 500+ decisions, RL agent is now in exploitation mode..."
+5. "Comparison: AI achieved 23% faster deliveries with p < 0.001"
+
+**Estimated effort**: 0.5 hrs
 
 ---
 
-## Architecture After Improvements
+## Phase 5: ⬜ Infrastructure (Only If Time Permits)
 
-```mermaid
-graph TB
-    subgraph Frontend["React Frontend"]
-        Dashboard["Dashboard + SDG Counters"]
-        Map["Enhanced Map View"]
-        AIExplainer["AI Explainability"]
-        RLInsights["RL Insights"]
-        Optimizer["NSGA-II Pareto Viz"]
-        Forecast["Predictive Forecast"]
-        Sandbox["Digital Twin Sandbox"]
-        Chat["Gemini Chat Panel"]
-        Demo["Demo Narrator"]
-    end
+> These are deprioritized. Do NOT do these before Phases 1-3 are complete.
 
-    subgraph API["FastAPI Backend"]
-        Routes["API Routes"]
-        WS["WebSocket + Delta Updates"]
-        Middleware["Rate Limiter + Telemetry"]
-    end
+| Item | Effort | When |
+|------|--------|------|
+| Alembic migrations | 2 hrs | Only if schema changes are needed |
+| PostgreSQL support | 2 hrs | Only if judges ask about scalability |
+| Rate limiting | 1.5 hrs | Only if deploying to public URL |
+| OpenTelemetry | 2.5 hrs | Only if judges ask about observability |
+| WebSocket batching | 1.5 hrs | Only if performance is visibly poor |
+| State persistence | 1 hr | Only if demo restarts are a problem |
 
-    subgraph Engine["AI Decision Layer"]
-        RuleEngine["Rule-Based Engine"]
-        DQN["DQN RL Agent"]
-        NSGA["NSGA-II Optimizer"]
-        Gemini["Gemini LLM"]
-        Predictor["Prediction Engine"]
-    end
+---
 
-    subgraph Data["Data Layer"]
-        PG["PostgreSQL/SQLite"]
-        Alembic["Alembic Migrations"]
-        Blockchain["Blockchain Audit Trail"]
-        RLWeights["RL Model Weights"]
-    end
+## Updated Priority Matrix
 
-    Frontend --> API
-    API --> Engine
-    Engine --> Data
+| # | Item | Judge Impact | Effort | Priority |
+|---|------|-------------|--------|----------|
+| 1 | RL Training Metrics Store | 🔥🔥🔥🔥🔥 | 2 hrs | **P0 — Do First** |
+| 2 | RL Training Dashboard | 🔥🔥🔥🔥🔥 | 2.5 hrs | **P0 — Do First** |
+| 3 | AI vs Baseline Comparison Engine | 🔥🔥🔥🔥🔥 | 2 hrs | **P0 — Do First** |
+| 4 | AI vs Baseline Dashboard | 🔥🔥🔥🔥🔥 | 2 hrs | **P0 — Do First** |
+| 5 | Decision Explainability Engine | 🔥🔥🔥🔥 | 2 hrs | **P1 — Do Second** |
+| 6 | AI Explainability View | 🔥🔥🔥🔥 | 3 hrs | **P1 — Do Second** |
+| 7 | Batch Training Mode | 🔥🔥🔥🔥 | 1.5 hrs | **P1 — Do Second** |
+| 8 | Gemini Chat Assistant | 🔥🔥🔥 | 2 hrs | **P2 — Polish** |
+| 9 | SDG Impact Counter (AI-attributed) | 🔥🔥🔥 | 1 hr | **P2 — Polish** |
+| 10 | Map AI Visualization | 🔥🔥🔥 | 1.5 hrs | **P2 — Polish** |
+| 11 | Demo Narrator | 🔥🔥 | 0.5 hrs | **P2 — Polish** |
+| 12+ | Infrastructure items | 🔥 | 8+ hrs | **P3 — Only if time** |
 
-    style Frontend fill:#1e293b,stroke:#3b82f6,color:#f1f5f9
-    style API fill:#1e293b,stroke:#f59e0b,color:#f1f5f9
-    style Engine fill:#1e293b,stroke:#ef4444,color:#f1f5f9
-    style Data fill:#1e293b,stroke:#10b981,color:#f1f5f9
+---
+
+## Execution Order (Optimized for Maximum Impact)
+
 ```
+DAY 1 (~8.5 hrs):
+ 1. RL Training Metrics Store (2 hrs)        ← Foundation for everything
+ 2. RL Training Dashboard (2.5 hrs)          ← Loss curves, epsilon, rewards
+ 3. Batch Training Mode (1.5 hrs)            ← Let judges watch learning
+ 4. AI vs Baseline Comparison Engine (2 hrs) ← Statistical proof
+ 5. Quick test: run simulation, verify data flows
+
+DAY 2 (~7 hrs):
+ 6. AI vs Baseline Dashboard (2 hrs)         ← The "prove it" slide
+ 7. Decision Explainability Engine (2 hrs)   ← Counterfactuals + attribution
+ 8. AI Explainability View (3 hrs)           ← Waterfall charts, outcomes
+
+DAY 3 (~5 hrs — polish):
+ 9. SDG Impact Counter (1 hr)                ← Tie AI to impact
+10. Map AI Visualization (1.5 hrs)           ← Visual wow factor  
+11. Gemini Chat (2 hrs)                      ← Interactive AI demo
+12. Demo Narrator (0.5 hrs)                  ← Guided story
+```
+
+**Total: ~20.5 hrs across 3 focused days.**
+
+After Day 1 alone, you can answer *"How do you know the AI works?"* with loss curves, reward trends, and statistical comparison. That's the minimum viable credibility.
+
+---
+
+## What This Achieves
+
+When a judge asks...
+
+| Question | Your Answer |
+|----------|-------------|
+| "Is this real AI or just rules?" | Pull up RL Training Dashboard — show loss curve decreasing, epsilon decaying, Q-values evolving |
+| "How do you know it works?" | Pull up AI vs Baseline — show 23% improvement with p < 0.001 |
+| "Explain a specific decision" | Pull up AI Explainer — show waterfall breakdown, counterfactual, and outcome |
+| "Does it learn over time?" | Show reward curve trending upward, exploration → exploitation shift |
+| "What happens during disruptions?" | Show "Performance by Condition" — AI improves 25-31% during disruptions vs 8% in calm |
+| "What are the SDG impacts?" | Dashboard counters directly attribute savings to AI decisions |
 
 ---
 
 ## Open Questions
 
 > [!IMPORTANT]
-> **Competition Format**: How long is the Round 2 demo? If it's 5 minutes, the Demo Narrator and SDG Counter are essential. If it's 15+ minutes, you can show deeper technical features like the RL insights and NSGA-II visualization.
+> **Demo length**: How long is the Round 2 demo? This determines whether we need the Demo Narrator (< 5 min) or can do a deeper technical walkthrough (15+ min).
 
-> [!IMPORTANT]
-> **Judging Criteria**: Do the judges weigh innovation vs. production-readiness vs. impact? This affects whether we prioritize Phase 1 (AI visibility) vs Phase 2 (production hardening) vs Phase 4 (SDG impact).
-
-> [!NOTE]
-> **Existing 167MB SQLite database**: Your `supply_chain.db` is 167MB. If you add PostgreSQL support, do you want to migrate existing data or start fresh with demo seed data?
+> [!IMPORTANT]  
+> **Live training**: Should the RL agent train from scratch during the demo (dramatic but risky — might not converge in 5 min) or start with pre-trained weights and show accumulated evidence?
 
 > [!NOTE]
-> **Driver App**: You have a separate `driver-app-main/` directory. Should any of these improvements extend to the driver mobile experience?
+> **Chart library**: Your AnalyticsView has custom SVG charts. Should we reuse those for the RL/comparison charts, or add a lightweight lib like `uPlot` (~35KB) for time-series? Custom SVG keeps deps minimal but takes longer to build.
+Answer: Use the best option and prioritize beauty
+
+> [!NOTE]
+> **Wiring orphaned views**: The audit found 6 view components not wired into navigation (FleetView, DriversView, AnalyticsView, etc.). The new views (RLTrainingView, AIExplainerView, ComparisonView) need to be added to the sidebar. Should we wire ALL views in, or keep the navigation focused on the demo story?
+Answer: Only wire the new ai views

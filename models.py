@@ -209,6 +209,8 @@ class Recommendation(Base):
     )
     action: Mapped[str] = mapped_column(String(80), index=True)
     explanation: Mapped[str] = mapped_column(Text)
+    structured_explanation: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    counterfactual: Mapped[str] = mapped_column(Text, default="")
     score_breakdown: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     baseline_cost: Mapped[float] = mapped_column(Float, default=0.0)
     recommended_cost: Mapped[float] = mapped_column(Float, default=0.0)

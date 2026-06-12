@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, date
+from typing import Any
 from pydantic import BaseModel, ConfigDict
 from schemas.core import ORMModel
 
@@ -47,3 +48,4 @@ class VehicleStateView(BaseModel):
     eta: datetime | None
     payload_units: int
     recommendation_action: str | None = None
+    decision_trace: dict[str, Any] | None = None

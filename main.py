@@ -26,7 +26,7 @@ from database import SessionLocal, init_db
 from seed_data import seed_demo_data
 
 from app_state import simulation_engine
-from routes import crud_router, simulation_router, driver_router, ai_router, logistics_router
+from routes import crud_router, simulation_router, driver_router, ai_router, logistics_router, rl_router, comparison_router
 
 from contextlib import asynccontextmanager
 
@@ -90,6 +90,8 @@ app.include_router(simulation_router)
 app.include_router(driver_router)
 app.include_router(ai_router)
 app.include_router(logistics_router)
+app.include_router(rl_router)
+app.include_router(comparison_router)
 
 
 # --- Auth ---

@@ -1,6 +1,6 @@
 import { Panel } from "../common/UiPrimitives";
 
-export function ScenariosView({ scenarios, scenarioKey, setScenarioKey, scenarioComparison, setScenarioComparison, runAction, apiFetch }) {
+export function ScenariosView({ scenarios = [], scenarioKey, setScenarioKey, scenarioComparison, setScenarioComparison, runAction, apiFetch }) {
   const selected = scenarios.find((s) => s.scenario_key === scenarioKey);
   return (
     <div className="view-scenarios" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem" }}>
@@ -15,8 +15,8 @@ export function ScenariosView({ scenarios, scenarioKey, setScenarioKey, scenario
             <p style={{ color: "#94a3b8", fontSize: "0.9rem", marginBottom: "1rem" }}>{selected.description}</p>
             <div className="scenario-meta" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
               <span style={{ background: "#334155", padding: "2px 8px", borderRadius: "4px", fontSize: "0.8rem" }}>🏙️ {selected.event_city}</span>
-              <span style={{ background: "#334155", padding: "2px 8px", borderRadius: "4px", fontSize: "0.8rem" }}>⚠️ Severity: {selected.severity.toFixed(2)}</span>
-              <span style={{ background: "#334155", padding: "2px 8px", borderRadius: "4px", fontSize: "0.8rem" }}>⏱️ ETA x{selected.eta_multiplier.toFixed(2)}</span>
+              <span style={{ background: "#334155", padding: "2px 8px", borderRadius: "4px", fontSize: "0.8rem" }}>⚠️ Severity: {(selected.severity ?? 0).toFixed(2)}</span>
+              <span style={{ background: "#334155", padding: "2px 8px", borderRadius: "4px", fontSize: "0.8rem" }}>⏱️ ETA x{(selected.eta_multiplier ?? 1).toFixed(2)}</span>
             </div>
             <div className="scenario-actions" style={{ display: "flex", gap: "0.5rem" }}>
               <button onClick={() => runAction(`/api/scenarios/${selected.scenario_key}/trigger`, {}, "Triggered")} style={{ flex: 1, padding: "0.5rem", background: "#3b82f6", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>Trigger in Live Ops</button>
@@ -40,27 +40,27 @@ export function ScenariosView({ scenarios, scenarioKey, setScenarioKey, scenario
               <tbody>
                 <tr style={{ borderBottom: "1px dashed #1e293b" }}>
                   <td style={{ padding: "0.5rem" }}>On-Time Delivery %</td>
-                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.baseline.on_time_delivery_pct.toFixed(1)}%</td>
-                  <td style={{ padding: "0.5rem", color: "#10b981", fontWeight: "bold" }}>{scenarioComparison.ai.on_time_delivery_pct.toFixed(1)}%</td>
-                  <td style={{ padding: "0.5rem" }}>+{scenarioComparison.improvement_summary.on_time_delta_pct.toFixed(1)}%</td>
+                  <td style={{ padding: "0.5rem" }}>{(scenarioComparison.baseline?.on_time_delivery_pct ?? 0).toFixed(1)}%</td>
+                  <td style={{ padding: "0.5rem", color: "#10b981", fontWeight: "bold" }}>{(scenarioComparison.ai?.on_time_delivery_pct ?? 0).toFixed(1)}%</td>
+                  <td style={{ padding: "0.5rem" }}>+{(scenarioComparison.improvement_summary?.on_time_delta_pct ?? 0).toFixed(1)}%</td>
                 </tr>
                 <tr style={{ borderBottom: "1px dashed #1e293b" }}>
                   <td style={{ padding: "0.5rem" }}>Average Delay</td>
-                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.baseline.average_delay_minutes.toFixed(1)} min</td>
-                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.ai.average_delay_minutes.toFixed(1)} min</td>
-                  <td style={{ padding: "0.5rem", color: "#10b981" }}>-{scenarioComparison.improvement_summary.delay_reduction_minutes.toFixed(1)} min</td>
+                  <td style={{ padding: "0.5rem" }}>{(scenarioComparison.baseline?.average_delay_minutes ?? 0).toFixed(1)} min</td>
+                  <td style={{ padding: "0.5rem" }}>{(scenarioComparison.ai?.average_delay_minutes ?? 0).toFixed(1)} min</td>
+                  <td style={{ padding: "0.5rem", color: "#10b981" }}>-{(scenarioComparison.improvement_summary?.delay_reduction_minutes ?? 0).toFixed(1)} min</td>
                 </tr>
                 <tr style={{ borderBottom: "1px dashed #1e293b" }}>
                   <td style={{ padding: "0.5rem" }}>Stockouts Prevented</td>
-                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.baseline.stockouts_prevented}</td>
-                  <td style={{ padding: "0.5rem", color: "#f59e0b", fontWeight: "bold" }}>{scenarioComparison.ai.stockouts_prevented}</td>
-                  <td style={{ padding: "0.5rem" }}>+{scenarioComparison.improvement_summary.stockout_delta}</td>
+                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.baseline?.stockouts_prevented ?? 0}</td>
+                  <td style={{ padding: "0.5rem", color: "#f59e0b", fontWeight: "bold" }}>{scenarioComparison.ai?.stockouts_prevented ?? 0}</td>
+                  <td style={{ padding: "0.5rem" }}>+{scenarioComparison.improvement_summary?.stockout_delta ?? 0}</td>
                 </tr>
                 <tr style={{ borderBottom: "1px dashed #1e293b" }}>
                   <td style={{ padding: "0.5rem" }}>Overflow Events</td>
-                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.baseline.overflow_events}</td>
-                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.ai.overflow_events}</td>
-                  <td style={{ padding: "0.5rem", color: "#10b981" }}>-{scenarioComparison.improvement_summary.overflow_reduction}</td>
+                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.baseline?.overflow_events ?? 0}</td>
+                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.ai?.overflow_events ?? 0}</td>
+                  <td style={{ padding: "0.5rem", color: "#10b981" }}>-{scenarioComparison.improvement_summary?.overflow_reduction ?? 0}</td>
                 </tr>
               </tbody>
             </table>
@@ -68,15 +68,15 @@ export function ScenariosView({ scenarios, scenarioKey, setScenarioKey, scenario
             <div style={{ display: "flex", gap: "1rem", background: "#0f172a", padding: "1rem", borderRadius: "8px" }}>
               <div style={{ flex: 1, textAlign: "center" }}>
                 <div style={{ color: "#94a3b8", fontSize: "0.8rem", textTransform: "uppercase" }}>CO2 Emissions Saved</div>
-                <div style={{ color: "#10b981", fontSize: "1.5rem", fontWeight: "bold" }}>{scenarioComparison.ai.co2_saved_kg.toFixed(1)} kg</div>
+                <div style={{ color: "#10b981", fontSize: "1.5rem", fontWeight: "bold" }}>{(scenarioComparison.ai?.co2_saved_kg ?? 0).toFixed(1)} kg</div>
               </div>
               <div style={{ flex: 1, textAlign: "center", borderLeft: "1px solid #334155" }}>
                 <div style={{ color: "#94a3b8", fontSize: "0.8rem", textTransform: "uppercase" }}>Idle Time Prevented</div>
-                <div style={{ color: "#3b82f6", fontSize: "1.5rem", fontWeight: "bold" }}>{scenarioComparison.ai.idle_minutes_prevented.toFixed(1)} min</div>
+                <div style={{ color: "#3b82f6", fontSize: "1.5rem", fontWeight: "bold" }}>{(scenarioComparison.ai?.idle_minutes_prevented ?? 0).toFixed(1)} min</div>
               </div>
               <div style={{ flex: 1, textAlign: "center", borderLeft: "1px solid #334155" }}>
                 <div style={{ color: "#94a3b8", fontSize: "0.8rem", textTransform: "uppercase" }}>Total Reroutes</div>
-                <div style={{ color: "#f59e0b", fontSize: "1.5rem", fontWeight: "bold" }}>{scenarioComparison.ai.reroute_count}</div>
+                <div style={{ color: "#f59e0b", fontSize: "1.5rem", fontWeight: "bold" }}>{scenarioComparison.ai?.reroute_count ?? 0}</div>
               </div>
             </div>
           </div>

@@ -82,7 +82,7 @@ class DataFusionService:
             existing_edge.time_minutes = edge.time
             existing_edge.risk = edge.risk
             existing_edge.distance_km = edge.distance_km
-            existing_edge.capacity_units = int(edge.capacity or edge.capacity_units or 0) or edge.capacity_units
+            existing_edge.capacity_units = max(int(edge.capacity or edge.capacity_units or 0), 0)
             existing_edge.bidirectional = edge.bidirectional
             existing_edge.constraints = {
                 **dict(edge.constraints),

@@ -16,6 +16,8 @@ class RecommendationRead(ORMModel):
     recommended_destination_id: int | None
     action: str
     explanation: str
+    structured_explanation: dict[str, Any] = {}
+    counterfactual: str = ""
     score_breakdown: dict[str, Any]
     baseline_cost: float
     recommended_cost: float
