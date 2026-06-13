@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { Input, Panel, Select } from "../common/UiPrimitives";
+import "./EventsLogView.css";
+
 
 function getEventIcon(eventType) {
   const iconMap = {
@@ -103,7 +105,8 @@ export function EventsLogView({ importEvents, events = [] }) {
   return (
     <section className="events-log-layout" aria-label="Events Log">
       {/* Header with Import Controls */}
-      <Panel title="Events Log">
+      <section className="dashboard-panel" aria-label="Events Log">
+        <h2 className="dashboard-panel-title">{"Events Log"}</h2>
         <div className="import-controls" role="group" aria-label="Import tools">
           <button className="primary-btn" onClick={() => importEvents(false)}>
             📥 Import Event Replay
@@ -112,10 +115,11 @@ export function EventsLogView({ importEvents, events = [] }) {
             📰 Full News Import
           </button>
         </div>
-      </Panel>
+      </section>
 
       {/* Filters */}
-      <Panel title="Filters">
+      <section className="dashboard-panel" aria-label="Filters">
+        <h2 className="dashboard-panel-title">{"Filters"}</h2>
         <div className="filter-row" role="search" aria-label="Filter events">
           <Select
             label="Event Type"
@@ -174,11 +178,12 @@ export function EventsLogView({ importEvents, events = [] }) {
         <div className="filter-info" role="status" aria-live="polite">
           Showing {filteredEvents.length} of {events.length} events
         </div>
-      </Panel>
+      </section>
 
       {/* Events Timeline */}
       <div className="events-container">
-        <Panel title={`Events (${filteredEvents.length})`}>
+        <section className="dashboard-panel" aria-label={`Events (${filteredEvents.length})`}>
+        <h2 className="dashboard-panel-title">{{`Events (${filteredEvents.length}}</h2>
           {filteredEvents.length === 0 ? (
             <p className="empty" role="status">No events match your filters.</p>
           ) : (
@@ -346,7 +351,7 @@ export function EventsLogView({ importEvents, events = [] }) {
               })}
             </ul>
           )}
-        </Panel>
+        </section>
       </div>
     </section>
   );

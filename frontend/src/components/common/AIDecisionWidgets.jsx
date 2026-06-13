@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./AIDecisionWidgets.css";
 
 function emptyText(value, fallback = "-") {
   return value === null || value === undefined || value === "" ? fallback : value;
@@ -10,8 +11,8 @@ function emptyText(value, fallback = "-") {
 export function AIDecisionPanel({ decision, confidence }) {
   const safeDecision = decision ?? {
     title: "Monitoring active logistics routes",
-    reason: "Waiting for the next AI route decision.",
-    impact: ["No route change recommended yet"],
+    reason: "Awaiting next optimization opportunity.",
+    impact: ["No route changes currently required"],
     confidence: 92,
   };
   const impactItems = Array.isArray(safeDecision.impact) ? safeDecision.impact : [safeDecision.impact];
@@ -38,11 +39,10 @@ export function AIDecisionPanel({ decision, confidence }) {
     resolvedConfidence >= 85 ? "#86efac" : resolvedConfidence >= 65 ? "#fbbf24" : "#fca5a5";
 
   return (
-    <article className={`decision-explanation-panel ${isNew ? "decision-flash" : ""}`} aria-label="Latest AI Decision">
+    <article className={`decision-explanation-panel ${isNew ? "decision-flash" : ""}`} aria-label="Latest Recommendation">
       <header className="decision-panel-topline">
         <span className="decision-kicker">
-          <span className="decision-kicker-dot" />
-          Latest AI Decision
+          Latest Recommendation
         </span>
         <span
           className="ai-confidence-badge"
@@ -52,8 +52,7 @@ export function AIDecisionPanel({ decision, confidence }) {
             borderColor: confidenceBorder,
           }}
         >
-          <span className="confidence-pulse" style={{ background: confidenceColor }} />
-          AI Confidence: {resolvedConfidence}%
+          Confidence Score: {resolvedConfidence}%
         </span>
       </header>
 
@@ -95,8 +94,8 @@ export function RouteComparisonBlock({ comparison, previousRoute }) {
         <span className="route-compare-eyebrow">Route Comparison</span>
       </header>
       <div className="route-compare-cards-row">
-        <section className="route-compare-card before" aria-label="Before AI Recommendation">
-          <span className="compare-label">Before</span>
+        <section className="route-compare-card before" aria-label="Original Plan">
+          <span className="compare-label">Original Plan</span>
           <strong>{before.label}</strong>
           <div className="compare-metrics">
             <span className="compare-cost">{before.cost}</span>

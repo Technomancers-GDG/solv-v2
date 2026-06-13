@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { Input, Panel, Select } from "../common/UiPrimitives";
+import "./RecommendationsLogView.css";
+
 
 function getActionIcon(action) {
   const actionLower = action?.toLowerCase() || "";
@@ -133,7 +135,8 @@ export function RecommendationsLogView({
   return (
     <section className="recommendations-log-layout" aria-label="Recommendations Log">
       {/* Filters */}
-      <Panel title="Filters & Sort">
+      <section className="dashboard-panel" aria-label="Filters & Sort">
+        <h2 className="dashboard-panel-title">{"Filters & Sort"}</h2>
         <div className="filter-row" role="search" aria-label="Filter recommendations">
           <Select
             label="Status"
@@ -194,10 +197,11 @@ export function RecommendationsLogView({
         <div className="filter-info" role="status" aria-live="polite">
           Showing {filteredRecs.length} of {recommendations.length} recommendations
         </div>
-      </Panel>
+      </section>
 
       {/* Recommendations List */}
-      <Panel title={`Recommendations (${filteredRecs.length})`}>
+      <section className="dashboard-panel" aria-label={`Recommendations (${filteredRecs.length})`}>
+        <h2 className="dashboard-panel-title">{{`Recommendations (${filteredRecs.length}}</h2>
         {filteredRecs.length === 0 ? (
           <p className="empty" role="status">No recommendations match your filters.</p>
         ) : (
@@ -450,7 +454,7 @@ export function RecommendationsLogView({
             )}
           </div>
         )}
-      </Panel>
+      </section>
     </section>
   );
 }

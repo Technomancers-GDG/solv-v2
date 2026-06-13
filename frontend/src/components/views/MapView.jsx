@@ -4,6 +4,8 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
 import { Panel, Select } from "../common/UiPrimitives";
+import "./MapView.css";
+
 
 const DEFAULT_CENTER = [22.5937, 78.9629];
 const DEFAULT_ZOOM = 5;
@@ -365,7 +367,8 @@ export function MapView({
 
   return (
     <section className="map-layout" aria-label="Map Dashboard">
-      <Panel title="Route & Facility Map with Risk Heatmap">
+      <section className="dashboard-panel" aria-label="Route & Facility Map with Risk Heatmap">
+        <h2 className="dashboard-panel-title">{"Route & Facility Map with Risk Heatmap"}</h2>
         <div className="map-controls" role="group" aria-label="Map filters">
           <div className="control-row">
             <Select label="Filter Vehicle" value={filterVehicleId} options={[["", "All Vehicles"], ...liveRoutes.map((r) => [String(r.vehicleId), r.identifier])]} onChange={(value) => { setFilterVehicleId(value); setHighlightedVehicleId(value ? String(value) : ""); }} />
@@ -542,9 +545,10 @@ export function MapView({
           </dl>
           {selectedRoute ? <div className="selected-route-meta" role="status" aria-live="polite">Selected route: <strong>{selectedRoute.identifier}</strong> ({selectedRoute.routeSource})</div> : null}
         </aside>
-      </Panel>
+      </section>
 
-      <Panel title="Active Routes">
+      <section className="dashboard-panel" aria-label="Active Routes">
+        <h2 className="dashboard-panel-title">{"Active Routes"}</h2>
         {visibleRoutes.length === 0 ? <p className="empty" role="status">No active routes to display.</p> : (
           <ul className="routes-list" aria-label="List of active routes">
             {visibleRoutes.map((route) => (
@@ -562,9 +566,10 @@ export function MapView({
             ))}
           </ul>
         )}
-      </Panel>
+      </section>
 
-      <Panel title="Facility Network">
+      <section className="dashboard-panel" aria-label="Facility Network">
+        <h2 className="dashboard-panel-title">{"Facility Network"}</h2>
         <div className="facility-summary">
           <h4>Facilities by City</h4>
           <ul className="cities-grid" aria-label="Facilities distributed by city">
@@ -582,10 +587,11 @@ export function MapView({
             ))}
           </ul>
         </div>
-      </Panel>
+      </section>
 
       {showDisruptions && (
-        <Panel title="Active Disruption Zones">
+        <section className="dashboard-panel" aria-label="Active Disruption Zones">
+        <h2 className="dashboard-panel-title">{"Active Disruption Zones"}</h2>
           {disruptionEvents.length === 0 ? <p className="empty" role="status">No weather or news disruptions exceed the alert threshold right now.</p> : (
             <ul className="disruption-zones" aria-label="List of active disruptions">
               {disruptionEvents.map((event, index) => (
@@ -599,7 +605,7 @@ export function MapView({
               ))}
             </ul>
           )}
-        </Panel>
+        </section>
       )}
     </section>
   );

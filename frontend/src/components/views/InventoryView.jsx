@@ -1,14 +1,17 @@
 import { Panel } from "../common/UiPrimitives";
+import "./InventoryView.css";
+
 
 /**
  * InventoryView — Demand forecasts and proactive dispatch recommendations.
  */
 export function InventoryView({ inventoryForecast, proactiveDispatches, facilityLookup }) {
   return (
-    <section className="view-inventory" aria-label="Inventory Intelligence">
+    <section className="dashboard-view" aria-label="Inventory Intelligence">
       <div className="inventory-grid">
         {/* Demand Forecasts */}
-        <Panel title="Demand Forecasts">
+        <section className="dashboard-panel" aria-label="Demand Forecasts">
+        <h2 className="dashboard-panel-title">{"Demand Forecasts"}</h2>
           <ul className="forecast-list" aria-label="Facility demand forecasts">
             {inventoryForecast.map((f, i) => (
               <li className="forecast-card" key={i}>
@@ -30,10 +33,11 @@ export function InventoryView({ inventoryForecast, proactiveDispatches, facility
               </li>
             ))}
           </ul>
-        </Panel>
+        </section>
 
         {/* Proactive Dispatch Recommendations */}
-        <Panel title="Proactive Dispatch Recommendations">
+        <section className="dashboard-panel" aria-label="Proactive Dispatch Recommendations">
+        <h2 className="dashboard-panel-title">{"Proactive Dispatch Recommendations"}</h2>
           {proactiveDispatches.length === 0 ? (
             <p className="empty">All facilities adequately stocked.</p>
           ) : (
@@ -50,7 +54,7 @@ export function InventoryView({ inventoryForecast, proactiveDispatches, facility
               ))}
             </ul>
           )}
-        </Panel>
+        </section>
       </div>
     </section>
   );

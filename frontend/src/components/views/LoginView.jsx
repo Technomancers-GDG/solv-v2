@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { signInWithGoogle } from "../../firebase";
+import "./LoginView.css";
+
 
 /**
  * LoginView — Full-screen authentication gate.

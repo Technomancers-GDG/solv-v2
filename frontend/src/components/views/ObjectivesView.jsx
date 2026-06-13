@@ -1,9 +1,10 @@
+import "./ObjectivesView.css";
 /**
  * ObjectivesView — Delivery objective lane cards.
  */
 export function ObjectivesView({ objectives, facilityLookup }) {
   return (
-    <section className="view-objectives" aria-label="Delivery Objectives">
+    <section className="dashboard-view" aria-label="Delivery Objectives">
       <ul className="lane-stack" aria-label="Objective list">
         {objectives.map((o) => (
           <li className="lane-card" key={o.id}>

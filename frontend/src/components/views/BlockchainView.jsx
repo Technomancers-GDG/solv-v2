@@ -1,12 +1,15 @@
 import { Panel } from "../common/UiPrimitives";
+import "./BlockchainView.css";
+
 
 /**
  * BlockchainView — Immutable audit chain with integrity verification.
  */
 export function BlockchainView({ auditChain, blockchainVerify }) {
   return (
-    <section className="view-blockchain" aria-label="Blockchain Audit">
-      <Panel title="Immutable Audit Chain">
+    <section className="dashboard-view" aria-label="Blockchain Audit">
+      <section className="dashboard-panel" aria-label="Immutable Audit Chain">
+        <h2 className="dashboard-panel-title">{"Immutable Audit Chain"}</h2>
         {/* Chain integrity status */}
         {blockchainVerify && (
           <div className={`chain-status ${blockchainVerify.valid ? "valid" : "invalid"}`} role="status" aria-live="polite">
@@ -33,7 +36,7 @@ export function BlockchainView({ auditChain, blockchainVerify }) {
             </li>
           ))}
         </ol>
-      </Panel>
+      </section>
     </section>
   );
 }

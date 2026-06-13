@@ -1,9 +1,10 @@
-import { Panel, MetricCard, ProgressBar } from "../common/UiPrimitives";
+import { Panel, MetricCard as StatsCard, ProgressBar } from "../common/UiPrimitives";
 import { AIActivityFeed, AIDecisionPanel, RouteComparisonBlock } from "../common/AIDecisionWidgets";
+import "./DashboardView.css";
 
 /**
- * DashboardView — Primary command center overview.
- * Shows KPI metrics, AI decision engine status, capacity watch,
+ * DashboardView — Primary operations overview.
+ * Shows KPI metrics, operations status, capacity status,
  * proactive dispatches, risk forecast, and audit chain.
  */
 export function DashboardView({ metrics, criticalFacilities, proactiveDispatches, riskForecast, auditChain, blockchainVerify, facilityLookup, aiActivity, latestDecision, previousRoute, activityFeed }) {
@@ -21,22 +22,28 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
   const confidence = latestDecision?.confidence ?? (rl?.enabled ? 100 - Math.round((rl.epsilon ?? 0.08) * 100) : 92);
 
   return (
-    <section className="view-dashboard" aria-label="Dashboard Overview">
+    <main className="dashboard-view" aria-label="Operations Overview">
+      <header className="dashboard-header" style={{ marginBottom: '24px' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>Operations Overview</h1>
+        <p style={{ color: '#64748b' }}>Monitor your network performance and ongoing routing operations.</p>
+      </header>
+
       {/* KPI Metrics Grid */}
-      <div className="metrics-grid" role="list" aria-label="Key performance indicators">
-        <MetricCard label="Financial Costs Saved (AI)" value={`${formatINR(costsSaved)} saved`} context={`vs ${formatINR(estimatedBaseline)} baseline`} tone="green" />
-        <MetricCard label="Operational Costs" value={formatINR(costsIncurred)} context={`road-only baseline ${formatINR(estimatedBaseline)}`} tone="coral" />
-        <MetricCard label="Critical Deliveries Saved" value={metrics?.critical_deliveries_saved ?? 0} context={`${metrics?.reroute_count ?? 0} AI reroutes considered`} tone="teal" />
-        <MetricCard label="Stockouts Prevented" value={metrics?.stockouts_prevented ?? 0} context="vs no proactive dispatch baseline" tone="amber" />
-        <MetricCard label="Beneficiary Locations" value={metrics?.beneficiary_locations_served ?? 0} tone="steel" />
-        <MetricCard label="Wastage Prevented" value={`${Number(metrics?.spoilage_or_wastage_prevented ?? 0).toFixed(0)} units`} tone="coral" />
-        <MetricCard label="CO₂ Saved" value={`${co2Saved.toFixed(1)} kg`} context={co2Baseline ? `vs ${co2Baseline.toFixed(1)} kg road baseline` : "baseline estimated from road-only route"} tone="green" />
-        <MetricCard label="On-Time Delivery" value={`${metrics?.on_time_delivery_pct ?? 0}%`} context="compared with delayed-route baseline" tone="blue" />
-      </div>
+      <section className="metrics-grid" aria-label="Key performance indicators">
+        <StatsCard label="Financial Costs Saved" value={`${formatINR(costsSaved)} saved`} context={`vs ${formatINR(estimatedBaseline)} baseline`} tone="green" />
+        <StatsCard label="Operational Costs" value={formatINR(costsIncurred)} context={`road-only baseline ${formatINR(estimatedBaseline)}`} tone="coral" />
+        <StatsCard label="Critical Deliveries Saved" value={metrics?.critical_deliveries_saved ?? 0} context={`${metrics?.reroute_count ?? 0} Alternative routes checked`} tone="teal" />
+        <StatsCard label="Stockouts Prevented" value={metrics?.stockouts_prevented ?? 0} context="vs no proactive dispatch baseline" tone="amber" />
+        <StatsCard label="Beneficiary Locations" value={metrics?.beneficiary_locations_served ?? 0} tone="steel" />
+        <StatsCard label="Wastage Prevented" value={`${Number(metrics?.spoilage_or_wastage_prevented ?? 0).toFixed(0)} units`} tone="coral" />
+        <StatsCard label="CO₂ Saved" value={`${co2Saved.toFixed(1)} kg`} context={co2Baseline ? `vs ${co2Baseline.toFixed(1)} kg road baseline` : "baseline estimated from road-only route"} tone="green" />
+        <StatsCard label="On-Time Delivery" value={`${metrics?.on_time_delivery_pct ?? 0}%`} context="compared with delayed-route baseline" tone="blue" />
+      </section>
 
       <div className="dashboard-grid">
         {/* AI Decisions Panel */}
-        <Panel title="🧠 AI Decision Engine — Live" className="ai-panel">
+        <section className="dashboard-panel" aria-label="Operations Overview">
+          <h2 className="dashboard-panel-title">Operations Overview</h2>
           {aiActivity ? (
             <div className="ai-activity-panel">
               {/* AI stats summary */}
@@ -131,12 +138,13 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
               </div>
             </div>
           )}
-        </Panel>
+        </section>
 
         {/* Critical Capacity Watch */}
-        <Panel title="Critical Capacity Watch">
+        <section className="dashboard-panel" aria-label="Capacity Status">
+          <h2 className="dashboard-panel-title">Capacity Status</h2>
           {criticalFacilities.length === 0 ? (
-            <p className="empty">No facility above 70% utilization.</p>
+            <p className="empty-state">No facility is currently above 70% utilization.</p>
           ) : (
             <ul className="util-list" aria-label="Facilities above 70% utilization">
               {criticalFacilities.map((f) => (
@@ -154,12 +162,13 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
               ))}
             </ul>
           )}
-        </Panel>
+        </section>
 
         {/* Proactive Dispatch AI */}
-        <Panel title="Proactive Dispatch AI">
+        <section className="dashboard-panel" aria-label="Proactive Dispatch Planning">
+          <h2 className="dashboard-panel-title">Proactive Dispatch Planning</h2>
           {proactiveDispatches.length === 0 ? (
-            <p className="empty">No proactive dispatches needed.</p>
+            <p className="empty-state">No proactive dispatches needed at this time.</p>
           ) : (
             <ul className="dispatch-list" aria-label="Proactive dispatch recommendations">
               {proactiveDispatches.slice(0, 5).map((d, i) => (
@@ -172,10 +181,11 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
               ))}
             </ul>
           )}
-        </Panel>
+        </section>
 
         {/* Risk Forecast */}
-        <Panel title="Risk Forecast (12h)" className="full-width">
+        <section className="dashboard-panel full-width" aria-label="Risk Forecast (12h)">
+          <h2 className="dashboard-panel-title">Risk Forecast (12h)</h2>
           <div className="risk-grid" role="list" aria-label="12-hour risk forecast by city">
             {riskForecast.slice(0, 8).map((rf, i) => (
               <article className={`risk-card severity-${rf.risk > 0.6 ? "high" : rf.risk > 0.3 ? "medium" : "low"}`} key={i} aria-label={`${rf.city}: ${(rf.risk * 100).toFixed(0)}% risk`}>
@@ -189,10 +199,11 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
               </article>
             ))}
           </div>
-        </Panel>
+        </section>
 
         {/* Recent Audit Blocks */}
-        <Panel title="Recent Audit Blocks">
+        <section className="dashboard-panel" aria-label="Recent Audit Blocks">
+          <h2 className="dashboard-panel-title">Recent Audit Blocks</h2>
           <ul className="audit-list" aria-label="Blockchain audit trail">
             {auditChain.slice(-5).map((b, i) => (
               <li className="audit-item" key={i}>
@@ -208,8 +219,8 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
               {blockchainVerify.valid ? "\u2713 Chain Verified" : "\u26A0 Tampering Detected"} • {blockchainVerify.block_count} blocks
             </div>
           )}
-        </Panel>
+        </section>
       </div>
-    </section>
+    </main>
   );
 }

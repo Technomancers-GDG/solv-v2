@@ -2,6 +2,7 @@
  * UiPrimitives — Shared design-system components.
  * Each primitive uses semantic HTML and accessibility attributes.
  */
+import "./UiPrimitives.css";
 
 /** Panel — Card container with optional title. Uses <section> for landmark. */
 export function Panel({ title, children, className = "" }) {

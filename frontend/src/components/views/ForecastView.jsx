@@ -1,12 +1,15 @@
 import { Panel } from "../common/UiPrimitives";
+import "./ForecastView.css";
+
 
 /**
  * ForecastView — 12-hour predictive risk heatmap table.
  */
 export function ForecastView({ riskForecast }) {
   return (
-    <section className="view-forecast" aria-label="Risk Forecast">
-      <Panel title="Predictive Risk Heatmap (12h forecast)">
+    <section className="dashboard-view" aria-label="Risk Forecast">
+      <section className="dashboard-panel" aria-label="Predictive Risk Heatmap (12h forecast)">
+        <h2 className="dashboard-panel-title">{"Predictive Risk Heatmap (12h forecast)"}</h2>
         <div className="heatmap-table" role="region" aria-label="Risk heatmap table" tabIndex={0}>
           <table>
             <thead>
@@ -36,7 +39,7 @@ export function ForecastView({ riskForecast }) {
             </tbody>
           </table>
         </div>
-      </Panel>
+      </section>
     </section>
   );
 }

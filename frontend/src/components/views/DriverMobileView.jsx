@@ -1,4 +1,6 @@
 import { Panel } from "../common/UiPrimitives";
+import "./DriverMobileView.css";
+
 
 /**
  * DriverMobileView — Mobile-first driver interface with voice incident
@@ -33,10 +35,11 @@ export function DriverMobileView({
   };
 
   return (
-    <section className="view-driver" aria-label="Driver Mobile Interface">
+    <section className="dashboard-view" aria-label="Driver Mobile Interface">
       <div className="driver-grid">
         {/* Driver selection */}
-        <Panel title="Driver Selection">
+        <section className="dashboard-panel" aria-label="Driver Selection">
+        <h2 className="dashboard-panel-title">{"Driver Selection"}</h2>
           <div className="field">
             <label htmlFor="driver-select">Active driver</label>
             <select id="driver-select" value={selectedDriverId} onChange={(e) => setSelectedDriverId(e.target.value)} className="driver-select">
@@ -50,10 +53,11 @@ export function DriverMobileView({
               <div><dt>Accept Bias</dt><dd>{(selectedDriver.accept_recommendation_bias * 100).toFixed(0)}%</dd></div>
             </dl>
           )}
-        </Panel>
+        </section>
 
         {/* Voice incident reporting */}
-        <Panel title="Voice Incident Reporting">
+        <section className="dashboard-panel" aria-label="Voice Incident Reporting">
+        <h2 className="dashboard-panel-title">{"Voice Incident Reporting"}</h2>
           <div className="voice-panel" role="group" aria-label="Voice incident controls">
             <button
               className={`voice-btn ${voice.isListening ? "listening" : ""}`}
@@ -80,10 +84,11 @@ export function DriverMobileView({
             </div>
             <button onClick={submitVoiceIncident} disabled={!voice.transcript} aria-label="Submit voice incident report">Report Incident</button>
           </div>
-        </Panel>
+        </section>
 
         {/* Pending instructions */}
-        <Panel title="Pending Instructions">
+        <section className="dashboard-panel" aria-label="Pending Instructions">
+        <h2 className="dashboard-panel-title">{"Pending Instructions"}</h2>
           {driverMobile?.pending_instructions?.length === 0 ? (
             <p className="empty">No pending instructions.</p>
           ) : (
@@ -103,7 +108,7 @@ export function DriverMobileView({
               ))}
             </ul>
           )}
-        </Panel>
+        </section>
       </div>
     </section>
   );

@@ -1,12 +1,15 @@
 import { Panel } from "../common/UiPrimitives";
+import "./CloudView.css";
+
 
 /**
  * CloudView — Google Cloud integration health dashboard.
  */
 export function CloudView({ cloudHealth }) {
   return (
-    <section className="view-cloud" aria-label="Cloud Integration Health">
-      <Panel title="Google Cloud Integration Health">
+    <section className="dashboard-view" aria-label="Cloud Integration Health">
+      <section className="dashboard-panel" aria-label="Google Cloud Integration Health">
+        <h2 className="dashboard-panel-title">{"Google Cloud Integration Health"}</h2>
         {cloudHealth ? (
           <div className="cloud-grid" role="list" aria-label="Cloud service statuses">
             {Object.entries(cloudHealth).filter(([k]) => k !== "overall").map(([service, info]) => (
@@ -23,7 +26,7 @@ export function CloudView({ cloudHealth }) {
             </div>
           </div>
         ) : <p className="empty">Cloud health unavailable.</p>}
-      </Panel>
+      </section>
     </section>
   );
 }

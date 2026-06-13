@@ -1,4 +1,6 @@
-import { Panel, MetricCard, ProgressBar } from "../common/UiPrimitives";
+import { Panel, MetricCard as StatsCard, ProgressBar } from "../common/UiPrimitives";
+import "./LiveOpsView.css";
+
 
 /**
  * LiveOpsView — Real-time operational monitoring.
@@ -6,17 +8,18 @@ import { Panel, MetricCard, ProgressBar } from "../common/UiPrimitives";
  */
 export function LiveOpsView({ metrics, deferredVehicles, objectiveLookup }) {
   return (
-    <section className="view-liveops" aria-label="Live Operations">
+    <section className="dashboard-view" aria-label="Live Operations">
       {/* Operational KPIs */}
       <div className="ops-metrics" role="list" aria-label="Operational metrics">
-        <MetricCard label="Active Trucks" value={metrics?.active_trucks ?? 0} tone="blue" />
-        <MetricCard label="Queued" value={metrics?.queued_trucks ?? 0} tone="amber" />
-        <MetricCard label="Reroutes" value={metrics?.reroute_count ?? 0} tone="purple" />
-        <MetricCard label="Idle Prevented" value={`${(metrics?.idle_minutes_prevented ?? 0).toFixed(0)} min`} tone="green" />
+        <StatsCard label="Active Trucks" value={metrics?.active_trucks ?? 0} tone="blue" />
+        <StatsCard label="Queued" value={metrics?.queued_trucks ?? 0} tone="amber" />
+        <StatsCard label="Reroutes" value={metrics?.reroute_count ?? 0} tone="purple" />
+        <StatsCard label="Idle Prevented" value={`${(metrics?.idle_minutes_prevented ?? 0).toFixed(0)} min`} tone="green" />
       </div>
 
       {/* Vehicle progress table */}
-      <Panel title="Vehicle Progress">
+      <section className="dashboard-panel" aria-label="Vehicle Progress">
+        <h2 className="dashboard-panel-title">{"Vehicle Progress"}</h2>
         <div className="table-wrap" role="region" aria-label="Vehicle progress table" tabIndex={0}>
           <table>
             <thead>
@@ -45,7 +48,7 @@ export function LiveOpsView({ metrics, deferredVehicles, objectiveLookup }) {
             </tbody>
           </table>
         </div>
-      </Panel>
+      </section>
     </section>
   );
 }

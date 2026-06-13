@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { Input, Panel, Select } from "../common/UiPrimitives";
+import "./FleetView.css";
+
 
 const statusOptions = [
   "idle",
@@ -133,7 +135,8 @@ export function FleetView({
 
   return (
     <section className="grid-two" aria-label="Fleet Management">
-      <Panel title="Vehicle Fleet">
+      <section className="dashboard-panel" aria-label="Vehicle Fleet">
+        <h2 className="dashboard-panel-title">{"Vehicle Fleet"}</h2>
         <div className="filter-row" role="search" aria-label="Filter fleet">
           <Select
             label="Status"
@@ -294,9 +297,10 @@ export function FleetView({
             Reset Idle to Home
           </button>
         </div>
-      </Panel>
+      </section>
 
-      <Panel title="Add Vehicle">
+      <section className="dashboard-panel" aria-label="Add Vehicle">
+        <h2 className="dashboard-panel-title">{"Add Vehicle"}</h2>
         <form className="form-grid" onSubmit={handleVehicleSubmit}>
           <Input label="Identifier" value={vehicleForm.identifier} onChange={(value) => setVehicleForm({ ...vehicleForm, identifier: value })} />
           <Input
@@ -344,7 +348,7 @@ export function FleetView({
           />
           <button type="submit">Create Vehicle</button>
         </form>
-      </Panel>
+      </section>
     </section>
   );
 }

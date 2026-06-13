@@ -1,4 +1,6 @@
 import { Panel } from "../common/UiPrimitives";
+import "./ScenariosView.css";
+
 
 /**
  * ScenariosView — Scenario replay and baseline-vs-AI comparison.
@@ -6,10 +8,11 @@ import { Panel } from "../common/UiPrimitives";
 export function ScenariosView({ scenarios, scenarioKey, setScenarioKey, scenarioComparison, setScenarioComparison, runAction, apiFetch }) {
   const selected = scenarios.find((s) => s.scenario_key === scenarioKey);
   return (
-    <section className="view-scenarios" aria-label="Scenario Analysis">
+    <section className="dashboard-view" aria-label="Scenario Analysis">
       <div className="grid-two">
         {/* Scenario selector */}
-        <Panel title="Scenario Replay">
+        <section className="dashboard-panel" aria-label="Scenario Replay">
+        <h2 className="dashboard-panel-title">{"Scenario Replay"}</h2>
           <div className="field">
             <label htmlFor="scenario-select">Choose scenario</label>
             <select id="scenario-select" value={scenarioKey} onChange={(e) => setScenarioKey(e.target.value)} className="scenario-select">
@@ -28,10 +31,11 @@ export function ScenariosView({ scenarios, scenarioKey, setScenarioKey, scenario
               </div>
             </article>
           )}
-        </Panel>
+        </section>
 
         {/* Comparison results */}
-        <Panel title="Baseline vs AI">
+        <section className="dashboard-panel" aria-label="Baseline vs AI">
+        <h2 className="dashboard-panel-title">{"Baseline vs AI"}</h2>
           {!scenarioComparison ? <p className="empty">Run comparison to view results.</p> : (
             <div className="comparison-result">
               <div className="comparison-grid" role="table" aria-label="Scenario comparison">
@@ -47,7 +51,7 @@ export function ScenariosView({ scenarios, scenarioKey, setScenarioKey, scenario
               </ul>
             </div>
           )}
-        </Panel>
+        </section>
       </div>
     </section>
   );

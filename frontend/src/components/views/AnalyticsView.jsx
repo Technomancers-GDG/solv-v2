@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { Panel } from "../common/UiPrimitives";
+import "./AnalyticsView.css";
+
 
 // Simple inline chart components (no external dependencies)
 function LineChart({ data, label, valueKey, trend }) {
@@ -205,7 +207,8 @@ export function AnalyticsView({ metrics = {}, vehicles = [], recommendations = [
   return (
     <section className="analytics-layout" aria-label="Analytics Dashboard">
       {/* Key Metrics Summary */}
-      <Panel title="Analytics Dashboard">
+      <section className="dashboard-panel" aria-label="Analytics Dashboard">
+        <h2 className="dashboard-panel-title">{"Analytics Dashboard"}</h2>
         <dl className="metrics-summary" aria-label="Key performance indicators">
           <div className="metric-card">
             <dt className="metric-label">Average On-Time Delivery</dt>
@@ -233,61 +236,67 @@ export function AnalyticsView({ metrics = {}, vehicles = [], recommendations = [
             <dd className="metric-unit">vehicles</dd>
           </div>
         </dl>
-      </Panel>
+      </section>
 
       {/* Charts Grid */}
       <div className="charts-grid" role="list" aria-label="Performance charts">
         {/* On-Time Delivery Trend */}
-        <Panel title="On-Time Delivery Trend (12 weeks)">
+        <section className="dashboard-panel" aria-label="On-Time Delivery Trend (12 weeks)">
+        <h2 className="dashboard-panel-title">{"On-Time Delivery Trend (12 weeks)"}</h2>
           <LineChart
             data={onTimeDeliveryHistory}
             label="Weekly On-Time %"
             valueKey="value"
             trend={keyMetrics.trendOnTime * 100}
           />
-        </Panel>
+        </section>
 
         {/* Warehouse Utilization */}
-        <Panel title="Warehouse Utilization (12 weeks)">
+        <section className="dashboard-panel" aria-label="Warehouse Utilization (12 weeks)">
+        <h2 className="dashboard-panel-title">{"Warehouse Utilization (12 weeks)"}</h2>
           <AreaChart
             data={warehouseUtilizationHistory}
             label="Average Utilization %"
             valueKey="value"
           />
-        </Panel>
+        </section>
 
         {/* CO2 Saved Cumulative */}
-        <Panel title="CO₂ Emissions Avoided (Cumulative)">
+        <section className="dashboard-panel" aria-label="CO₂ Emissions Avoided (Cumulative)">
+        <h2 className="dashboard-panel-title">{"CO₂ Emissions Avoided (Cumulative)"}</h2>
           <LineChart
             data={co2SavedCumulative}
             label="Cumulative CO₂ Saved (kg)"
             valueKey="value"
             trend={100}
           />
-        </Panel>
+        </section>
 
         {/* Vehicle Status Distribution */}
-        <Panel title="Current Vehicle Status Distribution">
+        <section className="dashboard-panel" aria-label="Current Vehicle Status Distribution">
+        <h2 className="dashboard-panel-title">{"Current Vehicle Status Distribution"}</h2>
           <BarChart
             data={vehicleStatusDistribution}
             label="Vehicles by Status"
             valueKey="value"
             color="accent"
           />
-        </Panel>
+        </section>
 
         {/* Recommendation Acceptance Rate */}
-        <Panel title="Recommendation Acceptance Rate (10 weeks)">
+        <section className="dashboard-panel" aria-label="Recommendation Acceptance Rate (10 weeks)">
+        <h2 className="dashboard-panel-title">{"Recommendation Acceptance Rate (10 weeks)"}</h2>
           <LineChart
             data={recommendationAcceptanceHistory}
             label="Weekly Acceptance %"
             valueKey="value"
             trend={20}
           />
-        </Panel>
+        </section>
 
         {/* Performance Summary */}
-        <Panel title="Performance Summary">
+        <section className="dashboard-panel" aria-label="Performance Summary">
+        <h2 className="dashboard-panel-title">{"Performance Summary"}</h2>
           <ul className="performance-summary" aria-label="Performance highlights">
             <li className="performance-item">
               <span className="icon" aria-hidden="true">📈</span>
@@ -321,7 +330,7 @@ export function AnalyticsView({ metrics = {}, vehicles = [], recommendations = [
               </div>
             </li>
           </ul>
-        </Panel>
+        </section>
       </div>
     </section>
   );

@@ -1,12 +1,15 @@
 import { Panel } from "../common/UiPrimitives";
+import "./EventsView.css";
+
 
 /**
  * EventsView — Active events feed with impact scoring.
  */
 export function EventsView({ events }) {
   return (
-    <section className="view-events" aria-label="Active Events">
-      <Panel title="Active Events Feed">
+    <section className="dashboard-view" aria-label="Active Events">
+      <section className="dashboard-panel" aria-label="Active Events Feed">
+        <h2 className="dashboard-panel-title">{"Active Events Feed"}</h2>
         <ul className="event-stack" aria-label="Events list">
           {events.slice(0, 20).map((e, i) => (
             <li className="event-card" key={i}>
@@ -22,7 +25,7 @@ export function EventsView({ events }) {
             </li>
           ))}
         </ul>
-      </Panel>
+      </section>
     </section>
   );
 }

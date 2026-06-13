@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Panel } from "../common/UiPrimitives";
+import "./DriversView.css";
+
 
 function driverTone(overrideRating) {
   if (overrideRating < 0.7) {
@@ -32,7 +34,8 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
 
   return (
     <section className="grid-two" aria-label="Drivers Management">
-      <Panel title="Driver Profiles">
+      <section className="dashboard-panel" aria-label="Driver Profiles">
+        <h2 className="dashboard-panel-title">{"Driver Profiles"}</h2>
         <div className="table-wrap" role="region" aria-label="Drivers table" tabIndex={0}>
           <table aria-label="List of drivers">
             <thead>
@@ -164,9 +167,10 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
             </tbody>
           </table>
         </div>
-      </Panel>
+      </section>
 
-      <Panel title="Driver Insights">
+      <section className="dashboard-panel" aria-label="Driver Insights">
+        <h2 className="dashboard-panel-title">{"Driver Insights"}</h2>
         <ul className="lane-stack" aria-label="Driver insights">
           {drivers.map((driver) => {
             const driverDecisions = decisions.filter(
@@ -194,7 +198,7 @@ export function DriversView({ drivers, vehicles, decisions, handleDriverQuickUpd
             );
           })}
         </ul>
-      </Panel>
+      </section>
     </section>
   );
 }

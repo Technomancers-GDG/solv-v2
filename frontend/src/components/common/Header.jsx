@@ -1,12 +1,14 @@
+import "./Header.css";
+
 export function Header({ onStart, onPause, onResume, onReset }) {
   return (
     <header className="hero">
       <div>
-        <p className="eyebrow">Google Solution Challenge 2026</p>
-        <h1>Resilient Essential Goods Coordination</h1>
+        <p className="eyebrow">Project Overview</p>
+        <h1>Resilient Essential Goods Operations</h1>
         <p className="hero-copy">
-          AI-assisted operations for medicines, vaccines, and relief materials during disruptions
-          across India, with explainable reroutes and beneficiary-focused impact tracking.
+          Coordinating deliveries for medicines, vaccines, and relief materials across active routes.
+          Ensuring optimal paths and tracking on-ground impacts.
         </p>
       </div>
       <div className="hero-controls" role="group" aria-label="Simulation Controls">

@@ -1,9 +1,10 @@
+import "./SettingsView.css";
 /**
  * SettingsView — User preferences (language selection).
  */
 export function SettingsView({ lang, onSwitchLang, t }) {
   return (
-    <section className="view-settings" aria-label="Settings">
+    <section className="dashboard-view" aria-label="Settings">
       <h2>{t.settings}</h2>
 
       <article className="settings-card" aria-label="Language preferences">
