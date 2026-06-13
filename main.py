@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from limiter import limiter
+
 
 try:
     import firebase_admin
@@ -52,6 +57,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 cors_origins_env = os.getenv("CORS_ORIGINS", "")
 if cors_origins_env:
     origins = [o.strip() for o in cors_origins_env.split(",")]
@@ -72,6 +80,8 @@ else:
     )
 
 demo_disruption_task: asyncio.Task | None = None
+
+app.add_middleware(SlowAPIMiddleware)
 
 
 @app.exception_handler(Exception)

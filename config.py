@@ -44,6 +44,11 @@ class Settings:
     cost_point_to_inr: float
     # Gemini
     gemini_api_key: str
+    # Groq (fallback)
+    groq_api_key: str
+    groq_models: list[str]
+    # Rate limiting
+    ai_rate_limit_per_min: int
 
 
 def _get_env(name: str, default: str) -> str:
@@ -94,6 +99,16 @@ def load_settings() -> Settings:
         cost_point_to_inr=float(_get_env("COST_POINT_TO_INR", "15.0")),
         # Gemini
         gemini_api_key=_get_env("GEMINI_API_KEY", ""),
+        # Groq (fallback)
+        groq_api_key=_get_env("GROQ_API_KEY", ""),
+        groq_models=_get_env("GROQ_MODELS", "").split(",") if _get_env("GROQ_MODELS", "") else [
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+            "mixtral-8x7b-32768",
+            "gemma2-9b-it",
+            "llama-3.2-3b-preview",
+        ],
+        ai_rate_limit_per_min=int(_get_env("AI_RATE_LIMIT_PER_MIN", "10")),
     )
 
 

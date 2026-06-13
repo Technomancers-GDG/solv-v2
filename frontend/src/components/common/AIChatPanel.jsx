@@ -1,161 +1,239 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+
+const STORAGE_KEY = "admin-chat-messages";
+const COOLDOWN_MS = 1500;
+const MAX_AGE_MS = 86400000;
+
+const QUICK_ACTIONS = [
+  "Summarize current risk",
+  "Why did AI reroute recent trucks?",
+  "What is the impact of current disruptions?",
+];
+
+function loadMessages() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const msgs = JSON.parse(raw);
+    const cutoff = Date.now() - MAX_AGE_MS;
+    return Array.isArray(msgs) ? msgs.filter(m => (m.timestamp || 0) > cutoff) : [];
+  } catch {
+    return [];
+  }
+}
 
 export function AIChatPanel({ apiFetch }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(loadMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef(null);
+  const [cooldown, setCooldown] = useState(false);
+  const bottomRef = useRef(null);
+  const abortRef = useRef(null);
+  const lastSentRef = useRef(0);
+  const genRef = useRef(0);
+  const messagesRef = useRef(messages);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   useEffect(() => {
-    scrollToBottom();
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); } catch { /* ignore */ }
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
-    
-    const userMsg = { role: "user", content: input.trim() };
-    setMessages(prev => [...prev, userMsg]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const updateLastMessage = useCallback((updater) => {
+    setMessages(prev => {
+      if (prev.length === 0) return prev;
+      const copy = [...prev];
+      copy[copy.length - 1] = updater(copy[copy.length - 1]);
+      return copy;
+    });
+  }, []);
+
+  async function sendMessage(text) {
+    const query = text.trim();
+    if (!query || isLoading || cooldown) return;
+
+    if (abortRef.current) abortRef.current.abort();
+
+    const now = Date.now();
+    if (now - lastSentRef.current < COOLDOWN_MS) return;
+    lastSentRef.current = now;
+    setCooldown(true);
+    setTimeout(() => setCooldown(false), COOLDOWN_MS);
+
+    setIsLoading(true);
     setInput("");
-    setIsLoading(true);
+
+    const userMsg = { role: "user", content: query, timestamp: Date.now() };
+    const placeholder = { role: "model", content: "", suggestions: null, error: false, timestamp: Date.now() };
+    setMessages(prev => [...prev, userMsg, placeholder]);
+
+    const history = [...messagesRef.current, userMsg].map(m => ({ role: m.role, content: m.content }));
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const gen = ++genRef.current;
+    let accumulated = "";
 
     try {
-      const response = await apiFetch("/api/ai/chat", {
+      const body = JSON.stringify({ query, history, stream: true });
+      const response = await fetch("/api/ai/chat", {
         method: "POST",
-        body: JSON.stringify({
-          query: userMsg.content,
-          history: messages.map(m => ({ role: m.role, content: m.content }))
-        })
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal: controller.signal,
       });
-      setMessages(prev => [...prev, { role: "model", content: response.response }]);
-    } catch (e) {
-      setMessages(prev => [...prev, { role: "model", content: "Error: Could not reach AI assistant." }]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      if (!response.ok) throw new Error(`Request failed: ${response.status}`);
 
-  const handleQuickAction = (query) => {
-    setInput(query);
-    setTimeout(() => {
-      // simulate enter key logic (we can't easily rely on handleSend directly since input state update is async)
-    }, 0);
-  };
-  
-  // Since input state update is async, we'll implement quick actions via a direct fetch
-  const executeQuickAction = async (query) => {
-    if (isLoading) return;
-    const userMsg = { role: "user", content: query };
-    setMessages(prev => [...prev, userMsg]);
-    setIsLoading(true);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-    try {
-      const response = await apiFetch("/api/ai/chat", {
-        method: "POST",
-        body: JSON.stringify({
-          query: userMsg.content,
-          history: messages.map(m => ({ role: m.role, content: m.content }))
-        })
-      });
-      setMessages(prev => [...prev, { role: "model", content: response.response }]);
-    } catch (e) {
-      setMessages(prev => [...prev, { role: "model", content: "Error: Could not reach AI assistant." }]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.trim() || !line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === "chunk") {
+              accumulated += event.content;
+              updateLastMessage(prev => ({ ...prev, content: accumulated }));
+            } else if (event.type === "meta") {
+              updateLastMessage(prev => ({ ...prev, suggestions: event.suggestions || null }));
+            }
+          } catch (e) { /* skip malformed SSE line */ }
+        }
+      }
+
+      updateLastMessage(prev => ({ ...prev, content: accumulated }));
+    } catch (err) {
+      if (err.name === "AbortError" || gen !== genRef.current) return;
+      updateLastMessage(prev => ({
+        ...prev,
+        content: accumulated || "Sorry, I couldn't reach the AI assistant. Please try again.",
+        error: true,
+      }));
     } finally {
-      setIsLoading(false);
+      if (gen === genRef.current) {
+        setIsLoading(false);
+        abortRef.current = null;
+      }
     }
-  };
+  }
+
+  function handleSend() { sendMessage(input); }
+
+  function handleQuickAction(text) { sendMessage(text); }
+
+  function retryLast() {
+    const lastUser = [...messagesRef.current].reverse().find(m => m.role === "user");
+    if (lastUser) sendMessage(lastUser.content);
+  }
+
+  function clearChat() {
+    setMessages([]);
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  }
+
+  const showWelcome = messages.length === 0 && !isLoading;
 
   return (
     <>
-      <button 
-        className="chat-fab" 
+      <button
+        className="chat-fab"
         onClick={() => setIsOpen(true)}
         title="SOLV Ops Assistant"
-        style={{
-          position: "fixed",
-          bottom: "20px",
-          right: "20px",
-          width: "56px",
-          height: "56px",
-          borderRadius: "50%",
-          backgroundColor: "#3b82f6",
-          color: "white",
-          border: "none",
-          boxShadow: "0 4px 12px rgba(59, 130, 246, 0.4)",
-          cursor: "pointer",
-          display: isOpen ? "none" : "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "24px",
-          zIndex: 1000
-        }}
+        style={{ display: isOpen ? "none" : "flex" }}
       >
         ✨
       </button>
 
       {isOpen && (
-        <div style={{
-          position: "fixed",
-          bottom: "20px",
-          right: "20px",
-          width: "380px",
-          height: "550px",
-          backgroundColor: "#1e293b",
-          border: "1px solid #334155",
-          borderRadius: "12px",
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-          zIndex: 1000,
-          overflow: "hidden",
-          fontFamily: "'Inter', sans-serif"
-        }}>
-          <div style={{ padding: "12px 16px", backgroundColor: "#0f172a", borderBottom: "1px solid #334155", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div className="chat-panel">
+          <div className="chat-panel-header">
+            <div className="chat-panel-title">
               <span>✨</span>
-              <span style={{ fontWeight: 600, color: "#f8fafc" }}>Ops Assistant</span>
+              <span>Ops Assistant</span>
             </div>
-            <button onClick={() => setIsOpen(false)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "20px" }}>×</button>
+            <div className="chat-panel-header-actions">
+              {messages.length > 0 && (
+                <button type="button" className="chat-clear-btn" onClick={clearChat} title="Clear chat">
+                  Clear
+                </button>
+              )}
+              <button type="button" className="chat-close-btn" onClick={() => setIsOpen(false)}>×</button>
+            </div>
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-            {messages.length === 0 && (
-              <div style={{ textAlign: "center", color: "#94a3b8", marginTop: "20px" }}>
-                <p style={{ marginBottom: "20px", lineHeight: "1.5" }}>Hello! I'm your AI supply chain assistant. How can I help you today?</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <button onClick={() => executeQuickAction("Summarize current risk")} style={{ padding: "8px", borderRadius: "6px", backgroundColor: "#334155", color: "#cbd5e1", border: "1px solid #475569", cursor: "pointer", fontSize: "0.85rem" }}>Summarize current risk</button>
-                  <button onClick={() => executeQuickAction("Why did AI reroute recent trucks?")} style={{ padding: "8px", borderRadius: "6px", backgroundColor: "#334155", color: "#cbd5e1", border: "1px solid #475569", cursor: "pointer", fontSize: "0.85rem" }}>Why did AI reroute recent trucks?</button>
-                  <button onClick={() => executeQuickAction("What is the impact of current disruptions?")} style={{ padding: "8px", borderRadius: "6px", backgroundColor: "#334155", color: "#cbd5e1", border: "1px solid #475569", cursor: "pointer", fontSize: "0.85rem" }}>Impact of current disruptions?</button>
+          <div className="chat-panel-body">
+            {showWelcome && (
+              <div className="chat-welcome">
+                <p>Hello! I'm your AI supply chain assistant. How can I help you today?</p>
+                <div className="chat-welcome-actions">
+                  {QUICK_ACTIONS.map(action => (
+                    <button key={action} type="button" className="chat-welcome-btn" onClick={() => handleQuickAction(action)}>
+                      {action}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
+
             {messages.map((msg, i) => (
-              <div key={i} style={{ alignSelf: msg.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%", backgroundColor: msg.role === "user" ? "#3b82f6" : "#334155", color: "#f8fafc", padding: "10px 14px", borderRadius: "12px", borderBottomRightRadius: msg.role === "user" ? "2px" : "12px", borderBottomLeftRadius: msg.role === "model" ? "2px" : "12px", fontSize: "0.9rem", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-                {msg.content}
+              <div key={msg.timestamp + i} className={`chat-msg chat-msg--${msg.role}`}>
+                <div className="chat-bubble">
+                  {msg.content ? (
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  ) : isLoading && i === messages.length - 1 && msg.role === "model" ? (
+                    <span className="chat-thinking">Typing...</span>
+                  ) : null}
+                </div>
+
+                {!isLoading && msg.role === "model" && msg.suggestions?.length > 0 && (
+                  <div className="chat-suggestions">
+                    {msg.suggestions.map((s, j) => (
+                      <button key={j} type="button" className="chat-chip" onClick={() => handleQuickAction(s)}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {msg.error && !isLoading && (
+                  <button type="button" className="chat-retry-btn" onClick={retryLast}>
+                    ↻ Retry
+                  </button>
+                )}
               </div>
             ))}
-            {isLoading && (
-              <div style={{ alignSelf: "flex-start", backgroundColor: "#334155", color: "#94a3b8", padding: "10px 14px", borderRadius: "12px", borderBottomLeftRadius: "2px", fontSize: "0.9rem" }}>
-                Typing...
-              </div>
-            )}
-            <div ref={messagesEndRef} />
+
+            <div ref={bottomRef} />
           </div>
 
-          <div style={{ padding: "12px", borderTop: "1px solid #334155", display: "flex", gap: "8px", backgroundColor: "#0f172a" }}>
-            <input 
-              type="text" 
+          <div className="chat-panel-input">
+            <input
+              type="text"
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleSend()}
               placeholder="Ask a question..."
-              style={{ flex: 1, padding: "10px 16px", borderRadius: "24px", border: "1px solid #334155", backgroundColor: "#1e293b", color: "white", outline: "none", fontSize: "0.9rem" }}
+              disabled={isLoading}
             />
-            <button onClick={handleSend} style={{ background: "none", border: "none", color: "#3b82f6", cursor: "pointer", padding: "0 8px", fontWeight: 600 }}>
+            <button
+              type="button"
+              className={`chat-send-btn${cooldown ? " chat-send-btn--cooldown" : ""}`}
+              onClick={handleSend}
+              disabled={isLoading || !input.trim()}
+            >
               Send
             </button>
           </div>

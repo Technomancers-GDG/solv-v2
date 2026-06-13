@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { signInWithGoogle } from "../../firebase";
 
 export function LoginView({ t, onLogin, lang, onSwitchLang }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
@@ -23,8 +25,8 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
     <div className="login-view">
       <div className="login-card">
         <div className="login-brand">
-          <div className="logo-mark large">SOLV</div>
-          <h1>{t.welcome || "Welcome to SOLV"}</h1>
+          <div className="logo-mark large">L</div>
+          <h1>{t.welcome || "Welcome to Logisight"}</h1>
           <p>{t.loginTagline || "Intelligent Essential Goods Logistics"}</p>
         </div>
 
@@ -51,6 +53,14 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
             )}
           </button>
 
+          <button
+            className="google-btn"
+            style={{ background: "rgba(255,255,255,0.06)", color: "#e8e9ec", border: "1px solid rgba(255,255,255,0.12)" }}
+            onClick={() => onLogin({ displayName: 'Demo User', email: 'demo@logisight.io' })}
+          >
+            Continue as Demo User
+          </button>
+
           {error && (
             <div className="login-error" role="alert">
               {error}
@@ -75,7 +85,9 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
               {t.hindi || "Hindi"}
             </button>
           </div>
-          <span className="login-version">{t.version || "Google Solution Challenge 2026"}</span>
+          <button className="lang-pill" onClick={() => navigate("/")} style={{ marginTop: 8 }}>
+            ← Back to Home
+          </button>
         </div>
       </div>
     </div>

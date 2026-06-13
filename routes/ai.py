@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -271,48 +271,54 @@ def ai_activity_metrics(session: Session = Depends(get_session)) -> dict[str, An
     }
 
 from schemas.ai import AIChatRequest, AIChatResponse
-from google import genai
-from google.genai import types
+from services.ai_service import chat_stream
+from fastapi.responses import StreamingResponse
+from limiter import limiter
 
-@ai_router.post("/api/ai/chat", response_model=AIChatResponse)
-def ai_chat(payload: AIChatRequest, session: Session = Depends(get_session)) -> AIChatResponse:
-    if not settings.gemini_api_key:
-        raise HTTPException(status_code=503, detail="Gemini API Key not configured")
+@ai_router.post("/api/ai/chat")
+@limiter.limit("10/minute")
+async def ai_chat(request: Request, payload: AIChatRequest, session: Session = Depends(get_session)):
+    """
+    AI chat with streaming support and automatic fallback.
     
-    client = genai.Client(api_key=settings.gemini_api_key)
-    metrics = simulation_engine.current_metrics
-    
-    context = (
-        f"You are the SOLV Ops Assistant, an expert supply chain AI.\n"
-        f"Current Status:\n"
-        f"- SLA Compliance: {metrics.on_time_delivery_pct}%\n"
-        f"- Active Vehicles: {metrics.active_trucks}\n"
-        f"- Queued Vehicles: {metrics.queued_trucks}\n"
-        f"- CO2 Saved: {metrics.co2_saved_kg} kg\n"
-        f"- Warehouse Utilization: {metrics.warehouse_utilization_pct}%\n"
-        f"- Reroutes today: {metrics.reroute_count}\n"
-        f"- Stockouts prevented: {metrics.stockouts_prevented}\n"
-    )
+    When stream=true (default): returns SSE stream with chunk/meta/done/error events.
+    When stream=false: returns a single JSON AIChatResponse.
+    """
+    async def event_stream():
+        import json
+        async for event in chat_stream(
+            query=payload.query,
+            history=payload.history or [],
+            vehicle_id=payload.vehicle_id,
+        ):
+            yield f"data: {json.dumps(event)}\n\n"
 
-    messages = [
-        types.Content(role="user", parts=[types.Part.from_text(text=context)]),
-        types.Content(role="model", parts=[types.Part.from_text(text="I am ready to assist. What is your question?")])
-    ]
-    
-    if payload.history:
-        for msg in payload.history:
-            messages.append(types.Content(role=msg.get("role", "user"), parts=[types.Part.from_text(text=msg.get("content", ""))]))
-    
-    messages.append(types.Content(role="user", parts=[types.Part.from_text(text=payload.query)]))
-
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=messages,
-            config=types.GenerateContentConfig(
-                temperature=0.3,
-            )
+    if payload.stream:
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
         )
-        return AIChatResponse(response=response.text)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
+    # Non-streaming fallback for legacy clients
+    full_text = ""
+    model_used = ""
+    suggestions = []
+    async for event in chat_stream(
+        query=payload.query,
+        history=payload.history or [],
+        vehicle_id=payload.vehicle_id,
+    ):
+        if event["type"] == "chunk":
+            full_text += event["content"]
+        elif event["type"] == "meta":
+            model_used = event.get("model", "")
+            suggestions = event.get("suggestions", [])
+        elif event["type"] == "error":
+            raise HTTPException(status_code=503, detail=event.get("detail", "AI service unavailable"))
+
+    return AIChatResponse(response=full_text, model=model_used, suggestions=suggestions)

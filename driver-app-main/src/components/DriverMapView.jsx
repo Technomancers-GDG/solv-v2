@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Panel } from "./common/UiPrimitives";
+import { Panel, MetricCard } from "./common/UiPrimitives";
 
 const DEFAULT_CENTER = [22.5937, 78.9629];
 const DEFAULT_ZOOM = 6;
@@ -30,8 +30,8 @@ function distanceKm(a, b) {
   const lat1 = (a[0] * Math.PI) / 180;
   const lat2 = (b[0] * Math.PI) / 180;
   const v =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(v), Math.sqrt(1 - v));
 }
 
@@ -182,7 +182,6 @@ export function DriverMapView({
   const routeData = useMemo(() => {
     if (!vehicle) return null;
 
-    // Prefer live WebSocket data, fallback to static vehicle prop
     const wsVehicle = wsSnapshot?.vehicles?.find(
       (v) => String(v.vehicle_id ?? v.id) === String(vehicle.id)
     );
@@ -193,10 +192,7 @@ export function DriverMapView({
     const objective = objectiveId != null ? objectiveLookup[objectiveId] : null;
 
     const status = String(wsVehicle?.status ?? vehicle.status ?? "idle").toLowerCase();
-    const progress = Math.max(
-      0,
-      Math.min(100, Number(wsVehicle?.progress_pct ?? 0))
-    );
+    const progress = Math.max(0, Math.min(100, Number(wsVehicle?.progress_pct ?? 0)));
     const payloadUnits = Number(wsVehicle?.payload_units ?? 0);
 
     const currentFacilityId = toNumber(
@@ -207,7 +203,6 @@ export function DriverMapView({
     const destFacility = objective ? facilityLookup[objective.destination_facility_id] : null;
 
     if (!originFacility || !destFacility) {
-      // Not enough data to draw a route — still show the vehicle at its current facility if known
       const currentFacility = currentFacilityId != null ? facilityLookup[currentFacilityId] : null;
       const currentPoint = currentFacility ? toLatLng(currentFacility) : null;
       if (!currentPoint) return null;
@@ -229,7 +224,6 @@ export function DriverMapView({
     const destPoint = toLatLng(destFacility);
     if (!originPoint || !destPoint) return null;
 
-    // Determine direction: loaded = origin→destination, empty = destination→origin
     const goingToDest = payloadUnits > 0;
 
     let startPoint, endPoint;
@@ -237,14 +231,12 @@ export function DriverMapView({
       startPoint = goingToDest ? originPoint : destPoint;
       endPoint = goingToDest ? destPoint : originPoint;
     } else {
-      // Idle / parked at current facility
       const currentFacility = currentFacilityId != null ? facilityLookup[currentFacilityId] : null;
       const currentPoint = currentFacility ? toLatLng(currentFacility) : originPoint;
       startPoint = currentPoint;
       endPoint = currentPoint;
     }
 
-    // Build route points from template (origin→dest) then reverse if needed
     const routeKey = `${originFacility.id}:${destFacility.id}`;
     const routeTemplate = routeTemplateLookup[routeKey];
     const decodedRoutePoints = routeTemplate?.decoded || [];
@@ -256,7 +248,6 @@ export function DriverMapView({
       routePoints = [startPoint, endPoint];
     }
 
-    // Position truck along the route based on progress
     const markerPoint =
       status === "in_transit"
         ? (pointAlongPath(routePoints, progress) ?? startPoint)
@@ -301,10 +292,7 @@ export function DriverMapView({
         ? altTmpl.decoded
         : [routeData.startPoint, altDestPoint];
 
-    return {
-      altRoutePoints: altPoints,
-      altDestPoint,
-    };
+    return { altRoutePoints: altPoints, altDestPoint };
   }, [routeData, activeRecommendation, facilityLookup, routeTemplateLookup]);
 
   if (!vehicle || !routeData) {
@@ -318,145 +306,126 @@ export function DriverMapView({
   const mapCenter = routeData.currentPoint ?? routeData.startPoint ?? DEFAULT_CENTER;
 
   return (
-    <div>
+    <div className="map-section">
       <Panel title="My Route">
-        <div
-          className="map-container"
-          style={{ height: "360px", borderRadius: "16px", overflow: "hidden" }}
-        >
-          <MapContainer
-            center={mapCenter}
-            zoom={DEFAULT_ZOOM}
-            scrollWheelZoom
-            style={{ height: "100%", width: "100%" }}
-          >
-            <MapCenter center={mapCenter} />
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-
-            {/* Main route line */}
-            <Polyline
-              positions={routeData.routePoints}
-              color="#2563eb"
-              weight={5}
-              opacity={0.9}
-            />
-
-            {/* Origin marker */}
-            {routeData.startPoint && (
-              <Marker position={routeData.startPoint} icon={originIcon}>
-                <Popup>Origin</Popup>
-              </Marker>
-            )}
-
-            {/* Destination marker */}
-            {routeData.endPoint &&
-              (routeData.endPoint[0] !== routeData.startPoint[0] ||
-                routeData.endPoint[1] !== routeData.startPoint[1]) && (
-                <Marker position={routeData.endPoint} icon={destIcon}>
-                  <Popup>Destination</Popup>
+        <div className="map-container">
+          <div className="map-container inner">
+            <MapContainer
+              center={mapCenter}
+              zoom={DEFAULT_ZOOM}
+              scrollWheelZoom
+              style={{ height: "100%", width: "100%" }}
+            >
+              <MapCenter center={mapCenter} />
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <Polyline
+                positions={routeData.routePoints}
+                color="#2563eb"
+                weight={5}
+                opacity={0.9}
+              />
+              {routeData.startPoint && (
+                <Marker position={routeData.startPoint} icon={originIcon}>
+                  <Popup>Origin</Popup>
                 </Marker>
               )}
-
-            {/* Alternate route */}
-            {altRouteData?.altRoutePoints && (
-              <>
-                <Polyline
-                  positions={altRouteData.altRoutePoints}
-                  color="#f59e0b"
-                  weight={5}
-                  opacity={0.9}
-                  dashArray="8,8"
-                />
-                {altRouteData.altDestPoint && (
-                  <Marker position={altRouteData.altDestPoint} icon={altDestIcon}>
-                    <Popup>Proposed Destination</Popup>
+              {routeData.endPoint &&
+                (routeData.endPoint[0] !== routeData.startPoint[0] ||
+                  routeData.endPoint[1] !== routeData.startPoint[1]) && (
+                  <Marker position={routeData.endPoint} icon={destIcon}>
+                    <Popup>Destination</Popup>
                   </Marker>
                 )}
-              </>
-            )}
-
-            {/* Vehicle marker */}
-            {routeData.currentPoint && (
-              <Marker position={routeData.currentPoint} icon={vehicleIcon}>
-                <Popup>
-                  <strong>{routeData.identifier}</strong>
-                  <br />
-                  Status: {routeData.status}
-                  <br />
-                  Progress: {routeData.progress.toFixed(1)}%
-                  <br />
-                  {routeData.objectiveName}
-                </Popup>
-              </Marker>
-            )}
-          </MapContainer>
+              {altRouteData?.altRoutePoints && (
+                <>
+                  <Polyline
+                    positions={altRouteData.altRoutePoints}
+                    color="#f59e0b"
+                    weight={5}
+                    opacity={0.9}
+                    dashArray="8,8"
+                  />
+                  {altRouteData.altDestPoint && (
+                    <Marker position={altRouteData.altDestPoint} icon={altDestIcon}>
+                      <Popup>Proposed Destination</Popup>
+                    </Marker>
+                  )}
+                </>
+              )}
+              {routeData.currentPoint && (
+                <Marker position={routeData.currentPoint} icon={vehicleIcon}>
+                  <Popup>
+                    <strong>{routeData.identifier}</strong>
+                    <br />
+                    Status: {routeData.status}
+                    <br />
+                    Progress: {routeData.progress.toFixed(1)}%
+                    <br />
+                    {routeData.objectiveName}
+                  </Popup>
+                </Marker>
+              )}
+            </MapContainer>
+          </div>
         </div>
 
-        <div className="driver-summary-grid" style={{ marginTop: "14px" }}>
-          <div className="driver-summary-card">
-            <span className="label">Vehicle</span>
-            <strong>{routeData.identifier}</strong>
-          </div>
-          <div className="driver-summary-card">
-            <span className="label">Status</span>
-            <strong>{routeData.status}</strong>
-          </div>
-          <div className="driver-summary-card">
-            <span className="label">Progress</span>
-            <strong>{routeData.progress.toFixed(1)}%</strong>
-          </div>
-          <div className="driver-summary-card">
-            <span className="label">Objective</span>
-            <strong>{routeData.objectiveName}</strong>
-          </div>
-          <div className="driver-summary-card">
-            <span className="label">Payload</span>
-            <strong>{routeData.payloadUnits} units</strong>
-          </div>
-          <div className="driver-summary-card">
-            <span className="label">Route Source</span>
-            <strong>{routeData.routeSource}</strong>
-          </div>
+        {/* Progress bar */}
+        <div className="progress-track">
+          <div
+            className="progress-fill"
+            style={{ width: `${routeData.progress}%` }}
+          />
+        </div>
+
+        <div className="driver-summary-grid">
+          <MetricCard label="Vehicle" value={routeData.identifier} />
+          <MetricCard label="Status" value={routeData.status} accent />
+          <MetricCard label="Progress" value={`${routeData.progress.toFixed(1)}%`} />
+          <MetricCard label="Objective" value={routeData.objectiveName} />
+          <MetricCard label="Payload" value={`${routeData.payloadUnits} units`} />
+          <MetricCard label="Route Source" value={routeData.routeSource} />
         </div>
       </Panel>
 
       {activeRecommendation && (
         <Panel title="Reroute Proposal">
-          <div className="proposal-grid">
-            <div>
-              <span className="label">Current Destination</span>
-              <strong>
-                {facilityLookup[activeRecommendation.original_destination_id]?.name || "Current"}
-              </strong>
+          <div className="reroute-proposal">
+            <div className="proposal-grid">
+              <div>
+                <span className="label">Current Destination</span>
+                <strong>
+                  {facilityLookup[activeRecommendation.original_destination_id]?.name || "Current"}
+                </strong>
+              </div>
+              <div>
+                <span className="label">Proposed Destination</span>
+                <strong>
+                  {facilityLookup[activeRecommendation.recommended_destination_id]?.name || "Alternative"}
+                </strong>
+              </div>
             </div>
-            <div>
-              <span className="label">Proposed Destination</span>
-              <strong>
-                {facilityLookup[activeRecommendation.recommended_destination_id]?.name ||
-                  "Alternative"}
-              </strong>
+            <p className="proposal-explanation">{activeRecommendation.explanation}</p>
+            <div className="proposal-actions">
+              <button
+                type="button"
+                className="primary"
+                disabled={decisionLoading}
+                onClick={() => onDecision(activeRecommendation.id, "accept")}
+              >
+                Accept Reroute
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                disabled={decisionLoading}
+                onClick={() => onDecision(activeRecommendation.id, "ignore")}
+              >
+                Ignore
+              </button>
             </div>
-          </div>
-          <p className="proposal-explanation">{activeRecommendation.explanation}</p>
-          <div className="proposal-actions">
-            <button
-              type="button"
-              disabled={decisionLoading}
-              onClick={() => onDecision(activeRecommendation.id, "accept")}
-            >
-              Accept Reroute
-            </button>
-            <button
-              type="button"
-              className="danger"
-              disabled={decisionLoading}
-              onClick={() => onDecision(activeRecommendation.id, "ignore")}
-            >
-              Ignore
-            </button>
           </div>
         </Panel>
       )}

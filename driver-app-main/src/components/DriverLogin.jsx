@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Panel } from "./common/UiPrimitives";
 
 export function DriverLogin({ onLogin, error, setError, apiBase = "" }) {
   const [vehicleId, setVehicleId] = useState("");
@@ -35,34 +34,31 @@ export function DriverLogin({ onLogin, error, setError, apiBase = "" }) {
   }
 
   return (
-    <div className="app-shell">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">Driver Portal</p>
+    <div className="login-page">
+      <div className="login-card panel">
+        <div className="login-card-head">
+          <span className="eyebrow">Driver Portal</span>
           <h1>Driver Login</h1>
-          <p className="hero-copy">Enter your vehicle identifier to access your route and instructions.</p>
+          <p>Enter your vehicle identifier to access your route and instructions.</p>
         </div>
-      </header>
-      <main className="view-stack">
-        <Panel title="Sign In">
-          <form className="incident-form" onSubmit={handleSubmit}>
-            <label className="field">
-              <span>Vehicle Identifier</span>
-              <input
-                value={vehicleId}
-                onChange={(e) => setVehicleId(e.target.value)}
-                placeholder="e.g., OPS-0001"
-                required
-              />
-            </label>
-            <div className="action-row">
-              <button type="submit" disabled={loading}>
-                {loading ? "Checking..." : "Sign In"}
-              </button>
-            </div>
-          </form>
-        </Panel>
-      </main>
+        {error && <div className="login-error">{error}</div>}
+        <form className="login-form" onSubmit={handleSubmit}>
+          <label className="field">
+            <span>Vehicle Identifier</span>
+            <input
+              value={vehicleId}
+              onChange={(e) => setVehicleId(e.target.value)}
+              placeholder="e.g., OPS-0001"
+              required
+            />
+          </label>
+          <div className="action-row">
+            <button type="submit" className="primary block" disabled={loading}>
+              {loading ? "Checking..." : "Sign In"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

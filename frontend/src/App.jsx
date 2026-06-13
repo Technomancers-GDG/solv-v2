@@ -1,9 +1,11 @@
-import { lazy, Suspense, Component, startTransition, useDeferredValue, useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, startTransition, useDeferredValue, lazy, Suspense, Component } from "react";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AIRerouteToast } from "./components/common/AIDecisionWidgets";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { AIChatPanel } from "./components/common/AIChatPanel";
 import { onAuthChange, logout } from "./firebase";
 import { LoginView } from "./components/views/LoginView";
+import { LandingView } from "./components/landing/LandingView";
 
 const DashboardView = lazy(() => import("./components/views/DashboardView").then(m => ({ default: m.DashboardView })));
 const MapView = lazy(() => import("./components/views/MapView").then(m => ({ default: m.MapView })));
@@ -75,7 +77,7 @@ const TRANSLATIONS = {
     english: "English",
     hindi: "Hindi",
     version: "Google Solution Challenge 2026",
-    welcome: "Welcome to SOLV",
+    welcome: "Welcome to Logisight",
     loginTagline: "Intelligent Essential Goods Logistics",
     signInWithGoogle: "Sign in with Google",
     logout: "Logout",
@@ -117,7 +119,7 @@ const TRANSLATIONS = {
     english: "अंग्रेज़ी",
     hindi: "हिंदी",
     version: "Google Solution Challenge 2026",
-    welcome: "SOLV में आपका स्वागत है",
+    welcome: "Logisight में आपका स्वागत है",
     loginTagline: "बुद्धिमान आवश्यक वस्तु लॉजिस्टिक्स",
     signInWithGoogle: "Google से साइन इन करें",
     logout: "लॉग आउट",
@@ -125,11 +127,11 @@ const TRANSLATIONS = {
 };
 
 function useLanguage() {
-  const [lang, setLang] = useState(() => localStorage.getItem("solv-lang") || "en");
+  const [lang, setLang] = useState(() => localStorage.getItem("logisight-lang") || "en");
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const switchLang = (next) => {
     setLang(next);
-    localStorage.setItem("solv-lang", next);
+    localStorage.setItem("logisight-lang", next);
   };
   return { lang, t, switchLang };
 }
@@ -188,8 +190,8 @@ function Sidebar({ active, onNavigate, collapsed, onToggle, t }) {
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : "open"}`}>
       <div className="sidebar-header">
-        <div className="logo-mark">SOLV</div>
-        {!collapsed && <span className="logo-text">Intelligent Logistics</span>}
+        <div className="logo-mark">L</div>
+        {!collapsed && <span className="logo-text">Logisight</span>}
         <button className="collapse-btn" onClick={onToggle} aria-label="Toggle sidebar">
           {collapsed ? "\u203A" : "\u2039"}
         </button>
@@ -425,30 +427,12 @@ export function buildActivityFeed(recommendations, _aiActivity) {
   return fromRecommendations;
 }
 
-export default function App() {
-  const { lang, t, switchLang } = useLanguage();
+function DashboardShell({ user, onLogout, t, lang, switchLang, apiFetch: apiFetchProp }) {
   const [activeView, setActiveView] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [user, setUser] = useState(null);
-  const [authReady, setAuthReady] = useState(false);
-
-  useEffect(() => {
-    setUser({ displayName: 'Test User', email: 'test@example.com' });
-    setAuthReady(true);
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      setUser(null);
-      setActiveView("dashboard");
-    } catch (err) {
-      console.error("Logout failed:", err);
-    }
-  };
 
   const [dashboard, setDashboard] = useState(null);
   const [metrics, setMetrics] = useState(null);
@@ -488,20 +472,20 @@ export default function App() {
       const [
         d, f, v, dr, o, r, s, rec, m, e, rf, inv, pd, ai
       ] = await Promise.all([
-        apiFetch("/api/dashboard"),
-        apiFetch("/api/facilities"),
-        apiFetch("/api/vehicles"),
-        apiFetch("/api/drivers"),
-        apiFetch("/api/objectives"),
-        apiFetch("/api/routes"),
-        apiFetch("/api/scenarios"),
-        apiFetch("/api/recommendations"),
-        apiFetch("/api/metrics/sdg"),
-        apiFetch("/api/events/news?relevant_only=true"),
-        apiFetch("/api/forecast/risk?hours=12").catch(() => []),
-        apiFetch("/api/inventory/forecasts").catch(() => []),
-        apiFetch("/api/inventory/proactive-dispatches").catch(() => []),
-        apiFetch("/api/metrics/ai-activity").catch(() => null),
+        apiFetchProp("/api/dashboard"),
+        apiFetchProp("/api/facilities"),
+        apiFetchProp("/api/vehicles"),
+        apiFetchProp("/api/drivers"),
+        apiFetchProp("/api/objectives"),
+        apiFetchProp("/api/routes"),
+        apiFetchProp("/api/scenarios"),
+        apiFetchProp("/api/recommendations"),
+        apiFetchProp("/api/metrics/sdg"),
+        apiFetchProp("/api/events/news?relevant_only=true"),
+        apiFetchProp("/api/forecast/risk?hours=12").catch(() => []),
+        apiFetchProp("/api/inventory/forecasts").catch(() => []),
+        apiFetchProp("/api/inventory/proactive-dispatches").catch(() => []),
+        apiFetchProp("/api/metrics/ai-activity").catch(() => null),
       ]);
       startTransition(() => {
         setDashboard(d);
@@ -525,9 +509,13 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [apiFetchProp]);
 
-  useEffect(() => { refreshAll(true); const id = setInterval(() => refreshAll(false), 15000); return () => clearInterval(id); }, [refreshAll]);
+  useEffect(() => {
+    refreshAll(true);
+    const id = setInterval(() => refreshAll(false), 15000);
+    return () => clearInterval(id);
+  }, [refreshAll]);
 
   useEffect(() => {
     if (voice.transcript) {
@@ -535,7 +523,7 @@ export default function App() {
       const matched = voiceConfig?.incident_types?.find((t) => text.includes(t.label.toLowerCase()) || text.includes(t.key.toLowerCase()));
       if (matched) setVoiceIncidentType(matched.key);
     }
-  }, [voice.transcript]);
+  }, [voice.transcript, voiceConfig]);
 
   const [wsConnected, setWsConnected] = useState(false);
 
@@ -583,25 +571,25 @@ export default function App() {
       if (socket) socket.close();
     };
   }, []);
+
   const runAction = useCallback(async (path, body = null, msg = "") => {
     try {
-      await apiFetch(path, { method: "POST", body: JSON.stringify(body ?? {}) });
-      if (msg) { 
-        setMessage(msg); 
-        setError(""); 
+      await apiFetchProp(path, { method: "POST", body: JSON.stringify(body ?? {}) });
+      if (msg) {
+        setMessage(msg);
+        setError("");
         setTimeout(() => setMessage(""), 3000);
       }
       await refreshAll(false);
     } catch (err) { setError(err.message); }
-  }, [refreshAll]);
+  }, [refreshAll, apiFetchProp]);
 
   const handleSetSpeed = useCallback(async (speed) => {
     const clamped = Math.max(1, Math.min(100000, speed));
     try {
-      await apiFetch("/api/simulation/speed", { method: "PUT", body: JSON.stringify({ speed_multiplier: clamped }) });
-      // Skipped refreshAll to prevent UI freeze; WebSockets will naturally update the UI
+      await apiFetchProp("/api/simulation/speed", { method: "PUT", body: JSON.stringify({ speed_multiplier: clamped }) });
     } catch (err) { setError(err.message); }
-  }, []);
+  }, [apiFetchProp]);
 
   const currentSpeed = dashboard?.simulation?.speed_multiplier ?? 120;
 
@@ -636,8 +624,6 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== toastId));
   }, []);
 
-
-
   const renderView = () => {
     switch (activeView) {
       case "dashboard":
@@ -651,7 +637,7 @@ export default function App() {
       case "inventory":
         return <InventoryView inventoryForecast={inventoryForecast} proactiveDispatches={proactiveDispatches} facilityLookup={facilityLookup} />;
       case "scenarios":
-        return <ScenariosView scenarios={scenarios} scenarioKey={scenarioKey} setScenarioKey={setScenarioKey} scenarioComparison={scenarioComparison} setScenarioComparison={setScenarioComparison} runAction={runAction} apiFetch={apiFetch} />;
+        return <ScenariosView scenarios={scenarios} scenarioKey={scenarioKey} setScenarioKey={setScenarioKey} scenarioComparison={scenarioComparison} setScenarioComparison={setScenarioComparison} runAction={runAction} apiFetch={apiFetchProp} />;
       case "blockchain":
         return <BlockchainView auditChain={auditChain} blockchainVerify={blockchainVerify} />;
       case "network":
@@ -667,30 +653,15 @@ export default function App() {
       case "settings":
         return <SettingsView lang={lang} onSwitchLang={switchLang} t={t} />;
       case "rlTraining":
-        return <RLTrainingView apiFetch={apiFetch} />;
+        return <RLTrainingView apiFetch={apiFetchProp} />;
       case "aiExplainer":
-        return <AIExplainerView apiFetch={apiFetch} dashboard={dashboard} vehicles={dashboard?.vehicles ?? []} recommendations={recommendations} facilities={facilities} facilityLookup={facilityLookup} />;
+        return <AIExplainerView apiFetch={apiFetchProp} dashboard={dashboard} vehicles={dashboard?.vehicles ?? []} recommendations={recommendations} facilities={facilities} facilityLookup={facilityLookup} />;
       case "aiComparison":
-        return <ComparisonView apiFetch={apiFetch} metrics={metrics} />;
+        return <ComparisonView apiFetch={apiFetchProp} metrics={metrics} />;
       default:
         return <DashboardView metrics={metrics} criticalFacilities={criticalFacilities} proactiveDispatches={proactiveDispatches} riskForecast={riskForecast} auditChain={auditChain} blockchainVerify={blockchainVerify} facilityLookup={facilityLookup} aiActivity={aiActivity} latestDecision={latestDecision} previousRoute={previousRoute} activityFeed={activityFeed} />;
     }
   };
-
-  if (!authReady) {
-    return (
-      <div className="login-view">
-        <div className="login-card" style={{ textAlign: "center" }}>
-          <div className="logo-mark large" style={{ margin: "0 auto 16px" }}>SOLV</div>
-          <p style={{ color: "#8b8d93" }}>Loading authentication...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <LoginView t={t} onLogin={setUser} lang={lang} onSwitchLang={switchLang} />;
-  }
 
   return (
     <div className="app-shell">
@@ -709,8 +680,8 @@ export default function App() {
             <h1>{t.commandCenter}</h1>
             <span className="prototype-badge">{t.prototypeBadge}</span>
             <div style={{ marginLeft: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span style={{ 
-                display: "inline-block", width: "10px", height: "10px", borderRadius: "50%", 
+              <span style={{
+                display: "inline-block", width: "10px", height: "10px", borderRadius: "50%",
                 backgroundColor: wsConnected ? "#10b981" : "#ef4444",
                 boxShadow: wsConnected ? "0 0 8px #10b981" : "0 0 8px #ef4444"
               }} title={wsConnected ? "Connected to Backend" : "Disconnected (Auto-reconnecting...)"} />
@@ -723,7 +694,7 @@ export default function App() {
                 <img src={user.photoURL} alt="" className="user-avatar" referrerPolicy="no-referrer" />
               )}
               <span className="user-name">{user.displayName || user.email || "User"}</span>
-              <button className="logout-btn" onClick={handleLogout} title={t.logout}>
+              <button className="logout-btn" onClick={onLogout} title={t.logout}>
                 {t.logout}
               </button>
             </div>
@@ -743,7 +714,69 @@ export default function App() {
           </main>
         )}
       </div>
-      <AIChatPanel apiFetch={apiFetch} />
+      <AIChatPanel apiFetch={apiFetchProp} />
     </div>
   );
+}
+
+export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { lang, t, switchLang } = useLanguage();
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    setAuthReady(true);
+  }, []);
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+    navigate("/dashboard");
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setUser(null);
+      navigate("/");
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
+  };
+
+  if (location.pathname === "/") {
+    return <LandingView />;
+  }
+
+  if (location.pathname === "/login") {
+    if (user) return <Navigate to="/dashboard" replace />;
+    return <LoginView t={t} onLogin={handleLogin} lang={lang} onSwitchLang={switchLang} />;
+  }
+
+  if (location.pathname === "/dashboard") {
+    if (!authReady) {
+      return (
+        <div className="login-view">
+          <div className="login-card" style={{ textAlign: "center" }}>
+            <div className="logo-mark large" style={{ margin: "0 auto 16px" }}>L</div>
+            <p style={{ color: "#8b8d93" }}>Loading Logisight...</p>
+          </div>
+        </div>
+      );
+    }
+    if (!user) return <Navigate to="/login" replace />;
+    return (
+      <DashboardShell
+        user={user}
+        onLogout={handleLogout}
+        t={t}
+        lang={lang}
+        switchLang={switchLang}
+        apiFetch={apiFetch}
+      />
+    );
+  }
+
+  return <Navigate to="/" replace />;
 }

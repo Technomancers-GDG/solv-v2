@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
-from schemas.core import ORMModel
+from pydantic import BaseModel, Field
 
 class RLDecisionRequest(BaseModel):
     facility_utilization: float
@@ -18,7 +17,6 @@ class RLDecisionRequest(BaseModel):
     simulation_hour: int
     valid_actions: list[str] | None = None
 
-
 class RLDecisionResponse(BaseModel):
     action: str
     confidence: float
@@ -28,6 +26,10 @@ class RLDecisionResponse(BaseModel):
 class AIChatRequest(BaseModel):
     query: str
     history: list[dict[str, str]] | None = None
+    vehicle_id: int | None = None
+    stream: bool = True
 
 class AIChatResponse(BaseModel):
     response: str
+    model: str = ""
+    suggestions: list[str] = Field(default_factory=list)
