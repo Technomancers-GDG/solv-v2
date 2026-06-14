@@ -349,8 +349,6 @@ td {
   padding: 12px 10px;
   border-bottom: 1px solid rgba(0,0,0,0.06);
   vertical-align: middle;
-  word-break: break-word;
-  overflow-wrap: break-word;
   min-width: 0;
 }
 
@@ -1252,7 +1250,9 @@ button.scale-btn:disabled {
   font-size: 0.8rem;
   letter-spacing: 1px;
   min-width: 0;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .explainer-primary-text {
@@ -1275,11 +1275,15 @@ button.scale-btn:disabled {
   color: var(--text-secondary);
   margin-bottom: 1rem;
   overflow-wrap: break-word;
+  line-height: 1.45;
 }
 
 .action-cell {
   font-weight: 600;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
 }
 
 .rec-list {
@@ -1325,7 +1329,9 @@ button.scale-btn:disabled {
   font-size: 0.82rem;
   letter-spacing: 0.04em;
   color: var(--text-primary);
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rec-card.active .rec-card-action {
@@ -1335,6 +1341,7 @@ button.scale-btn:disabled {
 .rec-card-time {
   color: var(--text-tertiary);
   font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .rec-card-excerpt {
@@ -1380,6 +1387,9 @@ button.scale-btn:disabled {
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .detail-section ul {
@@ -1471,6 +1481,7 @@ button.scale-btn:disabled {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   border-bottom: 2px solid var(--border-subtle);
+  white-space: nowrap;
 }
 
 .outcome-table td {
@@ -1478,7 +1489,6 @@ button.scale-btn:disabled {
   color: var(--text-primary);
   border-bottom: 1px solid var(--border-light);
   min-width: 0;
-  overflow-wrap: break-word;
 }
 
 .outcome-table tbody tr {
@@ -1506,6 +1516,7 @@ button.scale-btn:disabled {
   font-size: 0.75rem;
   font-weight: 700;
   border: 1px solid var(--border-subtle);
+  white-space: nowrap;
 }
 
 .status-badge.accepted {
@@ -1552,6 +1563,9 @@ button.scale-btn:disabled {
   margin: 0 0 0.5rem 0;
   color: var(--text-primary);
   font-size: 1.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .scenario-detail > p {
@@ -1574,6 +1588,7 @@ button.scale-btn:disabled {
   border-radius: 6px;
   font-size: 0.8rem;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .scenario-actions {
@@ -1630,7 +1645,7 @@ button.scale-btn:disabled {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  overflow-wrap: break-word;
+  white-space: nowrap;
 }
 
 .comparison-table td {
@@ -1638,7 +1653,6 @@ button.scale-btn:disabled {
   border-bottom: 1px dashed var(--border-light);
   color: var(--text-primary);
   min-width: 0;
-  overflow-wrap: break-word;
 }
 
 .comparison-table .delta-positive {
@@ -1691,7 +1705,6 @@ button.scale-btn:disabled {
   flex: 1;
   text-align: center;
   min-width: 0;
-  overflow-wrap: break-word;
 }
 
 .comparison-stat + .comparison-stat {
@@ -1704,12 +1717,17 @@ button.scale-btn:disabled {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 0.25rem;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .comparison-stat-value {
   font-size: 1.5rem;
   font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .comparison-stat-value.green {
@@ -2258,7 +2276,6 @@ button.scale-btn:disabled {
   gap: 6px;
   box-shadow: none;
   min-width: 0;
-  overflow-wrap: break-word;
 }
 
 .metric-card.tone-teal { background: #ccf5d8; }
@@ -2280,24 +2297,34 @@ button.scale-btn:disabled {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metric-value {
   font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metric-trend {
   font-size: 0.78rem;
   color: #22c55e;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metric-context {
   font-size: 0.78rem;
   color: #555555;
   line-height: 1.4;
+  overflow-wrap: break-word;
 }
 
 .dashboard-grid {
@@ -2344,8 +2371,8 @@ button.scale-btn:disabled {
 .risk-card.severity-medium { background: #fffbeb; }
 .risk-card.severity-low { background: #f0fdf4; }
 
-.risk-city { font-weight: 700; font-size: 0.95rem; overflow-wrap: break-word; }
-.risk-value { font-size: 1.25rem; font-weight: 800; margin: 4px 0; }
+.risk-city { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.risk-value { font-size: 1.25rem; font-weight: 800; margin: 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .risk-factors { font-size: 0.78rem; color: #555555; overflow-wrap: break-word; }
 
 /* Audit */
@@ -2371,10 +2398,10 @@ button.scale-btn:disabled {
   transform: translateX(2px);
 }
 
-.audit-index { font-weight: 700; color: #555555; min-width: 40px; }
-.audit-type { font-weight: 600; min-width: 90px; color: var(--text); }
-.audit-action { flex: 1; color: var(--text); }
-.audit-hash { font-family: monospace; color: #555555; font-size: 0.75rem; }
+.audit-index { font-weight: 700; color: #555555; min-width: 40px; white-space: nowrap; }
+.audit-type { font-weight: 600; min-width: 90px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.audit-action { flex: 1; color: var(--text); overflow-wrap: break-word; min-width: 0; }
+.audit-hash { font-family: monospace; color: #555555; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
 
 .verify-badge {
   margin-top: 12px;
@@ -2383,6 +2410,9 @@ button.scale-btn:disabled {
   font-size: 0.82rem;
   font-weight: 700;
   transition: transform 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .verify-badge:hover {
@@ -2420,6 +2450,8 @@ button.scale-btn:disabled {
 .dispatch-card.urgency-medium, .proactive-card.urgency-medium { background: #eff6ff; }
 .dispatch-card.urgency-low, .proactive-card.urgency-low { background: #f0fdf4; }
 
+.dispatch-card strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
 .urgency-badge, .urgency-tag {
   display: inline-block;
   padding: 3px 10px;
@@ -2428,12 +2460,13 @@ button.scale-btn:disabled {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .urgency-badge { margin-left: auto; }
 
 .dispatch-reason, .proactive-card p { font-size: 0.85rem; margin: 0; color: #555555; line-height: 1.4; overflow-wrap: break-word; }
-.dispatch-meta, .proactive-meta { font-size: 0.8rem; color: #555555; font-weight: 600; }
+.dispatch-meta, .proactive-meta { font-size: 0.8rem; color: #555555; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .proactive-header {
   display: flex;
@@ -2443,7 +2476,7 @@ button.scale-btn:disabled {
   min-width: 0;
 }
 
-.proactive-header strong { min-width: 0; overflow-wrap: break-word; }
+.proactive-header strong { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Forecast */
 .trend-badge {
@@ -2460,8 +2493,8 @@ button.scale-btn:disabled {
 .trend-badge.stable { background: #f3f4f6; color: #374151; }
 
 .forecast-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 0.82rem; color: var(--muted); margin-top: 4px; min-width: 0; }
-.forecast-stats > div { min-width: 0; overflow-wrap: break-word; }
-.dispatch-alert { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: #eff6ff; color: #1e40af; font-size: 0.82rem; font-weight: 600; }
+.forecast-stats > div { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dispatch-alert { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: #eff6ff; color: #1e40af; font-size: 0.82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Blockchain */
 .chain-status {
@@ -2888,6 +2921,10 @@ button.scale-btn:disabled {
   font-size: 1.8rem;
   font-weight: 800;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .ai-stat-label {
@@ -2897,6 +2934,10 @@ button.scale-btn:disabled {
   color: #555555;
   font-weight: 700;
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .rl-engine-section {
@@ -2937,12 +2978,18 @@ button.scale-btn:disabled {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rl-value {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .epsilon-bar-wrap {
@@ -2976,10 +3023,25 @@ button.scale-btn:disabled {
   font-size: 0.78rem;
   color: #555555;
   font-weight: 600;
+  min-width: 0;
+}
+
+.epsilon-labels span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.action-breakdown-section {
+  border: 1px solid rgba(25, 26, 35, 0.12);
+  border-radius: 16px;
+  padding: 16px;
+  background: #ffffff;
+  transition: box-shadow 0.2s ease;
+}
+
+.action-breakdown-section:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
 
 .action-breakdown-section h5 {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--text);
@@ -3002,6 +3064,9 @@ button.scale-btn:disabled {
   font-weight: 600;
   text-transform: capitalize;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .action-bar-track {
@@ -3070,6 +3135,7 @@ button.scale-btn:disabled {
   letter-spacing: 0.08em;
   color: var(--muted);
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .ai-confidence-badge {
@@ -3087,7 +3153,9 @@ button.scale-btn:disabled {
   font-size: 1.05rem;
   font-weight: 800;
   color: var(--text);
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .decision-section {
@@ -3101,6 +3169,9 @@ button.scale-btn:disabled {
   letter-spacing: 0.08em;
   color: #555555;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .decision-section p,
@@ -3143,7 +3214,10 @@ button.scale-btn:disabled {
 .route-compare-card {
   display: grid;
   gap: 4px;
+  min-width: 0;
 }
+
+.route-compare-card strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 .route-compare-card p {
   margin: 0;
@@ -3160,8 +3234,20 @@ button.scale-btn:disabled {
   grid-column: 1 / -1;
 }
 
+.ai-activity-feed {
+  border: 1px solid rgba(25, 26, 35, 0.12);
+  border-radius: 12px;
+  padding: 16px;
+  background: #ffffff;
+  transition: box-shadow 0.2s ease;
+}
+
+.ai-activity-feed:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
 .ai-feed-section h5 {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--text);
@@ -3189,11 +3275,15 @@ button.scale-btn:disabled {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .ai-feed-item strong {
   display: block;
   font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ai-feed-item p {
@@ -3213,6 +3303,9 @@ button.scale-btn:disabled {
   font-size: 0.76rem;
   color: var(--muted);
   margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .risk-trend {
@@ -3220,6 +3313,9 @@ button.scale-btn:disabled {
   font-weight: 600;
   margin-top: 4px;
   text-transform: capitalize;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .risk-trend.trend-rising { color: #ef4444; }
@@ -3344,6 +3440,10 @@ button.scale-btn:disabled {
   align-items: center;
   gap: 6px;
   font-size: 0.9rem;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .compare-cost {
@@ -3391,6 +3491,7 @@ button.scale-btn:disabled {
   padding: 2px 8px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 .route-compare-decision {
@@ -3457,6 +3558,9 @@ button.scale-btn:disabled {
 .ai-feed-content strong {
   display: block;
   font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ai-feed-content p {
@@ -3576,11 +3680,13 @@ button.scale-btn:disabled {
   font-size: 1rem;
   font-weight: 700;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .panel-body {
   min-width: 0;
-  overflow-wrap: break-word;
 }
 
 *:focus-visible {

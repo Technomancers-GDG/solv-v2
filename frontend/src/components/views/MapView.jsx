@@ -159,7 +159,6 @@ function getVehicleEventHandlers(vehicleId, setFilterVehicleId, setHighlightedVe
   return {
     click: () => {
       const id = String(vehicleId);
-      setFilterVehicleId(id);
       setHighlightedVehicleId(id);
     },
   };
@@ -419,7 +418,7 @@ export function MapView({
             ) : null}
 
             {/* All in-transit routes at low opacity */}
-            {showAllRoutes && !selectedVehicleId && liveRoutes.filter((r) => r.status === "in_transit" && r.routePoints.length >= 2).slice(0, 120).map((route) => {
+            {showAllRoutes && !filterVehicleId && liveRoutes.filter((r) => r.status === "in_transit" && r.routePoints.length >= 2).slice(0, 120).map((route) => {
               const pts = route.routePoints.filter((p) => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]));
               if (pts.length < 2) return null;
               return (
@@ -570,7 +569,7 @@ export function MapView({
         {visibleRoutes.length === 0 ? <div className="empty">No active routes to display.</div> : (
           <div className="routes-list">
             {visibleRoutes.map((route) => (
-              <div key={`active-route-${route.vehicleId}`} className="route-card" role="button" tabIndex={0} onClick={() => { setFilterVehicleId(String(route.vehicleId)); setHighlightedVehicleId(String(route.vehicleId)); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFilterVehicleId(String(route.vehicleId)); setHighlightedVehicleId(String(route.vehicleId)); } }}>
+              <div key={`active-route-${route.vehicleId}`} className="route-card" role="button" tabIndex={0} onClick={() => { setHighlightedVehicleId(String(route.vehicleId)); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHighlightedVehicleId(String(route.vehicleId)); } }}>
                 <div className="route-header"><strong>{route.identifier}</strong><span className={`route-status ${route.status.replaceAll("_", "-")}`}>{route.status.replaceAll("_", " ").toUpperCase()}</span></div>
                 <div className="route-details"><span className="route-objective">{route.objectiveName}</span><span>{route.payloadUnits} units</span></div>
                 <div className="route-details">

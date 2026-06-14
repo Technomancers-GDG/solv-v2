@@ -5,25 +5,25 @@ import {
 } from "recharts";
 import { Panel } from "../common/UiPrimitives";
 
-/* ── colour tokens ─────────────────────────────────────────────── */
+/* ── colour tokens (dashboard design system) ──────────────────── */
 const C = {
-  bg:      "#0b1121",
-  panel:   "#111827",
-  panel2:  "#1a2332",
-  border:  "#1e293b",
-  text:    "#f1f5f9",
-  muted:   "#64748b",
-  accent:  "#b9ff66",
-  teal:    "#14b8a6",
-  coral:   "#f97316",
-  blue:    "#3b82f6",
-  purple:  "#8b5cf6",
-  amber:   "#f59e0b",
+  bg:      "var(--surface-section)",
+  panel:   "var(--surface-card)",
+  panel2:  "var(--surface-section)",
+  border:  "var(--border-default)",
+  text:    "var(--text-primary)",
+  muted:   "var(--text-secondary)",
+  accent:  "var(--accent)",
+  loss:    "#ef4444",
+  reward:  "#10b981",
+  epsilon: "#f59e0b",
+  blue:    "#2563eb",
+  green:   "#059669",
   red:     "#ef4444",
-  green:   "#22c55e",
 };
 
-const ACTION_COLORS = [C.blue, C.teal, C.purple, C.amber, C.red];
+/* matched to DashboardView action-bar-fill classes */
+const ACTION_COLORS = ["#059669", "#7c3aed", "#2563eb", "#f59e0b", "#ef4444"];
 const ACTION_LABELS = {
   continue: "Continue",
   reroute_warehouse: "Reroute → Warehouse",
@@ -45,24 +45,24 @@ function injectStyles() {
 @keyframes rl-shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
 @keyframes rl-fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 @keyframes rl-slideRight { from{width:0} to{width:var(--target-w)} }
-@keyframes rl-glow { 0%,100%{box-shadow:0 0 8px rgba(185,255,102,.15)} 50%{box-shadow:0 0 20px rgba(185,255,102,.35)} }
+@keyframes rl-glow { 0%,100%{box-shadow:0 0 8px rgba(229,247,120,.15)} 50%{box-shadow:0 0 20px rgba(229,247,120,.35)} }
 
 /* ── root ── */
 .rl-view{
   display:flex;flex-direction:column;gap:20px;
   animation:rl-fadeIn .45s ease-out;
-  color:${C.text};
+  color:var(--text-primary);
 }
 
 /* ── banner ── */
 .rl-banner{
-  background:linear-gradient(135deg,${C.panel} 0%,${C.panel2} 100%);
-  border:1px solid ${C.border};border-radius:14px;
+  background:linear-gradient(135deg,var(--surface-card) 0%,var(--surface-section) 100%);
+  border:1px solid var(--border-default);border-radius:14px;
   padding:24px 28px;position:relative;overflow:hidden;
 }
 .rl-banner::before{
   content:"";position:absolute;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,${C.accent},${C.teal},${C.coral});
+  background:linear-gradient(90deg,var(--accent),#10b981,#ef4444);
 }
 .rl-banner-status{
   display:flex;align-items:center;gap:14px;
@@ -71,16 +71,16 @@ function injectStyles() {
 .rl-banner-status .dot{
   width:14px;height:14px;border-radius:50%;flex-shrink:0;
 }
-.rl-banner-status .dot.warmup{background:${C.amber};animation:rl-pulse 1.5s ease-in-out infinite;}
-.rl-banner-status .dot.active{background:${C.green};box-shadow:0 0 10px ${C.green};}
+.rl-banner-status .dot.warmup{background:#f59e0b;animation:rl-pulse 1.5s ease-in-out infinite;}
+.rl-banner-status .dot.active{background:#059669;box-shadow:0 0 10px #059669;}
 
 /* warmup progress */
 .rl-warmup-bar{
-  height:8px;border-radius:6px;background:${C.border};overflow:hidden;margin-top:6px;
+  height:8px;border-radius:6px;background:var(--border-default);overflow:hidden;margin-top:6px;
 }
 .rl-warmup-fill{
   height:100%;border-radius:6px;
-  background:linear-gradient(90deg,${C.amber},${C.accent});
+  background:linear-gradient(90deg,#f59e0b,var(--accent));
   transition:width .6s ease;
   background-size:200% 100%;animation:rl-shimmer 2s linear infinite;
 }
@@ -91,34 +91,34 @@ function injectStyles() {
   gap:12px;margin-top:16px;
 }
 .rl-stat-box{
-  background:${C.bg};border:1px solid ${C.border};border-radius:10px;
+  background:var(--surface-page);border:1px solid var(--border-subtle);border-radius:10px;
   padding:12px 14px;text-align:center;
   transition:border-color .25s,transform .2s;
 }
-.rl-stat-box:hover{border-color:${C.accent};transform:translateY(-2px);}
-.rl-stat-box .label{font-size:.75rem;color:${C.muted};text-transform:uppercase;letter-spacing:.6px;}
+.rl-stat-box:hover{border-color:var(--accent);transform:translateY(-2px);}
+.rl-stat-box .label{font-size:.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;}
 .rl-stat-box .value{font-size:1.35rem;font-weight:700;margin-top:4px;}
 
 /* epsilon gauge */
 .rl-epsilon-gauge{margin-top:18px;}
-.rl-epsilon-gauge .title{font-size:.8rem;color:${C.muted};margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+.rl-epsilon-gauge .title{font-size:.8rem;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
 .rl-gauge-track{
   display:flex;height:28px;border-radius:8px;overflow:hidden;
-  border:1px solid ${C.border};
+  border:1px solid var(--border-default);
 }
 .rl-gauge-exploit{
-  background:linear-gradient(90deg,${C.teal},${C.blue});
+  background:linear-gradient(90deg,#059669,#2563eb);
   display:flex;align-items:center;justify-content:center;
   font-size:.72rem;font-weight:700;color:#fff;
   transition:width .6s ease;min-width:0;overflow:hidden;white-space:nowrap;
 }
 .rl-gauge-explore{
-  background:linear-gradient(90deg,${C.amber},${C.coral});
+  background:linear-gradient(90deg,#f59e0b,#ef4444);
   display:flex;align-items:center;justify-content:center;
   font-size:.72rem;font-weight:700;color:#fff;
   transition:width .6s ease;min-width:0;overflow:hidden;white-space:nowrap;
 }
-.rl-gauge-labels{display:flex;justify-content:space-between;margin-top:4px;font-size:.72rem;color:${C.muted};}
+.rl-gauge-labels{display:flex;justify-content:space-between;margin-top:4px;font-size:.72rem;color:var(--text-secondary);}
 
 /* ── charts grid ── */
 .rl-charts-grid{
@@ -126,11 +126,11 @@ function injectStyles() {
 }
 @media(max-width:1100px){.rl-charts-grid{grid-template-columns:1fr;}}
 .rl-chart-card{
-  background:${C.panel};border:1px solid ${C.border};border-radius:12px;
+  background:var(--surface-card);border:1px solid var(--border-default);border-radius:12px;
   padding:16px;animation:rl-fadeIn .5s ease-out;
   transition:border-color .25s;
 }
-.rl-chart-card:hover{border-color:${C.accent}44;}
+.rl-chart-card:hover{border-color:var(--border-subtle);}
 .rl-chart-title{
   font-size:.85rem;font-weight:600;margin-bottom:12px;
   display:flex;align-items:center;gap:8px;
@@ -144,7 +144,7 @@ function injectStyles() {
 @media(max-width:900px){.rl-insights-grid{grid-template-columns:1fr;}}
 
 .rl-dist-card,.rl-qval-card{
-  background:${C.panel};border:1px solid ${C.border};border-radius:12px;
+  background:var(--surface-card);border:1px solid var(--border-default);border-radius:12px;
   padding:20px;animation:rl-fadeIn .55s ease-out;
 }
 .rl-dist-inner{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:center;}
@@ -152,47 +152,47 @@ function injectStyles() {
 
 /* exploration table */
 .rl-exp-table{width:100%;border-collapse:collapse;font-size:.82rem;}
-.rl-exp-table th{text-align:left;color:${C.muted};padding:6px 8px;border-bottom:1px solid ${C.border};font-weight:500;}
-.rl-exp-table td{padding:6px 8px;border-bottom:1px solid ${C.border}22;}
+.rl-exp-table th{text-align:left;color:var(--text-secondary);padding:6px 8px;border-bottom:1px solid var(--border-default);font-weight:500;}
+.rl-exp-table td{padding:6px 8px;border-bottom:1px solid var(--border-light);}
 .rl-exp-table .badge{
   display:inline-block;padding:2px 8px;border-radius:6px;font-size:.72rem;font-weight:600;
 }
-.badge-exploit{background:${C.teal}22;color:${C.teal};}
-.badge-explore{background:${C.amber}22;color:${C.amber};}
+.badge-exploit{background:rgba(5,150,105,0.13);color:#059669;}
+.badge-explore{background:rgba(245,158,11,0.13);color:#f59e0b;}
 
 /* ── episodes table ── */
 .rl-episodes-wrap{
-  background:${C.panel};border:1px solid ${C.border};border-radius:12px;
+  background:var(--surface-card);border:1px solid var(--border-default);border-radius:12px;
   padding:20px;animation:rl-fadeIn .6s ease-out;
   max-height:420px;overflow-y:auto;
 }
 .rl-episodes-wrap::-webkit-scrollbar{width:6px;}
-.rl-episodes-wrap::-webkit-scrollbar-track{background:${C.bg};}
-.rl-episodes-wrap::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px;}
+.rl-episodes-wrap::-webkit-scrollbar-track{background:var(--surface-section);}
+.rl-episodes-wrap::-webkit-scrollbar-thumb{background:var(--border-default);border-radius:3px;}
 .rl-ep-table{width:100%;border-collapse:collapse;font-size:.82rem;}
 .rl-ep-table thead th{
-  position:sticky;top:0;background:${C.panel};
-  text-align:left;padding:8px 10px;color:${C.muted};
-  border-bottom:2px solid ${C.border};font-weight:600;
+  position:sticky;top:0;background:var(--surface-card);
+  text-align:left;padding:8px 10px;color:var(--text-secondary);
+  border-bottom:2px solid var(--border-default);font-weight:600;
   text-transform:uppercase;letter-spacing:.4px;font-size:.72rem;
 }
 .rl-ep-table tbody tr{transition:background .2s;}
-.rl-ep-table tbody tr:hover{background:${C.bg}88;}
-.rl-ep-table tbody td{padding:8px 10px;border-bottom:1px solid ${C.border}44;}
-.rl-ep-table .row-positive{border-left:3px solid ${C.green};}
-.rl-ep-table .row-negative{border-left:3px solid ${C.red};}
-.rl-ep-table .row-neutral{border-left:3px solid ${C.muted};}
+.rl-ep-table tbody tr:hover{background:var(--hover-bg);}
+.rl-ep-table tbody td{padding:8px 10px;border-bottom:1px solid var(--border-light);}
+.rl-ep-table .row-positive{border-left:3px solid #059669;}
+.rl-ep-table .row-negative{border-left:3px solid #ef4444;}
+.rl-ep-table .row-neutral{border-left:3px solid var(--text-secondary);}
 
 .chosen-badge{
   display:inline-block;padding:2px 10px;border-radius:20px;font-size:.7rem;font-weight:700;
   text-transform:uppercase;letter-spacing:.3px;
 }
-.chosen-exploitation{background:${C.teal}22;color:${C.teal};}
-.chosen-exploration{background:${C.amber}22;color:${C.amber};}
-.chosen-rule_fallback,.chosen-rule-fallback{background:${C.purple}22;color:${C.purple};}
+.chosen-exploitation{background:rgba(5,150,105,0.13);color:#059669;}
+.chosen-exploration{background:rgba(245,158,11,0.13);color:#f59e0b;}
+.chosen-rule_fallback,.chosen-rule-fallback{background:rgba(139,92,246,0.13);color:#8b5cf6;}
 
-.sla-met{color:${C.green};font-weight:600;}
-.sla-missed{color:${C.red};font-weight:600;}
+.sla-met{color:#059669;font-weight:600;}
+.sla-missed{color:#ef4444;font-weight:600;}
 
 /* ── controls section ── */
 .rl-controls{
@@ -205,14 +205,14 @@ function injectStyles() {
 }
 .rl-btn:disabled{opacity:.5;cursor:not-allowed;}
 .rl-btn-primary{
-  background:linear-gradient(135deg,${C.accent},${C.teal});
-  color:${C.bg};
+  background:linear-gradient(135deg,var(--accent),#059669);
+  color:var(--surface-dark);
 }
-.rl-btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 4px 16px ${C.accent}44;}
+.rl-btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 4px 16px rgba(229,247,120,0.27);}
 .rl-btn-danger{
-  background:transparent;border:1px solid ${C.red};color:${C.red};
+  background:transparent;border:1px solid #ef4444;color:#ef4444;
 }
-.rl-btn-danger:hover:not(:disabled){background:${C.red}18;transform:translateY(-2px);}
+.rl-btn-danger:hover:not(:disabled){background:rgba(239,68,68,0.09);transform:translateY(-2px);}
 
 .rl-spinner{
   display:inline-block;width:16px;height:16px;
@@ -228,23 +228,23 @@ function injectStyles() {
 }
 
 /* ── empty / loading ── */
-.rl-empty{color:${C.muted};text-align:center;padding:32px;font-style:italic;}
+.rl-empty{color:var(--text-secondary);text-align:center;padding:32px;font-style:italic;}
 .rl-loading-overlay{
   display:flex;align-items:center;justify-content:center;
-  padding:60px;color:${C.muted};gap:12px;font-size:.9rem;
+  padding:60px;color:var(--text-secondary);gap:12px;font-size:.9rem;
 }
 
 /* ── custom tooltip ── */
 .rl-tooltip{
-  background:${C.panel}ee;border:1px solid ${C.border};border-radius:8px;
-  padding:10px 14px;font-size:.78rem;color:${C.text};
-  box-shadow:0 4px 20px rgba(0,0,0,.5);
+  background:var(--surface-card);border:1px solid var(--border-default);border-radius:8px;
+  padding:10px 14px;font-size:.78rem;color:var(--text-primary);
+  box-shadow:var(--shadow-md);
 }
-.rl-tooltip .label{color:${C.muted};margin-bottom:4px;}
+.rl-tooltip .label{color:var(--text-secondary);margin-bottom:4px;}
 .rl-tooltip .value{font-weight:700;font-size:.9rem;}
 
 /* ── max-q highlight bar ── */
-.rl-qbar-max{filter:brightness(1.3);stroke:${C.accent};stroke-width:2px;}
+.rl-qbar-max{filter:brightness(1.3);stroke:var(--accent);stroke-width:2px;}
 `;
   document.head.appendChild(style);
 }
@@ -300,7 +300,7 @@ export function RLTrainingView({ apiFetch }) {
       setStats(s);
       setHistory(Array.isArray(h) ? h : (h?.training_steps ?? []));
       setEpisodes(Array.isArray(ep) ? ep : (ep?.episodes ?? []));
-      setActionDist(Array.isArray(ad) ? ad : (ad?.actions ?? Object.entries(ad ?? {}).map(([name, count]) => ({ name, count }))));
+      setActionDist(Array.isArray(ad) ? ad : (ad?.counts ? Object.entries(ad.counts).map(([name, count]) => ({ name, count })) : Object.entries(ad ?? {}).map(([name, count]) => ({ name, count }))));
       setQValues(qv);
       setError("");
     } catch (err) {
@@ -399,7 +399,8 @@ export function RLTrainingView({ apiFetch }) {
     if (!vals) return [];
     if (Array.isArray(vals)) {
       const actionNames = ["continue", "reroute_warehouse", "reroute_port", "wait", "defer_dispatch"];
-      return vals.map((v, i) => ({
+      const row = Array.isArray(vals[0]) ? vals[0] : vals;
+      return row.map((v, i) => ({
         action: ACTION_LABELS[actionNames[i]] || actionNames[i] || `Action ${i}`,
         value: typeof v === "number" ? v : (v?.value ?? 0),
         isMax: false,
@@ -472,11 +473,11 @@ export function RLTrainingView({ apiFetch }) {
           </div>
           <div className="rl-stat-box">
             <div className="label">Train Steps</div>
-            <div className="value" style={{ color: C.teal }}>{(stats?.total_train_steps ?? stats?.train_step ?? 0).toLocaleString()}</div>
+            <div className="value" style={{ color: C.reward }}>{(stats?.total_train_steps ?? stats?.train_step ?? 0).toLocaleString()}</div>
           </div>
           <div className="rl-stat-box">
             <div className="label">Avg Reward (last 100)</div>
-            <div className="value" style={{ color: C.coral }}>{(stats?.avg_reward_last_100 ?? stats?.avg_reward ?? 0).toFixed(3)}</div>
+            <div className="value" style={{ color: C.loss }}>{(stats?.avg_reward_last_100 ?? stats?.avg_reward ?? 0).toFixed(3)}</div>
           </div>
         </div>
 
@@ -504,7 +505,7 @@ export function RLTrainingView({ apiFetch }) {
         {/* Loss Curve */}
         <div className="rl-chart-card">
           <div className="rl-chart-title">
-            <span className="dot" style={{ background: C.coral }} />
+            <span className="dot" style={{ background: C.loss }} />
             Training Loss
           </div>
           {lossData.length > 0 ? (
@@ -512,8 +513,8 @@ export function RLTrainingView({ apiFetch }) {
               <LineChart data={lossData}>
                 <defs>
                   <linearGradient id="lossGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={C.coral} stopOpacity={0.35} />
-                    <stop offset="100%" stopColor={C.coral} stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={C.loss} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={C.loss} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -521,7 +522,7 @@ export function RLTrainingView({ apiFetch }) {
                 <YAxis tick={{ fill: C.muted, fontSize: 11 }} axisLine={{ stroke: C.border }} tickLine={false} />
                 <Tooltip content={<ChartTooltip />} />
                 <Area type="monotone" dataKey="loss" stroke="none" fill="url(#lossGrad)" />
-                <Line type="monotone" dataKey="loss" stroke={C.coral} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: C.coral }} />
+                <Line type="monotone" dataKey="loss" stroke={C.loss} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: C.loss }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -532,7 +533,7 @@ export function RLTrainingView({ apiFetch }) {
         {/* Reward Curve */}
         <div className="rl-chart-card">
           <div className="rl-chart-title">
-            <span className="dot" style={{ background: C.teal }} />
+            <span className="dot" style={{ background: C.reward }} />
             Average Reward
           </div>
           {rewardData.length > 0 ? (
@@ -540,8 +541,8 @@ export function RLTrainingView({ apiFetch }) {
               <LineChart data={rewardData}>
                 <defs>
                   <linearGradient id="rewardGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={C.teal} stopOpacity={0.35} />
-                    <stop offset="100%" stopColor={C.teal} stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={C.reward} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={C.reward} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -549,7 +550,7 @@ export function RLTrainingView({ apiFetch }) {
                 <YAxis tick={{ fill: C.muted, fontSize: 11 }} axisLine={{ stroke: C.border }} tickLine={false} />
                 <Tooltip content={<ChartTooltip />} />
                 <Area type="monotone" dataKey="reward" stroke="none" fill="url(#rewardGrad)" />
-                <Line type="monotone" dataKey="reward" stroke={C.teal} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: C.teal }} />
+                <Line type="monotone" dataKey="reward" stroke={C.reward} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: C.reward }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
