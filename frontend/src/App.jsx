@@ -678,12 +678,9 @@ function DashboardShell({ user, onLogout, t, lang, switchLang, apiFetch: apiFetc
               ☰
             </button>
             <h1>{t.commandCenter}</h1>
-            <div style={{ marginLeft: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span style={{
-                display: "inline-block", width: "10px", height: "10px", borderRadius: "50%",
-                backgroundColor: wsConnected ? "#10b981" : "#ef4444"
-              }} title={wsConnected ? "Connected to Backend" : "Disconnected (Auto-reconnecting...)"} />
-              <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>{wsConnected ? "Live" : "Reconnecting..."}</span>
+            <div className="ws-indicator">
+              <span className={`ws-dot ${wsConnected ? "live" : "disconnected"}`} title={wsConnected ? "Connected to Backend" : "Disconnected (Auto-reconnecting...)"} />
+              <span className="ws-label">{wsConnected ? "Live" : "Reconnecting..."}</span>
             </div>
           </div>
           <div className="top-bar-right">
@@ -758,7 +755,7 @@ export default function App() {
         <div className="login-view">
           <div className="login-card" style={{ textAlign: "center" }}>
             <div className="logo-mark large" style={{ margin: "0 auto 16px" }}>L</div>
-            <p style={{ color: "#8b8d93" }}>Loading Logisight...</p>
+            <p className="login-loading-text">Loading Logisight...</p>
           </div>
         </div>
       );

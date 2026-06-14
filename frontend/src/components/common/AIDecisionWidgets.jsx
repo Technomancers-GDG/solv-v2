@@ -30,12 +30,10 @@ export function AIDecisionPanel({ decision, confidence }) {
     prevIdRef.current = id;
   }, [safeDecision.id, safeDecision.title]);
 
+  const confidenceLevel =
+    resolvedConfidence >= 85 ? "high" : resolvedConfidence >= 65 ? "medium" : "low";
   const confidenceColor =
     resolvedConfidence >= 85 ? "#047857" : resolvedConfidence >= 65 ? "#92400e" : "#991b1b";
-  const confidenceBg =
-    resolvedConfidence >= 85 ? "#dcfce7" : resolvedConfidence >= 65 ? "#fef3c7" : "#fee2e2";
-  const confidenceBorder =
-    resolvedConfidence >= 85 ? "#86efac" : resolvedConfidence >= 65 ? "#fbbf24" : "#fca5a5";
 
   return (
     <div className={`decision-explanation-panel ${isNew ? "decision-flash" : ""}`}>
@@ -44,14 +42,7 @@ export function AIDecisionPanel({ decision, confidence }) {
           <span className="decision-kicker-dot" />
           Latest AI Decision
         </span>
-        <span
-          className="ai-confidence-badge"
-          style={{
-            background: confidenceBg,
-            color: confidenceColor,
-            borderColor: confidenceBorder,
-          }}
-        >
+        <span className={`ai-confidence-badge confidence-${confidenceLevel}`}>
           <span className="confidence-pulse" style={{ background: confidenceColor }} />
           AI Confidence: {resolvedConfidence}%
         </span>

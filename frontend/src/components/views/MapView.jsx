@@ -519,30 +519,30 @@ export function MapView({
               const isSelected = String(route.vehicleId) === selectedVehicleId;
               return (
                 <Marker key={`vehicle-${route.vehicleId}`} position={route.displayPoint} icon={getVehicleIcon(route.status, route.identifier, isSelected)} eventHandlers={getVehicleEventHandlers(route.vehicleId, setFilterVehicleId, setHighlightedVehicleId)}>
-                  <Popup className="dark-sleek-popup">
-                    <div style={{ padding: "4px 8px", backgroundColor: "#0f172a", color: "#f8fafc", borderRadius: "8px", minWidth: "180px", margin: "-14px -20px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #334155", paddingBottom: "8px", marginBottom: "8px" }}>
-                        <strong style={{ color: "#3b82f6", fontSize: "1.1rem" }}>{route.identifier}</strong>
-                        <span style={{ fontSize: "0.7rem", backgroundColor: "#1e293b", color: "#cbd5e1", padding: "2px 6px", borderRadius: "10px", textTransform: "uppercase" }}>{route.status.replace("_", " ")}</span>
+                  <Popup>
+                    <div className="route-popup">
+                      <div className="route-popup-header">
+                        <span className="route-popup-title">{route.identifier}</span>
+                        <span className="route-popup-badge">{route.status.replace("_", " ")}</span>
                       </div>
-                      <div style={{ fontSize: "0.85rem", color: "#e2e8f0", marginBottom: "6px", lineHeight: "1.3" }}>
-                        <span style={{ color: "#94a3b8", display: "block", fontSize: "0.75rem", textTransform: "uppercase" }}>Objective</span> 
+                      <div className="route-popup-body">
+                        <span className="route-popup-label">Objective</span>
                         {route.objectiveName}
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", color: "#cbd5e1", marginBottom: "6px" }}>
-                        <span style={{ color: "#94a3b8" }}>Progress:</span> 
+                      <div className="route-popup-row">
+                        <span className="route-popup-row-label">Progress:</span>
                         <strong>{route.progress.toFixed(0)}%</strong>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", color: "#cbd5e1", marginBottom: "6px" }}>
-                        <span style={{ color: "#94a3b8" }}>Source:</span> 
+                      <div className="route-popup-row">
+                        <span className="route-popup-row-label">Source:</span>
                         <span>{route.routeSource}</span>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", marginTop: "8px", borderTop: "1px solid #334155", paddingTop: "8px", fontWeight: 600 }}>
-                        <span style={{ color: "#94a3b8", fontWeight: 400 }}>Risk Level:</span> 
+                      <div className="route-popup-footer">
+                        <span className="route-popup-footer-label">Risk Level:</span>
                         <span style={{ color: getRiskColor(route.routeRisk) }}>{route.riskLevel.toUpperCase()} ({Math.round((route.routeRisk || 0) * 100)}%)</span>
                       </div>
                       {isReroutedRoute(route) && (
-                        <div style={{ marginTop: "10px", backgroundColor: "rgba(59, 130, 246, 0.15)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.3)", padding: "4px 8px", borderRadius: "6px", fontSize: "0.8rem", textAlign: "center", fontWeight: 600 }}>
+                        <div className="route-popup-ai-badge">
                           ✨ AI Rerouted
                         </div>
                       )}

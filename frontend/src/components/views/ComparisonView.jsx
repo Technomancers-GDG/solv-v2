@@ -88,9 +88,9 @@ export function ComparisonView({ apiFetch }) {
 
   return (
     <section className="analytics-layout comparison-view">
-      <div className="view-header" style={{ marginBottom: "2rem" }}>
+      <div className="view-header">
         <h2>AI vs Baseline Performance (A/B Test)</h2>
-        <p style={{ color: "#94a3b8" }}>Rigorous statistical comparison tracking per-trip metrics against a non-AI baseline.</p>
+        <p>Rigorous statistical comparison tracking per-trip metrics against a non-AI baseline.</p>
       </div>
 
       <div className="metrics-summary">
@@ -120,10 +120,10 @@ export function ComparisonView({ apiFetch }) {
         </div>
       </div>
 
-      <div className="charts-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "1.5rem", marginTop: "1.5rem" }}>
+      <div className="charts-grid">
         
         <Panel title="Performance by Condition (Delay Minutes)">
-          <div style={{ height: "300px", width: "100%", padding: "1rem" }}>
+          <div className="chart-wrapper">
             <ResponsiveContainer>
               <BarChart data={groupedBarData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
@@ -139,7 +139,7 @@ export function ComparisonView({ apiFetch }) {
         </Panel>
 
         <Panel title="Per-Trip Scatter: Baseline vs AI Time">
-          <div style={{ height: "300px", width: "100%", padding: "1rem" }}>
+          <div className="chart-wrapper">
             <ResponsiveContainer>
               <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
