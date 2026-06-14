@@ -13,7 +13,6 @@ export function LanguageSwitcher() {
           title={lang.name}
           aria-label={`Switch to ${lang.name}`}
         >
-          <span className="lang-flag">{lang.flag}</span>
           <span className="lang-code">{lang.code.toUpperCase()}</span>
         </button>
       ))}

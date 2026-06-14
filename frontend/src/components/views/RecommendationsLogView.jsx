@@ -5,11 +5,11 @@ import "./RecommendationsLogView.css";
 
 function getActionIcon(action) {
   const actionLower = action?.toLowerCase() || "";
-  if (actionLower.includes("reroute")) return "📍";
-  if (actionLower.includes("wait")) return "⏸";
-  if (actionLower.includes("defer")) return "⏭";
-  if (actionLower.includes("continue")) return "→";
-  return "✓";
+  if (actionLower.includes("reroute")) return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
+  if (actionLower.includes("wait")) return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>;
+  if (actionLower.includes("defer")) return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>;
+  if (actionLower.includes("continue")) return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>;
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>;
 }
 
 function getOutcomeTone(outcome) {
@@ -155,10 +155,10 @@ export function RecommendationsLogView({
             value={filterAction}
             options={[
               ["all", "All Actions"],
-              ["reroute", "📍 Reroute"],
-              ["wait", "⏸ Wait"],
-              ["defer", "⏭ Defer"],
-              ["continue", "→ Continue"],
+              ["reroute", "Reroute"],
+              ["wait", "Wait"],
+              ["defer", "Defer"],
+              ["continue", "Continue"],
             ]}
             onChange={setFilterAction}
           />
@@ -175,9 +175,9 @@ export function RecommendationsLogView({
             value={filterConfidence}
             options={[
               ["all", "All Confidences"],
-              ["0.8", "🟢 High (80%+)"],
-              ["0.6", "🟡 Medium (60-80%)"],
-              ["0", "🔴 Low (0-60%)"],
+              ["0.8", "High (80%+)"],
+              ["0.6", "Medium (60-80%)"],
+              ["0", "Low (0-60%)"],
             ]}
             onChange={setFilterConfidence}
           />
@@ -262,11 +262,11 @@ export function RecommendationsLogView({
                         </td>
                         <td className="cell-status">
                           {!decision ? (
-                            <span className="status-badge pending">⏳ Pending</span>
+                            <span className="status-badge pending">Pending</span>
                           ) : decision.decision === "accepted" ? (
-                            <span className="status-badge accepted">✓ Accepted</span>
+                            <span className="status-badge accepted">Accepted</span>
                           ) : (
-                            <span className="status-badge ignored">✕ Ignored</span>
+                            <span className="status-badge ignored">Ignored</span>
                           )}
                         </td>
                         <td className={`cell-improvement ${improvement >= 0 ? "positive" : "negative"}`}>
@@ -403,7 +403,7 @@ export function RecommendationsLogView({
                         <h4>Driver Decision</h4>
                         {!decision ? (
                           <div className="decision-box pending">
-                            <p>⏳ Awaiting driver decision</p>
+                            <p>Awaiting driver decision</p>
                           </div>
                         ) : (
                           <>
@@ -411,12 +411,12 @@ export function RecommendationsLogView({
                               <div className="decision-status">
                                 {decision.decision === "accepted" ? (
                                   <>
-                                    <span className="status-icon">✓</span>
+                                    <span className="status-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg></span>
                                     <span className="status-text">Driver Accepted</span>
                                   </>
                                 ) : (
                                   <>
-                                    <span className="status-icon">✕</span>
+                                    <span className="status-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
                                     <span className="status-text">Driver Ignored</span>
                                   </>
                                 )}

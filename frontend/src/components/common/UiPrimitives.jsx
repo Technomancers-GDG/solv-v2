@@ -1,6 +1,6 @@
 /**
  * UiPrimitives — Shared design-system components.
- * Each primitive uses semantic HTML and accessibility attributes.
+ * Refactored for Windows 11 Fluent Design System.
  */
 import "./UiPrimitives.css";
 
@@ -20,16 +20,31 @@ export function Panel({ title, children, className = "" }) {
 
 /** MetricCard — KPI display tile with semantic tone indicator. */
 export function MetricCard({ label, value, tone = "neutral", trend, context }) {
+  // Map tone to the exact text colors expected in the new premium design
+  const glowClass = `glow-${tone}`;
+  
   return (
-    <article className={`metric-card tone-${tone}`} aria-label={`${label}: ${value}`}>
-      <span className="metric-label">{label}</span>
-      <strong className="metric-value">{value}</strong>
-      {context && <span className="metric-context">{context}</span>}
-      {trend !== undefined && (
-        <span className={`metric-trend ${trend > 0 ? "positive" : "negative"}`} aria-label={`Trend: ${trend > 0 ? "up" : "down"} ${Math.abs(trend).toFixed(1)}%`}>
-          {trend > 0 ? "\u2191" : "\u2193"} {Math.abs(trend).toFixed(1)}%
-        </span>
-      )}
+    <article className="cmd-panel" aria-label={`${label}: ${value}`}>
+      <h2 className="cmd-panel-title">
+        {/* Simple generic SVG for the title if desired, or just text */}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        {label}
+      </h2>
+      <div className="metric-glance">
+        <div className={`metric-glance-value ${glowClass}`}>{value}</div>
+        {context && (
+          <div className="metric-glance-context">
+            {trend !== undefined ? (
+              <span className={`metric-trend ${trend > 0 ? "positive" : "negative"}`}>
+                {trend > 0 ? "\u2191" : "\u2193"} {Math.abs(trend).toFixed(1)}%
+              </span>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            )}
+            {context}
+          </div>
+        )}
+      </div>
     </article>
   );
 }

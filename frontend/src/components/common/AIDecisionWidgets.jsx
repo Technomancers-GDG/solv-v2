@@ -31,12 +31,13 @@ export function AIDecisionPanel({ decision, confidence }) {
     prevIdRef.current = id;
   }, [safeDecision.id, safeDecision.title]);
 
+  // Windows 11 Fluent System Status Colors
   const confidenceColor =
-    resolvedConfidence >= 85 ? "#047857" : resolvedConfidence >= 65 ? "#92400e" : "#991b1b";
+    resolvedConfidence >= 85 ? "#0F7B0F" : resolvedConfidence >= 65 ? "#9D5D00" : "#C42B1C";
   const confidenceBg =
-    resolvedConfidence >= 85 ? "#dcfce7" : resolvedConfidence >= 65 ? "#fef3c7" : "#fee2e2";
+    resolvedConfidence >= 85 ? "#DFF6DD" : resolvedConfidence >= 65 ? "#FFF4CE" : "#FDE7E9";
   const confidenceBorder =
-    resolvedConfidence >= 85 ? "#86efac" : resolvedConfidence >= 65 ? "#fbbf24" : "#fca5a5";
+    resolvedConfidence >= 85 ? "#B2DFB0" : resolvedConfidence >= 65 ? "#FDE68A" : "#F8C1C6";
 
   return (
     <article className={`decision-explanation-panel ${isNew ? "decision-flash" : ""}`} aria-label="Latest Recommendation">
@@ -122,9 +123,9 @@ export function RouteComparisonBlock({ comparison, previousRoute }) {
       </div>
 
       {comparison?.decision && (
-        <section className="route-compare-decision">
+        <section className="route-compare-decision" style={{ marginTop: '16px' }}>
           <span className="compare-label">Decision Rationale</span>
-          <p>{comparison.decision}</p>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem', color: 'var(--win-text-primary)' }}>{comparison.decision}</p>
         </section>
       )}
     </article>
@@ -150,9 +151,11 @@ export function AIActivityFeed({ events = [] }) {
 
   if (!visibleEvents.length) {
     return (
-      <div className="ai-feed-empty" role="status">
-        <span className="ai-feed-empty-icon" aria-hidden="true">🔍</span>
-        <span>No AI actions recorded yet.</span>
+      <div className="ai-feed-empty" role="status" style={{ color: 'var(--win-text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span className="ai-feed-empty-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+        </span>
+        <span>No actions recorded yet.</span>
       </div>
     );
   }
@@ -189,7 +192,13 @@ export function AIRerouteToast({ toasts, onDismiss }) {
           className={`ai-toast ai-toast-${toast.type ?? "reroute"}`}
           role="alert"
         >
-          <div className="toast-icon">{toast.type === "warning" ? "⚠" : "🧠"}</div>
+          <div className="toast-icon">
+            {toast.type === "warning" ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+            )}
+          </div>
           <div className="toast-body">
             <strong>{toast.title}</strong>
             {toast.detail && <p>{toast.detail}</p>}

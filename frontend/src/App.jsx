@@ -120,42 +120,56 @@ function useLanguage() {
   return { lang, t, switchLang };
 }
 
+const Icons = {
+  Dashboard: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9" /><rect x="14" y="3" width="7" height="5" /><rect x="14" y="12" width="7" height="9" /><rect x="3" y="16" width="7" height="5" /></svg>,
+  Map: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" /><line x1="9" y1="3" x2="9" y2="18" /><line x1="15" y1="6" x2="15" y2="21" /></svg>,
+  LiveOps: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>,
+  Forecast: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>,
+  Inventory: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>,
+  Scenarios: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polygon points="10 8 16 12 10 16 10 8" /></svg>,
+  Network: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>,
+  Objectives: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>,
+  Events: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4l2-9 5 18 3-9h6" /></svg>,
+  Impact: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" /><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" /></svg>,
+  Settings: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+};
+
 function getNavSections(t) {
   return [
     {
       label: t.operations,
       items: [
-        { key: "dashboard", label: t.dashboard, icon: "📊" },
-        { key: "map", label: t.liveMap, icon: "🗺️" },
-        { key: "liveOps", label: t.liveOps, icon: "⚡" },
+        { key: "dashboard", label: t.dashboard, icon: Icons.Dashboard },
+        { key: "map", label: t.liveMap, icon: Icons.Map },
+        { key: "liveOps", label: t.liveOps, icon: Icons.LiveOps },
       ],
     },
     {
       label: t.intelligence,
       items: [
-        { key: "forecast", label: t.forecast, icon: "🔮" },
-        { key: "inventory", label: t.inventory, icon: "📦" },
-        { key: "scenarios", label: t.scenarios, icon: "🎬" },
+        { key: "forecast", label: t.forecast, icon: Icons.Forecast },
+        { key: "inventory", label: t.inventory, icon: Icons.Inventory },
+        { key: "scenarios", label: t.scenarios, icon: Icons.Scenarios },
       ],
     },
     {
       label: t.network,
       items: [
-        { key: "network", label: t.networkView, icon: "🌐" },
-        { key: "objectives", label: t.objectives, icon: "🎯" },
-        { key: "events", label: t.events, icon: "📡" },
+        { key: "network", label: t.networkView, icon: Icons.Network },
+        { key: "objectives", label: t.objectives, icon: Icons.Objectives },
+        { key: "events", label: t.events, icon: Icons.Events },
       ],
     },
     {
       label: t.analytics,
       items: [
-        { key: "impact", label: t.impact, icon: "🌍" },
+        { key: "impact", label: t.impact, icon: Icons.Impact },
       ],
     },
     {
       label: t.settings,
       items: [
-        { key: "settings", label: t.settings, icon: "⚙️" },
+        { key: "settings", label: t.settings, icon: Icons.Settings },
       ],
     },
   ];
@@ -164,8 +178,8 @@ function getNavSections(t) {
 function Sidebar({ active, onNavigate, collapsed, setCollapsed, t }) {
   const sections = getNavSections(t);
   return (
-    <aside 
-      className={`sidebar ${collapsed ? "collapsed" : "open"}`} 
+    <aside
+      className={`sidebar ${collapsed ? "collapsed" : "open"}`}
       aria-label="Main navigation"
       onMouseEnter={() => setCollapsed && setCollapsed(false)}
       onMouseLeave={() => setCollapsed && setCollapsed(true)}
@@ -233,28 +247,29 @@ function StatusBar({ dashboard, metrics, t }) {
   }, [sim?.status, sim?.simulation_time, sim?.speed_multiplier]);
 
   return (
-    <div className="status-bar" role="status" aria-label="Simulation status" aria-live="polite">
-      <div className="status-pill-group">
-        <span className={`status-dot ${sim?.status === "running" ? "live" : ""}`} aria-hidden="true" />
+    <div className="unified-status-strip" role="status" aria-label="Simulation status" aria-live="polite">
+      <div className="status-item live-indicator">
+        <span className={`pulse-ring ${sim?.status === "running" ? "active" : ""}`} aria-hidden="true" />
         <span className="status-text">{sim?.status ?? "idle"}</span>
       </div>
-      <div className="status-pill-group">
+      <div className="status-divider" />
+      <div className="status-item">
         <span className="status-label">{t.simTime}</span>
-        <span className="status-value">{displayTime?.slice(0, 19).replace("T", " ") ?? "--"}</span>
+        <span className="status-value time-mono">{displayTime?.slice(0, 19).replace("T", " ") ?? "--"}</span>
       </div>
-      <div className="status-pill-group">
+      <div className="status-item">
         <span className="status-label">{t.speed}</span>
-        <span className="status-value">{sim?.speed_multiplier ?? 0}x</span>
+        <span className="status-value accent">{sim?.speed_multiplier ?? 0}x</span>
       </div>
-      <div className="status-pill-group">
+      <div className="status-item">
         <span className="status-label">{t.active}</span>
-        <span className="status-value">{metrics?.active_trucks ?? 0} trucks</span>
+        <span className="status-value">{metrics?.active_trucks ?? 0}</span>
       </div>
-      <div className="status-pill-group">
+      <div className="status-item">
         <span className="status-label">{t.onTime}</span>
         <span className="status-value">{metrics?.on_time_delivery_pct ?? 0}%</span>
       </div>
-      <div className="status-pill-group">
+      <div className="status-item highlight">
         <span className="status-label">{t.co2Saved}</span>
         <span className="status-value">{(metrics?.co2_saved_kg ?? 0).toFixed(1)} kg</span>
       </div>
@@ -264,11 +279,21 @@ function StatusBar({ dashboard, metrics, t }) {
 
 function SimControls({ onAction, t }) {
   return (
-    <div className="sim-controls" role="group" aria-label="Simulation controls">
-      <button className="sim-btn primary" onClick={() => onAction("/api/simulation/start", { speed_multiplier: 180 }, t.start)} aria-label={`${t.start} simulation`}>{t.start}</button>
-      <button className="sim-btn" onClick={() => onAction("/api/simulation/pause", {}, t.pause)} aria-label={`${t.pause} simulation`}>{t.pause}</button>
-      <button className="sim-btn" onClick={() => onAction("/api/simulation/resume", {}, t.resume)} aria-label={`${t.resume} simulation`}>{t.resume}</button>
-      <button className="sim-btn danger" onClick={() => onAction("/api/simulation/reset", {}, t.reset)} aria-label={`${t.reset} simulation`}>{t.reset}</button>
+    <div className="unified-sim-controls" role="group" aria-label="Simulation controls">
+      <button className="ctrl-btn play" onClick={() => onAction("/api/simulation/start", { speed_multiplier: 180 }, t.start)} aria-label={`${t.start} simulation`}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+        {t.start}
+      </button>
+      <button className="ctrl-btn pause" onClick={() => onAction("/api/simulation/pause", {}, t.pause)} aria-label={`${t.pause} simulation`}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+        {t.pause}
+      </button>
+      <button className="ctrl-btn resume" onClick={() => onAction("/api/simulation/resume", {}, t.resume)} aria-label={`${t.resume} simulation`}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
+      </button>
+      <button className="ctrl-btn reset" onClick={() => onAction("/api/simulation/reset", {}, t.reset)} aria-label={`${t.reset} simulation`}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><polyline points="3 3 3 8 8 8" /></svg>
+      </button>
     </div>
   );
 }
@@ -403,7 +428,7 @@ function buildActivityFeed(recommendations, aiActivity) {
     { id: "mock-1", time: "16:23", title: "Rerouted SHP-001", detail: "avoided port delay" },
     { id: "mock-2", time: "16:20", title: "Predicted congestion at Mumbai port", detail: `${aiActivity?.cascade_detections_today ?? 1} cascade signal detected` },
     { id: "mock-3", time: "16:18", title: "Switched to rail route", detail: "optimized for cost efficiency" },
-    ];
+  ];
 }
 
 export default function App() {
@@ -523,12 +548,12 @@ export default function App() {
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    
+
     // In production, point directly to the Cloud Run backend instead of the Vite proxy
-    const backendHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
-      ? window.location.host 
+    const backendHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+      ? window.location.host
       : "sim-backend-1029069183045.us-central1.run.app";
-      
+
     const socket = new WebSocket(`${protocol}://${backendHost}/ws/operations`);
     socket.onmessage = (event) => {
       try {
@@ -536,7 +561,7 @@ export default function App() {
         if (payload.type === "simulation_snapshot") {
           startTransition(() => { setDashboard(payload.payload); setMetrics(payload.payload.metrics); });
         }
-      } catch {}
+      } catch { }
     };
     const ping = setInterval(() => { if (socket.readyState === WebSocket.OPEN) socket.send("ping"); }, 15000);
     return () => { clearInterval(ping); socket.close(); };
@@ -545,9 +570,9 @@ export default function App() {
   const runAction = useCallback(async (path, body = null, msg = "") => {
     try {
       await apiFetch(path, { method: "POST", body: JSON.stringify(body ?? {}) });
-      if (msg) { 
-        setMessage(msg); 
-        setError(""); 
+      if (msg) {
+        setMessage(msg);
+        setError("");
         setTimeout(() => setMessage(""), 3000);
       }
       await refreshAll(false);
@@ -576,7 +601,7 @@ export default function App() {
         {
           id: `toast-${Date.now()}`,
           type: isReroute ? "reroute" : "info",
-          title: isReroute ? "⚠ AI Reroute Executed" : "🧠 AI Decision Made",
+          title: isReroute ? "AI Reroute Executed" : "AI Decision Made",
           detail: derivedDecision.impact?.[0]
             ? `${derivedDecision.impact[0]}${derivedDecision.impact[1] ? " · " + derivedDecision.impact[1] : ""}`
             : derivedDecision.reason,
@@ -644,7 +669,7 @@ export default function App() {
       <section className="login-view" aria-label="Loading">
         <div className="login-card" style={{ textAlign: "center" }}>
           <div className="logo-mark large" style={{ margin: "0 auto 16px" }} aria-hidden="true">SOLV</div>
-          <p style={{ color: "#8b8d93" }} role="status" aria-live="polite">Loading authentication...</p>
+          <p className="muted-text" role="status" aria-live="polite">Loading authentication...</p>
         </div>
       </section>
     );
@@ -659,33 +684,34 @@ export default function App() {
       <AIRerouteToast toasts={toasts} onDismiss={dismissToast} />
       <Sidebar active={activeView} onNavigate={setActiveView} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} t={t} />
       <div className={`main-content ${sidebarCollapsed ? "expanded" : ""}`}>
-        <header className="top-bar" lang={lang} role="banner">
-          <div className="top-bar-left">
-            <button
-              className="mobile-menu-btn"
-              onClick={() => setSidebarCollapsed((c) => !c)}
-              aria-label="Toggle navigation menu"
-              aria-expanded={!sidebarCollapsed}
-            >
-              ☰
-            </button>
-            <h1>{t.commandCenter}</h1>
-            <span className="prototype-badge" aria-label="Hackathon prototype">{t.prototypeBadge}</span>
-          </div>
-          <div className="top-bar-right">
-            <div className="user-chip" aria-label={`Signed in as ${user.displayName || user.email || "User"}`}>
-              {user.photoURL && (
-                <img src={user.photoURL} alt={`${user.displayName || "User"} avatar`} className="user-avatar" referrerPolicy="no-referrer" />
-              )}
-              <span className="user-name">{user.displayName || user.email || "User"}</span>
-              <button className="logout-btn" onClick={handleLogout} title={t.logout} aria-label={t.logout}>
-                {t.logout}
-              </button>
+        <header className="unified-app-header" lang={lang} role="banner">
+          <div className="header-top-row">
+            <div className="header-brand">
+              <button className="mobile-menu-btn" onClick={() => setSidebarCollapsed((c) => !c)} aria-label="Toggle navigation menu">☰</button>
+              <div className="brand-logo-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="12 2 2 22 22 22" /></svg>
+              </div>
+              <h1 className="brand-title">{t.commandCenter}</h1>
+              <span className="brand-badge">{t.prototypeBadge}</span>
             </div>
-            <SimControls onAction={runAction} t={t} />
+
+            <div className="header-actions">
+              <SimControls onAction={runAction} t={t} />
+              <div className="header-divider" />
+              <div className="user-profile-menu">
+                {user.photoURL && <img src={user.photoURL} alt="avatar" className="avatar-img" referrerPolicy="no-referrer" />}
+                <span className="user-name-text">{user.displayName?.split(" ")[0] || "Admin"}</span>
+                <button className="logout-icon-btn" onClick={handleLogout} aria-label={t.logout}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="header-bottom-row">
+            <StatusBar dashboard={dashboard} metrics={metrics} t={t} />
           </div>
         </header>
-        <StatusBar dashboard={dashboard} metrics={metrics} t={t} />
         {message && <div className="banner success">{message}</div>}
         {error && <div className="banner error">{error}</div>}
         {loading && !dashboard ? <div className="loading">Loading intelligence layer...</div> : (

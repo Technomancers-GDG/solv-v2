@@ -5,15 +5,15 @@ import "./EventsLogView.css";
 
 function getEventIcon(eventType) {
   const iconMap = {
-    news: "📰",
-    weather: "🌧️",
-    incident: "⚠️",
-    system: "⚙️",
-    delay: "⏰",
-    strike: "✊",
-    blockage: "🚧",
+    news: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><polyline points="14 2 14 8 20 8"/><path d="M2 15h10"/><path d="M2 19h10"/></svg>,
+    weather: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 16.2A4.5 4.5 0 0 0 17.5 8h-1.8A7 7 0 1 0 4 14.9"/><path d="M12 12v9"/><path d="M8 17l4-4 4 4"/></svg>,
+    incident: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+    system: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+    delay: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+    strike: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+    blockage: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
   };
-  return iconMap[eventType] || "📌";
+  return iconMap[eventType] || <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
 }
 
 function getEventTone(severity) {
@@ -109,10 +109,10 @@ export function EventsLogView({ importEvents, events = [] }) {
         <h2 className="dashboard-panel-title">{"Events Log"}</h2>
         <div className="import-controls" role="group" aria-label="Import tools">
           <button className="primary-btn" onClick={() => importEvents(false)}>
-            📥 Import Event Replay
+            Import Event Replay
           </button>
           <button className="secondary-btn" onClick={() => importEvents(true)}>
-            📰 Full News Import
+            Full News Import
           </button>
         </div>
       </section>
@@ -126,10 +126,10 @@ export function EventsLogView({ importEvents, events = [] }) {
             value={filterEventType}
             options={[
               ["all", "All Events"],
-              ["news", "📰 News"],
-              ["weather", "🌧️ Weather"],
-              ["incident", "⚠️ Incident"],
-              ["system", "⚙️ System"],
+              ["news", "News"],
+              ["weather", "Weather"],
+              ["incident", "Incident"],
+              ["system", "System"],
             ]}
             onChange={setFilterEventType}
           />
@@ -139,9 +139,9 @@ export function EventsLogView({ importEvents, events = [] }) {
             value={filterSeverity}
             options={[
               ["all", "All Severities"],
-              ["0.7", "🔴 Critical (0.7+)"],
-              ["0.4", "🟡 High (0.4-0.7)"],
-              ["0", "🟢 Low (0-0.4)"],
+              ["0.7", "Critical (0.7+)"],
+              ["0.4", "High (0.4-0.7)"],
+              ["0", "Low (0-0.4)"],
             ]}
             onChange={setFilterSeverity}
           />
@@ -210,7 +210,7 @@ export function EventsLogView({ importEvents, events = [] }) {
                             <h4 className="event-title">{event.title || event.event_type}</h4>
                             <div className="event-meta">
                               <time className="event-time" dateTime={event.created_at}>{formatRelativeTime(event.created_at)}</time>
-                              {event.city && <span className="event-city">📍 {event.city}</span>}
+                              {event.city && <span className="event-city">{event.city}</span>}
                               {event.status && (
                                 <span className={`event-status ${event.status}`}>
                                   {event.status.toUpperCase()}
@@ -251,8 +251,8 @@ export function EventsLogView({ importEvents, events = [] }) {
                                   <h5>Route Impact Classification</h5>
                                   <p className="classifier">
                                     {event.relevance_classifier === true || event.relevance_classifier === "true"
-                                      ? "✓ Route-impacting"
-                                      : "✕ Not route-impacting"}
+                                      ? "Route-impacting"
+                                      : "Not route-impacting"}
                                   </p>
                                 </div>
                               )}

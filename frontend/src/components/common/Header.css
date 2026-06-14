@@ -1,86 +1,249 @@
-/* Header.css */
-.hero {
-  background-color: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 32px 24px;
+/* Header.css - Ultra Premium Light Mode */
+
+.app-header {
   display: flex;
   flex-direction: column;
+  background: #FFFFFF;
+  border-bottom: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+.app-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 32px;
+  border-bottom: 1px solid #F1F5F9;
+}
+
+.app-branding {
+  display: flex;
+  align-items: center;
   gap: 16px;
 }
 
-@media (min-width: 768px) {
-  .hero {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
-}
-
-.eyebrow {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 8px;
-}
-
-.hero h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 12px 0;
-  font-family: 'Inter', 'Roboto', sans-serif;
-}
-
-.hero-copy {
-  font-size: 1rem;
-  color: #475569;
-  max-width: 600px;
-  line-height: 1.5;
-  margin: 0;
-}
-
-.hero-controls {
+.app-logo {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+.app-branding h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.badge-prototype {
+  background: #FFFBEB;
+  color: #D97706;
+  border: 1px solid #FDE68A;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.app-controls {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
   gap: 12px;
 }
 
-.hero-controls button {
-  background-color: #ffffff;
-  color: #334155;
-  border: 1px solid #cbd5e1;
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #F1F5F9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: var(--text);
+  border: 1px solid #E2E8F0;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1E293B;
+}
+
+.user-role {
+  font-size: 0.75rem;
+  color: #64748B;
+}
+
+.btn-logout {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  color: var(--text);
+  padding: 6px 16px;
   border-radius: 6px;
-  padding: 8px 16px;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.hero-controls button:hover {
-  background-color: #f1f5f9;
-  border-color: #94a3b8;
+.btn-logout:hover {
+  background: #F8FAFC;
+  color: #0F172A;
+  border-color: #CBD5E1;
 }
 
-.hero-controls button.primary-btn {
-  background-color: #3b82f6;
-  color: #ffffff;
-  border-color: #3b82f6;
+/* Toolbar Layer */
+.app-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 32px;
+  background: #F8FAFC;
 }
 
-.hero-controls button.primary-btn:hover {
-  background-color: #2563eb;
+.toolbar-status {
+  display: flex;
+  align-items: center;
+  gap: 24px;
 }
 
-.hero-controls button.danger {
-  background-color: #ffffff;
-  color: #ef4444;
-  border-color: #fca5a5;
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #FFFFFF;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
-.hero-controls button.danger:hover {
-  background-color: #fef2f2;
-  border-color: #ef4444;
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #94A3B8;
+}
+
+.status-dot.running {
+  background: #10B981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.status-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-divider {
+  width: 1px;
+  height: 20px;
+  background: #E2E8F0;
+}
+
+.status-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.metric-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metric-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0F172A;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.btn-action.primary {
+  background: #2563EB;
+  color: white;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+}
+
+.btn-action.primary:hover {
+  background: #1D4ED8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+}
+
+.btn-action.secondary {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.btn-action.secondary:hover {
+  background: #F8FAFC;
+  border-color: #CBD5E1;
+  color: #0F172A;
+}
+
+.btn-action.danger {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #DC2626;
+}
+
+.btn-action.danger:hover {
+  background: #FEE2E2;
+  border-color: #F87171;
+}
+
+.btn-action:active {
+  transform: scale(0.98) !important;
 }

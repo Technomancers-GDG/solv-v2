@@ -367,41 +367,60 @@ export function MapView({
 
   return (
     <section className="map-layout" aria-label="Map Dashboard">
-      <section className="dashboard-panel" aria-label="Route & Facility Map with Risk Heatmap">
-        <h2 className="dashboard-panel-title">{"Route & Facility Map with Risk Heatmap"}</h2>
-        <div className="map-controls" role="group" aria-label="Map filters">
-          <div className="control-row">
-            <Select label="Filter Vehicle" value={filterVehicleId} options={[["", "All Vehicles"], ...liveRoutes.map((r) => [String(r.vehicleId), r.identifier])]} onChange={(value) => { setFilterVehicleId(value); setHighlightedVehicleId(value ? String(value) : ""); }} />
-            <Select label="Filter Objective" value={filterObjectiveId} options={[["", "All Objectives"], ...objectives.map((o) => [String(o.id), o.name])]} onChange={setFilterObjectiveId} />
-          </div>
-          <div className="control-row checkbox-row">
-            <label className="checkbox-label"><input type="checkbox" checked={showDisruptions} onChange={(e) => setShowDisruptions(e.target.checked)} /><span>Show Disruption Zones</span></label>
-            <label className="checkbox-label"><input type="checkbox" checked={showRoutePaths} onChange={(e) => setShowRoutePaths(e.target.checked)} /><span>Show Selected Route Path</span></label>
-            <label className="checkbox-label"><input type="checkbox" checked={showRiskHeatmap} onChange={(e) => setShowRiskHeatmap(e.target.checked)} /><span>Show Risk Heatmap</span></label>
-            <label className="checkbox-label"><input type="checkbox" checked={showAllRoutes} onChange={(e) => setShowAllRoutes(e.target.checked)} /><span>Show All Routes</span></label>
-          </div>
-          {onScaleFleet ? (
-            <div className="scale-controls">
-              <div className="scale-summary">Fleet size: <strong>{vehicleCount}</strong> trucks</div>
-              <div className="scale-actions">
-                <button type="button" className="scale-btn" disabled={isScalingFleet} onClick={() => onScaleFleet(60)}>Regional 60</button>
-                <button type="button" className="scale-btn" disabled={isScalingFleet} onClick={() => onScaleFleet(140)}>National 140</button>
-                <button type="button" className="scale-btn" disabled={isScalingFleet} onClick={() => onScaleFleet(260)}>Enterprise 260</button>
-                <button type="button" className="scale-btn" disabled={isScalingFleet} onClick={() => onScaleFleet(1000)}>Mega Corp 1000</button>
-              </div>
-              <div className="scale-note">Scaling adds trucks and drivers, rebalances objective assignments, and restarts simulation.</div>
+      <div className="map-bento-grid">
+        {/* Main Map Panel */}
+        <section className="cmd-panel panel-map-core" aria-label="Route & Facility Map with Risk Heatmap">
+          <header className="map-panel-header">
+            <h2 className="cmd-panel-title">{"Route & Facility Map"}</h2>
+          </header>
+          <div className="map-toolbar" role="toolbar" aria-label="Map filters">
+            <div className="toolbar-section">
+              <Select label="Filter Vehicle" value={filterVehicleId} options={[["", "All Vehicles"], ...liveRoutes.map((r) => [String(r.vehicleId), r.identifier])]} onChange={(value) => { setFilterVehicleId(value); setHighlightedVehicleId(value ? String(value) : ""); }} />
+              <Select label="Filter Objective" value={filterObjectiveId} options={[["", "All Objectives"], ...objectives.map((o) => [String(o.id), o.name])]} onChange={setFilterObjectiveId} />
             </div>
-          ) : null}
-          <div className="route-hint">Toggle "Show All Routes" to see all active route paths on the map. Click a truck marker or use the dropdown to highlight a specific route.</div>
-          <div className="route-risk-legend">
-            <span><i className="risk-dot low" />Low risk</span>
-            <span><i className="risk-dot medium" />Medium risk</span>
-            <span><i className="risk-dot high" />High risk</span>
-            <span><i className="dash-sample" />Rerouted segment</span>
-          </div>
-        </div>
 
-        <div className="map-container">
+            <div className="toolbar-section toggle-group">
+              <label className="ui-switch">
+                <input type="checkbox" checked={showDisruptions} onChange={(e) => setShowDisruptions(e.target.checked)} />
+                <span className="slider"></span>
+                <span className="switch-label">Disruptions</span>
+              </label>
+              <label className="ui-switch">
+                <input type="checkbox" checked={showRiskHeatmap} onChange={(e) => setShowRiskHeatmap(e.target.checked)} />
+                <span className="slider"></span>
+                <span className="switch-label">Heatmap</span>
+              </label>
+              <label className="ui-switch">
+                <input type="checkbox" checked={showRoutePaths} onChange={(e) => setShowRoutePaths(e.target.checked)} />
+                <span className="slider"></span>
+                <span className="switch-label">Path</span>
+              </label>
+              <label className="ui-switch">
+                <input type="checkbox" checked={showAllRoutes} onChange={(e) => setShowAllRoutes(e.target.checked)} />
+                <span className="slider"></span>
+                <span className="switch-label">All Routes</span>
+              </label>
+            </div>
+
+            {onScaleFleet ? (
+              <div className="toolbar-section scale-fleet-box">
+                <div className="scale-label">Fleet Size: <strong>{vehicleCount}</strong></div>
+                <div className="scale-buttons">
+                  <button type="button" className={`scale-btn ${vehicleCount === 60 ? "active" : ""}`} disabled={isScalingFleet} onClick={() => onScaleFleet(60)}>60</button>
+                  <button type="button" className={`scale-btn ${vehicleCount === 140 ? "active" : ""}`} disabled={isScalingFleet} onClick={() => onScaleFleet(140)}>140</button>
+                  <button type="button" className={`scale-btn ${vehicleCount === 260 ? "active" : ""}`} disabled={isScalingFleet} onClick={() => onScaleFleet(260)}>260</button>
+                  <button type="button" className={`scale-btn ${vehicleCount === 1000 ? "active" : ""}`} disabled={isScalingFleet} onClick={() => onScaleFleet(1000)}>1K</button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="toolbar-section legend">
+              <div className="legend-item"><span className="risk-dot low"></span> Low</div>
+              <div className="legend-item"><span className="risk-dot medium"></span> Med</div>
+              <div className="legend-item"><span className="risk-dot high"></span> High</div>
+              <div className="legend-item"><span className="dash-sample"></span> Reroute</div>
+            </div>
+          </div>        <div className="map-container">
           <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} scrollWheelZoom maxBounds={INDIA_BOUNDS} maxBoundsViscosity={1.0} minZoom={5} maxZoom={12} worldCopyJump={false}>
             <MapClickHandler onMapClick={() => { setFilterVehicleId(""); setHighlightedVehicleId(""); }} />
             <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -545,10 +564,11 @@ export function MapView({
           </dl>
           {selectedRoute ? <div className="selected-route-meta" role="status" aria-live="polite">Selected route: <strong>{selectedRoute.identifier}</strong> ({selectedRoute.routeSource})</div> : null}
         </aside>
-      </section>
+        </section>
 
-      <section className="dashboard-panel" aria-label="Active Routes">
-        <h2 className="dashboard-panel-title">{"Active Routes"}</h2>
+        {/* Active Routes Panel */}
+        <section className="cmd-panel panel-active-routes" aria-label="Active Routes">
+          <h2 className="cmd-panel-title">{"Active Routes"}</h2>
         {visibleRoutes.length === 0 ? <p className="empty" role="status">No active routes to display.</p> : (
           <ul className="routes-list" aria-label="List of active routes">
             {visibleRoutes.map((route) => (
@@ -566,10 +586,31 @@ export function MapView({
             ))}
           </ul>
         )}
-      </section>
+        </section>
 
-      <section className="dashboard-panel" aria-label="Facility Network">
-        <h2 className="dashboard-panel-title">{"Facility Network"}</h2>
+        {/* Disruptions Panel */}
+        {showDisruptions && (
+          <section className="cmd-panel panel-disruptions" aria-label="Active Disruption Zones">
+            <h2 className="cmd-panel-title">{"Active Disruption Zones"}</h2>
+            {disruptionEvents.length === 0 ? <p className="empty" role="status">No active disruptions.</p> : (
+              <ul className="disruption-zones" aria-label="List of active disruptions">
+                {disruptionEvents.map((event, index) => (
+                  <li key={`${event.city}-${event.kind}-${index}`}>
+                    <article className="disruption-card">
+                      <header className="disruption-header"><h5>{event.city}</h5><span className={`disruption-severity ${eventSeverity(event.impact_score)}`}>{event.kind} impact</span></header>
+                      <p className="disruption-desc">{event.headline}</p>
+                      <div className="affected-facilities"><strong>Impact:</strong> {event.impact_type} <strong>Score:</strong> {Number(event.impact_score || 0).toFixed(2)}</div>
+                    </article>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {/* Facility Network Panel */}
+        <section className="cmd-panel panel-facilities" aria-label="Facility Network">
+          <h2 className="cmd-panel-title">{"Facility Network"}</h2>
         <div className="facility-summary">
           <h4>Facilities by City</h4>
           <ul className="cities-grid" aria-label="Facilities distributed by city">
@@ -587,26 +628,8 @@ export function MapView({
             ))}
           </ul>
         </div>
-      </section>
-
-      {showDisruptions && (
-        <section className="dashboard-panel" aria-label="Active Disruption Zones">
-        <h2 className="dashboard-panel-title">{"Active Disruption Zones"}</h2>
-          {disruptionEvents.length === 0 ? <p className="empty" role="status">No weather or news disruptions exceed the alert threshold right now.</p> : (
-            <ul className="disruption-zones" aria-label="List of active disruptions">
-              {disruptionEvents.map((event, index) => (
-                <li key={`${event.city}-${event.kind}-${index}`}>
-                  <article className="disruption-card">
-                    <header className="disruption-header"><h5>{event.city}</h5><span className={`disruption-severity ${eventSeverity(event.impact_score)}`}>{event.kind} impact</span></header>
-                    <p className="disruption-desc">{event.headline}</p>
-                    <div className="affected-facilities"><strong>Impact type:</strong> {event.impact_type} <strong>Score:</strong> {Number(event.impact_score || 0).toFixed(2)}</div>
-                  </article>
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
-      )}
+      </div>
     </section>
   );
 }

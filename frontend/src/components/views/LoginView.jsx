@@ -2,11 +2,9 @@ import { useState } from "react";
 import { signInWithGoogle } from "../../firebase";
 import "./LoginView.css";
 
-
 /**
  * LoginView — Full-screen authentication gate.
- * Uses semantic HTML (<section>, <header>, <footer>) and ARIA attributes
- * for accessibility. Preserves all auth logic (Google + local dev).
+ * Refactored to align with Windows 11 Fluent Design System.
  */
 export function LoginView({ t, onLogin, lang, onSwitchLang }) {
   const [loading, setLoading] = useState(false);
@@ -82,8 +80,8 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
               id="local-signin-btn"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M9.25 4.75h5.5a2 2 0 012 2v10.5a2 2 0 01-2 2h-5.5a2 2 0 01-2-2V6.75a2 2 0 012-2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M12 16.25v.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M9.25 4.75h5.5a2 2 0 012 2v10.5a2 2 0 01-2 2h-5.5a2 2 0 01-2-2V6.75a2 2 0 012-2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M12 16.25v.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
               <span>Login (Local Dev)</span>
             </button>
@@ -92,9 +90,9 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
           {/* Error alert */}
           {error && (
             <div className="login-error" role="alert" aria-live="assertive">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M12 8v4m0 4h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M12 8v4m0 4h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
               <span>{error}</span>
             </div>

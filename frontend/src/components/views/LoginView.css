@@ -1,29 +1,157 @@
 /* LoginView.css */
-.dashboard-view {
+
+.login-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  /* Simulating a subtle Windows 11 ambient background */
+  background: radial-gradient(circle at top left, #e3eef9 0%, var(--win-bg, #f3f3f3) 40%, #eef3f7 100%);
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  box-sizing: border-box;
   padding: 24px;
-  background-color: #f8fafc;
-  font-family: 'Inter', 'Roboto', sans-serif;
-  color: #334155;
 }
 
-.dashboard-panel {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  border: 1px solid #e2e8f0;
-  margin-bottom: 24px;
+.login-card {
+  background: var(--win-panel-bg, rgba(255, 255, 255, 0.65));
+  border-radius: 8px;
+  /* Fluent UI standard for modals/cards */
+  padding: 48px 40px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: var(--win-shadow-hover, 0 8px 16px rgba(0, 0, 0, 0.1), 0 0 2px rgba(0, 0, 0, 0.06));
+  border: 1px solid var(--win-border-panel, rgba(0, 0, 0, 0.08));
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
 }
 
-.dashboard-panel-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #1e293b;
+.login-brand {
+  text-align: center;
+}
+
+.logo-mark {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--win-accent, #0067C0);
   margin-bottom: 16px;
+  letter-spacing: 0.05em;
 }
 
-.empty-state {
-  color: #64748b;
-  font-style: italic;
+.login-brand h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--win-text-primary, #202020);
+  margin: 0 0 8px 0;
+}
+
+.login-tagline {
   font-size: 0.95rem;
+  color: var(--win-text-secondary, #5d5d5d);
+  margin: 0;
+}
+
+.login-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Fluent UI standard 4px button geometry */
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background-color: #FFFFFF;
+  color: var(--win-text-primary, #202020);
+  border: 1px solid var(--win-border-panel, #E5E5E5);
+  border-radius: 4px;
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.1s ease-in-out;
+  box-shadow: var(--win-shadow-rest, 0 2px 4px rgba(0, 0, 0, 0.02));
+}
+
+.google-btn:hover {
+  background-color: #FBFBFB;
+  border-color: #D1D1D1;
+}
+
+.google-btn:active {
+  transform: scale(0.98);
+}
+
+.google-btn.login-dev-btn {
+  background-color: var(--win-bg, #F3F3F3);
+  border-color: transparent;
+}
+
+.google-btn.login-dev-btn:hover {
+  background-color: #EBEBEB;
+}
+
+/* Windows 11 System Error Status */
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background-color: #FDE7E9;
+  color: #C42B1C;
+  border: 1px solid #F8C1C6;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-top: 8px;
+}
+
+.login-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+  border-top: 1px solid var(--win-border-light, rgba(0, 0, 0, 0.05));
+  padding-top: 24px;
+}
+
+/* Fluent UI Toggle Switch styling for languages */
+.login-lang-toggle {
+  display: flex;
+  background: var(--win-border-light, rgba(0, 0, 0, 0.05));
+  border-radius: 4px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.lang-pill {
+  background: transparent;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--win-text-secondary, #5d5d5d);
+  cursor: pointer;
+  transition: all 0.1s;
+  font-weight: 500;
+}
+
+.lang-pill:hover {
+  color: var(--win-text-primary, #202020);
+}
+
+.lang-pill.active {
+  background: #FFFFFF;
+  color: var(--win-text-primary, #202020);
+  box-shadow: var(--win-shadow-rest, 0 2px 4px rgba(0, 0, 0, 0.04));
+}
+
+.login-version {
+  font-size: 0.75rem;
+  color: var(--win-text-secondary, #5d5d5d);
 }

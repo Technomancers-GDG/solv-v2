@@ -1,225 +1,184 @@
-import { Panel, MetricCard as StatsCard, ProgressBar } from "../common/UiPrimitives";
 import { AIActivityFeed, AIDecisionPanel, RouteComparisonBlock } from "../common/AIDecisionWidgets";
 import "./DashboardView.css";
 
-/**
- * DashboardView — Primary operations overview.
- * Shows KPI metrics, operations status, capacity status,
- * proactive dispatches, risk forecast, and audit chain.
- */
 export function DashboardView({ metrics, criticalFacilities, proactiveDispatches, riskForecast, auditChain, blockchainVerify, facilityLookup, aiActivity, latestDecision, previousRoute, activityFeed }) {
   const rl = aiActivity?.rl_engine;
-  const actionBreakdown = aiActivity?.recent_action_breakdown ?? {};
-  const explorationPct = rl ? Math.round((rl.epsilon ?? 1) * 100) : 100;
-  const exploitationPct = 100 - explorationPct;
   const formatINR = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val || 0);
   const costsSaved = Number(metrics?.financial_costs_saved_usd ?? 0);
   const costsIncurred = Number(metrics?.financial_costs_incurred_usd ?? 0);
   const baselineCost = costsSaved + costsIncurred;
   const estimatedBaseline = baselineCost > 0 ? baselineCost : costsSaved * 1.28;
   const co2Saved = Number(metrics?.co2_saved_kg ?? 0);
-  const co2Baseline = co2Saved > 0 ? co2Saved * 1.35 : 0;
   const confidence = latestDecision?.confidence ?? (rl?.enabled ? 100 - Math.round((rl.epsilon ?? 0.08) * 100) : 92);
 
   return (
-    <main className="dashboard-view" aria-label="Operations Overview">
-      <header className="dashboard-header" style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>Operations Overview</h1>
-        <p style={{ color: '#64748b' }}>Monitor your network performance and ongoing routing operations.</p>
+    <main className="dashboard-view" aria-label="Command Center Dashboard">
+      <header className="dashboard-header">
+        <h1>Global Network Telemetry</h1>
+        <p>Real-time autonomous routing, capacity tracking, and predictive dispatch intelligence.</p>
       </header>
 
-      {/* KPI Metrics Grid */}
-      <section className="metrics-grid" aria-label="Key performance indicators">
-        <StatsCard label="Financial Costs Saved" value={`${formatINR(costsSaved)} saved`} context={`vs ${formatINR(estimatedBaseline)} baseline`} tone="green" />
-        <StatsCard label="Operational Costs" value={formatINR(costsIncurred)} context={`road-only baseline ${formatINR(estimatedBaseline)}`} tone="coral" />
-        <StatsCard label="Critical Deliveries Saved" value={metrics?.critical_deliveries_saved ?? 0} context={`${metrics?.reroute_count ?? 0} Alternative routes checked`} tone="teal" />
-        <StatsCard label="Stockouts Prevented" value={metrics?.stockouts_prevented ?? 0} context="vs no proactive dispatch baseline" tone="amber" />
-        <StatsCard label="Beneficiary Locations" value={metrics?.beneficiary_locations_served ?? 0} tone="steel" />
-        <StatsCard label="Wastage Prevented" value={`${Number(metrics?.spoilage_or_wastage_prevented ?? 0).toFixed(0)} units`} tone="coral" />
-        <StatsCard label="CO₂ Saved" value={`${co2Saved.toFixed(1)} kg`} context={co2Baseline ? `vs ${co2Baseline.toFixed(1)} kg road baseline` : "baseline estimated from road-only route"} tone="green" />
-        <StatsCard label="On-Time Delivery" value={`${metrics?.on_time_delivery_pct ?? 0}%`} context="compared with delayed-route baseline" tone="blue" />
-      </section>
-
-      <div className="dashboard-grid">
-        {/* AI Decisions Panel */}
-        <section className="dashboard-panel" aria-label="Operations Overview">
-          <h2 className="dashboard-panel-title">Operations Overview</h2>
-          {aiActivity ? (
-            <div className="ai-activity-panel">
-              {/* AI stats summary */}
-              <ul className="ai-stats-grid" aria-label="AI engine statistics">
-                <li className="ai-stat">
-                  <span className="ai-stat-value">{aiActivity.reroute_count}</span>
-                  <span className="ai-stat-label">Reroutes Executed</span>
-                </li>
-                <li className="ai-stat">
-                  <span className="ai-stat-value">{aiActivity.cascade_detections_today}</span>
-                  <span className="ai-stat-label">Cascades Detected</span>
-                </li>
-                <li className="ai-stat">
-                  <span className="ai-stat-value">{aiActivity.driver_acceptance_rate}%</span>
-                  <span className="ai-stat-label">Driver Acceptance</span>
-                </li>
-                <li className="ai-stat">
-                  <span className="ai-stat-value">{aiActivity.completed_trips}</span>
-                  <span className="ai-stat-label">Trips Completed</span>
-                </li>
-              </ul>
-
-              <AIDecisionPanel decision={latestDecision} confidence={confidence} />
-              <RouteComparisonBlock comparison={latestDecision?.comparison} previousRoute={previousRoute} />
-
-              {/* Reinforcement Learning Agent section */}
-              {rl?.enabled && (
-                <aside className="rl-engine-section" aria-label="Reinforcement Learning agent metrics">
-                  <h4>Reinforcement Learning Agent</h4>
-                  <dl className="rl-stats-row">
-                    <div className="rl-metric">
-                      <dt className="rl-label">Training Steps</dt>
-                      <dd className="rl-value">{rl.train_step}</dd>
-                    </div>
-                    <div className="rl-metric">
-                      <dt className="rl-label">Replay Buffer</dt>
-                      <dd className="rl-value">{rl.replay_buffer_size} / 8000</dd>
-                    </div>
-                    <div className="rl-metric">
-                      <dt className="rl-label">Exploration</dt>
-                      <dd className="rl-value">{explorationPct}%</dd>
-                    </div>
-                  </dl>
-                  <div className="epsilon-bar-wrap" role="img" aria-label={`Exploitation ${exploitationPct}%, Exploration ${explorationPct}%`}>
-                    <div className="epsilon-bar">
-                      <div className="epsilon-exploit" style={{ width: `${exploitationPct}%` }} />
-                      <div className="epsilon-explore" style={{ width: `${explorationPct}%` }} />
-                    </div>
-                    <div className="epsilon-labels">
-                      <span>🎯 Exploit ({exploitationPct}%)</span>
-                      <span>🔍 Explore ({explorationPct}%)</span>
-                    </div>
-                  </div>
-                </aside>
-              )}
-
-              {/* Action breakdown bar chart */}
-              {Object.keys(actionBreakdown).length > 0 && (
-                <div className="action-breakdown-section" aria-label="Recent action distribution">
-                  <h4>Action Mix (Last 50 Decisions)</h4>
-                  <div className="action-bars" role="list">
-                    {Object.entries(actionBreakdown).sort((a, b) => b[1] - a[1]).map(([action, count]) => {
-                      const total = Object.values(actionBreakdown).reduce((s, v) => s + v, 0);
-                      const pct = total > 0 ? (count / total) * 100 : 0;
-                      return (
-                        <div className="action-bar-row" key={action} role="listitem">
-                          <span className="action-name">{action.replace(/_/g, " ")}</span>
-                          <div className="action-bar-track">
-                            <div className={`action-bar-fill action-${action.replace(/_/g, "-")}`} style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="action-count">{count}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Recent AI actions feed */}
-              <div className="ai-feed-section">
-                <h4>Recent AI Actions</h4>
-                <AIActivityFeed events={activityFeed} />
-              </div>
+      <div className="cmd-bento-grid">
+        
+        {/* Top Highlight 1: Financial Impact */}
+        <section className="cmd-panel panel-hero-1">
+          <h2 className="cmd-panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Financial Optimization
+          </h2>
+          <div className="metric-glance">
+            <div className="metric-glance-value glow-green">{formatINR(costsSaved)}</div>
+            <div className="metric-glance-context">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              Saved against {formatINR(estimatedBaseline)} static routing baseline
             </div>
-          ) : (
-            <div className="ai-activity-panel">
-              <AIDecisionPanel decision={latestDecision} confidence={confidence} />
-              <RouteComparisonBlock comparison={latestDecision?.comparison} previousRoute={previousRoute} />
-              <div className="ai-feed-section">
-                <h4>Recent AI Actions</h4>
-                <AIActivityFeed events={activityFeed} />
-              </div>
-            </div>
-          )}
+          </div>
         </section>
 
-        {/* Critical Capacity Watch */}
-        <section className="dashboard-panel" aria-label="Capacity Status">
-          <h2 className="dashboard-panel-title">Capacity Status</h2>
+        {/* Top Highlight 2: Environmental Impact */}
+        <section className="cmd-panel panel-hero-2">
+          <h2 className="cmd-panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Carbon Emissions Reduced
+          </h2>
+          <div className="metric-glance">
+            <div className="metric-glance-value glow-blue">{co2Saved.toFixed(1)} kg</div>
+            <div className="metric-glance-context">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+              CO₂ offset via AI-optimized logistics routes
+            </div>
+          </div>
+        </section>
+
+        {/* Top Highlight 3: Operational Impact */}
+        <section className="cmd-panel panel-hero-3">
+          <h2 className="cmd-panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 2 22 22 22"/></svg>
+            Critical Stockouts Prevented
+          </h2>
+          <div className="metric-glance">
+            <div className="metric-glance-value glow-amber">{metrics?.stockouts_prevented ?? 0} Events</div>
+            <div className="metric-glance-context">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              {metrics?.critical_deliveries_saved ?? 0} critical deliveries salvaged
+            </div>
+          </div>
+        </section>
+
+        {/* AI Operations Core */}
+        <section className="cmd-panel panel-ai-core">
+          <h2 className="cmd-panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Autonomous Routing Engine
+          </h2>
+          
+          <div className="ai-core-layout">
+            <div className="ai-telemetry">
+              <div className="telemetry-item">
+                <span className="telemetry-label">Engine Status</span>
+                <span className="telemetry-value" style={{ color: '#4ade80' }}>Active (v2.4)</span>
+              </div>
+              <div className="telemetry-item">
+                <span className="telemetry-label">Live Reroutes</span>
+                <span className="telemetry-value">{aiActivity?.reroute_count ?? 0}</span>
+              </div>
+              <div className="telemetry-item">
+                <span className="telemetry-label">Cascade Detections</span>
+                <span className="telemetry-value">{aiActivity?.cascade_detections_today ?? 0}</span>
+              </div>
+              <div className="telemetry-item">
+                <span className="telemetry-label">Driver Acceptance</span>
+                <span className="telemetry-value">{aiActivity?.driver_acceptance_rate ?? 0}%</span>
+              </div>
+              <div className="telemetry-item">
+                <span className="telemetry-label">Global Confidence</span>
+                <span className="telemetry-value">{confidence}%</span>
+              </div>
+            </div>
+
+            <div className="ai-visualizer">
+               {aiActivity ? (
+                 <>
+                  <AIDecisionPanel decision={latestDecision} confidence={confidence} />
+                  <RouteComparisonBlock comparison={latestDecision?.comparison} previousRoute={previousRoute} />
+                 </>
+               ) : (
+                 <div className="empty-cmd">Awaiting routing telemetry streams...</div>
+               )}
+            </div>
+          </div>
+        </section>
+
+        {/* Capacity Saturation Watch */}
+        <section className="cmd-panel panel-capacity">
+          <h2 className="cmd-panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            Network Saturation
+          </h2>
           {criticalFacilities.length === 0 ? (
-            <p className="empty-state">No facility is currently above 70% utilization.</p>
+            <div className="empty-cmd">Global facility capacities optimal.</div>
           ) : (
-            <ul className="util-list" aria-label="Facilities above 70% utilization">
-              {criticalFacilities.map((f) => (
-                <li className="util-item" key={f.facility_id}>
-                  <div className="util-meta">
-                    <strong>{f.facility_name}</strong>
-                    <span>{f.utilization_pct.toFixed(1)}%</span>
+            <ul className="cmd-list">
+              {criticalFacilities.map(f => (
+                <li className="cmd-list-item" key={f.facility_id}>
+                  <div className="item-main">
+                    <span className="item-title">{f.facility_name}</span>
+                    <span className="item-sub">{f.city} • {Math.max(0, f.effective_available_units)} units free</span>
                   </div>
-                  <ProgressBar value={Math.min(100, f.utilization_pct)} />
-                  <div className="util-foot">
-                    <span>{f.city}</span>
-                    <span>{Math.max(0, f.effective_available_units)} free</span>
-                  </div>
+                  <span className="item-value" style={{ color: f.utilization_pct > 85 ? '#f87171' : '#fbbf24' }}>
+                    {f.utilization_pct.toFixed(1)}%
+                  </span>
                 </li>
               ))}
             </ul>
           )}
         </section>
 
-        {/* Proactive Dispatch AI */}
-        <section className="dashboard-panel" aria-label="Proactive Dispatch Planning">
-          <h2 className="dashboard-panel-title">Proactive Dispatch Planning</h2>
+        {/* Predictive Dispatches */}
+        <section className="cmd-panel panel-dispatch">
+          <h2 className="cmd-panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Predictive AI Dispatches
+          </h2>
           {proactiveDispatches.length === 0 ? (
-            <p className="empty-state">No proactive dispatches needed at this time.</p>
+            <div className="empty-cmd">No proactive unit rebalancing required.</div>
           ) : (
-            <ul className="dispatch-list" aria-label="Proactive dispatch recommendations">
-              {proactiveDispatches.slice(0, 5).map((d, i) => (
-                <li className={`dispatch-card urgency-${d.urgency}`} key={i}>
-                  <strong>{facilityLookup[d.destination_facility_id]?.name ?? "Facility"}</strong>
-                  <span className="urgency-badge">{d.urgency}</span>
-                  <p className="dispatch-reason">{d.reason}</p>
-                  <div className="dispatch-meta">{d.recommended_units} units • ETA {d.eta_hours}h</div>
+            <ul className="cmd-list">
+              {proactiveDispatches.slice(0, 4).map((d, i) => (
+                <li className="cmd-list-item" key={i}>
+                  <div className="item-main">
+                    <span className="item-title">{facilityLookup[d.destination_facility_id]?.name ?? "Facility"}</span>
+                    <span className="item-sub">{d.reason}</span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span className="item-value" style={{ color: '#60a5fa' }}>+{d.recommended_units}</span>
+                    <div className="item-sub">ETA {d.eta_hours}h</div>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </section>
 
-        {/* Risk Forecast */}
-        <section className="dashboard-panel full-width" aria-label="Risk Forecast (12h)">
-          <h2 className="dashboard-panel-title">Risk Forecast (12h)</h2>
-          <div className="risk-grid" role="list" aria-label="12-hour risk forecast by city">
-            {riskForecast.slice(0, 8).map((rf, i) => (
-              <article className={`risk-card severity-${rf.risk > 0.6 ? "high" : rf.risk > 0.3 ? "medium" : "low"}`} key={i} aria-label={`${rf.city}: ${(rf.risk * 100).toFixed(0)}% risk`}>
-                <div className="risk-city">{rf.city}</div>
-                <div className="risk-value">{(rf.risk * 100).toFixed(0)}%</div>
-                <div className="risk-factors">{rf.factors?.join(", ")}</div>
-                {rf.prediction_interval && (
-                  <div className="risk-interval">Range: {(rf.prediction_interval[0] * 100).toFixed(0)}–{(rf.prediction_interval[1] * 100).toFixed(0)}%</div>
-                )}
-                {rf.trend && <div className={`risk-trend trend-${rf.trend}`}>{rf.trend === "rising" ? "📈" : rf.trend === "declining" ? "📉" : "➡️"} {rf.trend}</div>}
-              </article>
+        {/* Distributed Risk Topology */}
+        <section className="cmd-panel panel-risk">
+          <h2 className="cmd-panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            12-Hour Geographical Risk Topology
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+            {riskForecast.slice(0, 4).map((rf, i) => (
+              <div key={i} style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ fontSize: '0.9rem', color: '#FFF', fontWeight: 600 }}>{rf.city}</div>
+                <div style={{ fontSize: '2rem', fontWeight: 300, color: rf.risk > 0.6 ? '#f87171' : rf.risk > 0.3 ? '#fbbf24' : '#4ade80', margin: '4px 0' }}>
+                  {(rf.risk * 100).toFixed(0)}%
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--cmd-text-secondary)' }}>{rf.factors?.join(", ")}</div>
+              </div>
             ))}
           </div>
         </section>
 
-        {/* Recent Audit Blocks */}
-        <section className="dashboard-panel" aria-label="Recent Audit Blocks">
-          <h2 className="dashboard-panel-title">Recent Audit Blocks</h2>
-          <ul className="audit-list" aria-label="Blockchain audit trail">
-            {auditChain.slice(-5).map((b, i) => (
-              <li className="audit-item" key={i}>
-                <span className="audit-index">#{b.index}</span>
-                <span className="audit-type">{b.decision_type}</span>
-                <span className="audit-action">{b.action}</span>
-                <code className="audit-hash" title={b.hash}>{(b.hash ?? "").slice(0, 8)}...</code>
-              </li>
-            ))}
-          </ul>
-          {blockchainVerify && (
-            <div className={`verify-badge ${blockchainVerify.valid ? "valid" : "invalid"}`} role="status">
-              {blockchainVerify.valid ? "\u2713 Chain Verified" : "\u26A0 Tampering Detected"} • {blockchainVerify.block_count} blocks
-            </div>
-          )}
-        </section>
       </div>
     </main>
   );

@@ -1,29 +1,42 @@
-/* SettingsView.css */
-.dashboard-view {
+/* Windows 11 Fluent Design — View CSS */
+
+.settings-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   padding: 24px;
-  background-color: #f8fafc;
-  font-family: 'Inter', 'Roboto', sans-serif;
-  color: #334155;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow);
 }
 
-.dashboard-panel {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  border: 1px solid #e2e8f0;
-  margin-bottom: 24px;
-}
-
-.dashboard-panel-title {
-  font-size: 1.25rem;
+.settings-card-header h3 {
+  margin: 0 0 4px;
   font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 16px;
 }
 
-.empty-state {
-  color: #64748b;
-  font-style: italic;
-  font-size: 0.95rem;
+.settings-card-header p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.settings-lang-options {
+  display: flex;
+  gap: 8px;
+}
+
+.sim-btn {
+  padding: 8px 20px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: #fbfbfb;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.sim-btn.primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
 }

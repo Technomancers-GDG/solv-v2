@@ -1,29 +1,538 @@
-/* MapView.css */
-.dashboard-view {
-  padding: 24px;
-  background-color: #f8fafc;
-  font-family: 'Inter', 'Roboto', sans-serif;
-  color: #334155;
+/* MapView.css - Ultra Premium Light Mode Map Layout */
+
+.map-layout {
+  padding: 0 0 40px 0;
 }
 
-.dashboard-panel {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  border: 1px solid #e2e8f0;
-  margin-bottom: 24px;
+.map-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-auto-rows: minmax(200px, auto);
+  gap: 24px;
 }
 
-.dashboard-panel-title {
-  font-size: 1.25rem;
+.panel-map-core { 
+  grid-column: span 8; 
+  grid-row: span 3; 
+  padding: 0; /* Map needs to be flush */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-active-routes { 
+  grid-column: span 4; 
+  grid-row: span 2; 
+}
+
+.panel-disruptions { 
+  grid-column: span 4; 
+  grid-row: span 1; 
+}
+
+.panel-facilities { 
+  grid-column: span 12; 
+  grid-row: span 1; 
+}
+
+/* Map Header inside flush panel */
+.map-panel-header {
+  padding: 24px 28px 0 28px;
+  background: var(--panel-bg, #FFFFFF);
+  z-index: 10;
+}
+
+/* Map Container Override */
+.map-container {
+  flex: 1;
+  min-height: 500px;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: #E2E8F0; /* Soft map background */
+}
+
+/* Custom Map Pins */
+.map-pin-wrap {
+  background: none;
+  border: none;
+}
+
+.map-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border: 2px solid #FFFFFF;
+}
+
+.map-pin-facility {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  color: white;
+}
+
+.map-pin-facility.port { background: #2563EB; }
+.map-pin-facility.warehouse { background: #10B981; }
+
+.map-pin-vehicle {
+  width: 42px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  color: white;
+  background: #64748B;
+  transition: all 0.2s;
+}
+
+.map-pin-vehicle.in-transit { background: #2563EB; }
+.map-pin-vehicle.maintenance { background: #F59E0B; }
+.map-pin-vehicle.delayed { background: #EF4444; }
+.map-pin-vehicle.selected {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.3);
+  z-index: 1000 !important;
+}
+
+/* Map Controls Toolbar */
+.map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 24px;
+  background: var(--panel-bg, #FFFFFF);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  position: relative;
+  z-index: 10;
+}
+
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* UI Switch Toggle */
+.ui-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.ui-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.ui-switch .slider {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background-color: #CBD5E1;
+  border-radius: 20px;
+  transition: 0.3s;
+}
+
+.ui-switch .slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.3s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.ui-switch input:checked + .slider {
+  background-color: #3B82F6;
+}
+
+.ui-switch input:checked + .slider:before {
+  transform: translateX(16px);
+}
+
+.switch-label {
+  font-size: 0.8rem;
   font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 16px;
+  color: var(--text);
 }
 
-.empty-state {
-  color: #64748b;
-  font-style: italic;
-  font-size: 0.95rem;
+/* Fleet Scale Box */
+.scale-fleet-box {
+  background: #F8FAFC;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+  gap: 12px;
 }
+
+.scale-label {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.scale-label strong {
+  color: #0F172A;
+}
+
+.scale-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.scale-btn {
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.scale-btn:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.scale-btn.active {
+  background: #3B82F6;
+  color: #FFFFFF;
+  border-color: #2563EB;
+}
+
+/* Legend */
+.legend {
+  margin-left: auto;
+  background: #F8FAFC;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.risk-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.risk-dot.low { background: #10B981; }
+.risk-dot.medium { background: #F59E0B; }
+.risk-dot.high { background: #EF4444; }
+
+.dash-sample {
+  width: 16px;
+  height: 3px;
+  background: repeating-linear-gradient(90deg, #3B82F6, #3B82F6 4px, transparent 4px, transparent 8px);
+}
+
+/* Map Info Floating Card */
+.map-info-card {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  padding: 16px 20px;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  border: 1px solid #E2E8F0;
+}
+
+.map-info-card h4 {
+  margin: 0 0 12px 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0F172A;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 0;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-item .label {
+  font-size: 0.75rem;
+  color: #64748B;
+  font-weight: 600;
+}
+
+.info-item .value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #2563EB;
+  margin: 0;
+}
+
+.selected-route-meta {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #E2E8F0;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+/* Active Routes Panel */
+.routes-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  overflow-y: auto;
+  max-height: 400px;
+  padding-right: 8px;
+}
+
+.route-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.02);
+}
+
+.route-card:hover {
+  border-color: #3B82F6;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.1);
+  transform: translateY(-2px);
+}
+
+.route-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.route-header strong {
+  font-size: 1.05rem;
+  color: #0F172A;
+  font-weight: 800;
+}
+
+.route-status {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #E2E8F0;
+  color: var(--text);
+  letter-spacing: 0.05em;
+}
+
+.route-status.in-transit { background: #DBEAFE; color: #1D4ED8; }
+.route-status.delayed { background: #FEE2E2; color: #B91C1C; }
+
+.route-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.route-objective {
+  font-weight: 600;
+  color: #1E293B;
+  line-height: 1.4;
+}
+
+.route-source {
+  font-size: 0.75rem;
+  color: #94A3B8;
+}
+
+.route-risk-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.route-risk-pill.high { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
+.route-risk-pill.medium { background: #FFFBEB; color: #D97706; border: 1px solid #FDE68A; }
+.route-risk-pill.low { background: #ECFDF5; color: #059669; border: 1px solid #D1FAE5; }
+
+.route-progress {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-bar-mini {
+  flex: 1;
+  height: 8px;
+  background: #F1F5F9;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.progress-fill-mini {
+  height: 100%;
+  background: #0F172A;
+  border-radius: 4px;
+}
+
+.progress-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 45px;
+  text-align: right;
+}
+
+/* Disruptions Zones Panel */
+.disruption-zones {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.disruption-card {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.disruption-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.disruption-header h5 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #991B1B;
+  font-weight: 700;
+}
+
+.disruption-severity {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #FCA5A5;
+  color: #7F1D1D;
+}
+
+.disruption-desc {
+  font-size: 0.85rem;
+  color: #7F1D1D;
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.affected-facilities {
+  font-size: 0.75rem;
+  color: #991B1B;
+  font-weight: 500;
+}
+
+/* Facility Network Horizontal List */
+.cities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.city-card {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.city-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.city-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.facility-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748B;
+  background: #E2E8F0;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.facility-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.type-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: white;
+}
+
+.type-badge.warehouse { background: #10B981; }
+.type-badge.port { background: #2563EB; }

@@ -4,7 +4,7 @@ import "./LiveOpsView.css";
 
 /**
  * LiveOpsView — Real-time operational monitoring.
- * Displays active truck metrics and vehicle progress table.
+ * Windows 11 Fluent Design System.
  */
 export function LiveOpsView({ metrics, deferredVehicles, objectiveLookup }) {
   return (
@@ -13,42 +13,46 @@ export function LiveOpsView({ metrics, deferredVehicles, objectiveLookup }) {
       <div className="ops-metrics" role="list" aria-label="Operational metrics">
         <StatsCard label="Active Trucks" value={metrics?.active_trucks ?? 0} tone="blue" />
         <StatsCard label="Queued" value={metrics?.queued_trucks ?? 0} tone="amber" />
-        <StatsCard label="Reroutes" value={metrics?.reroute_count ?? 0} tone="purple" />
+        <StatsCard label="Reroutes" value={metrics?.reroute_count ?? 0} tone="coral" />
         <StatsCard label="Idle Prevented" value={`${(metrics?.idle_minutes_prevented ?? 0).toFixed(0)} min`} tone="green" />
       </div>
 
       {/* Vehicle progress table */}
-      <section className="dashboard-panel" aria-label="Vehicle Progress">
-        <h2 className="dashboard-panel-title">{"Vehicle Progress"}</h2>
+      <Panel title="VEHICLE PROGRESS" className="live-ops-panel">
         <div className="table-wrap" role="region" aria-label="Vehicle progress table" tabIndex={0}>
-          <table>
+          <table className="fluent-table">
             <thead>
               <tr>
-                <th scope="col">Vehicle</th>
-                <th scope="col">Status</th>
-                <th scope="col">Objective</th>
-                <th scope="col">Progress</th>
-                <th scope="col">Payload</th>
+                <th scope="col">VEHICLE ID</th>
+                <th scope="col">STATUS</th>
+                <th scope="col">OBJECTIVE</th>
+                <th scope="col">PROGRESS</th>
+                <th scope="col">PAYLOAD</th>
                 <th scope="col">ETA</th>
-                <th scope="col">AI Action</th>
+                <th scope="col">AI ACTION</th>
               </tr>
             </thead>
             <tbody>
-              {deferredVehicles.slice(0, 30).map((v) => (
-                <tr key={v.vehicle_id}>
-                  <td>{v.identifier}</td>
-                  <td><span className={`status-badge ${v.status.toLowerCase().replace("_", "-")}`}>{v.status.replace("_", " ")}</span></td>
-                  <td>{objectiveLookup[v.objective_id]?.name ?? "—"}</td>
-                  <td><ProgressBar value={v.progress_pct} compact /></td>
-                  <td>{v.payload_units}</td>
-                  <td>{v.eta ? v.eta.slice(0, 19).replace("T", " ") : "—"}</td>
-                  <td className="ai-action-cell">{v.recommendation_action ? v.recommendation_action.replace("_", " ") : "continue"}</td>
-                </tr>
-              ))}
+              {deferredVehicles.slice(0, 30).map((v) => {
+                const action = v.recommendation_action ? v.recommendation_action.replace("_", " ") : "Continue";
+                const actionClass = action.toLowerCase().includes("reroute") ? "reroute" : action.toLowerCase().includes("hold") ? "hold" : "continue";
+                
+                return (
+                  <tr key={v.vehicle_id}>
+                    <td className="cell-id"><strong>{v.identifier}</strong></td>
+                    <td><span className={`status-badge ${v.status.toLowerCase().replace("_", "-")}`}>{v.status.replace("_", " ").toUpperCase()}</span></td>
+                    <td className="cell-objective" title={objectiveLookup[v.objective_id]?.name ?? "—"}>{objectiveLookup[v.objective_id]?.name ?? "—"}</td>
+                    <td className="cell-progress"><ProgressBar value={v.progress_pct} compact /></td>
+                    <td className="cell-payload">{v.payload_units} units</td>
+                    <td className="cell-eta">{v.eta ? v.eta.slice(11, 16) : "—"}</td>
+                    <td><span className={`ai-action-pill ${actionClass}`}>{action}</span></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-      </section>
+      </Panel>
     </section>
   );
 }
