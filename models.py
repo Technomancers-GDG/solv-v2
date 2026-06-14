@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 from sqlalchemy import (
     JSON,
@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,9 +22,13 @@ from database import Base
 
 class Facility(Base):
     __tablename__ = "facilities"
+    __table_args__ = (
+        UniqueConstraint("name", "client_id", name="uq_facility_name_per_client"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    client_id: Mapped[Optional[int]] = mapped_column(ForeignKey("integration_clients.id"), nullable=True, index=True)
     city: Mapped[str] = mapped_column(String(80), index=True)
     facility_type: Mapped[str] = mapped_column(String(40), index=True)
     latitude: Mapped[float] = mapped_column(Float)
@@ -60,9 +65,13 @@ class PortLink(Base):
 
 class DriverProfile(Base):
     __tablename__ = "driver_profiles"
+    __table_args__ = (
+        UniqueConstraint("name", "client_id", name="uq_driver_name_per_client"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    client_id: Mapped[Optional[int]] = mapped_column(ForeignKey("integration_clients.id"), nullable=True, index=True)
     override_rating: Mapped[float] = mapped_column(Float, default=1.0)
     confidence: Mapped[float] = mapped_column(Float, default=0.5)
     accept_recommendation_bias: Mapped[float] = mapped_column(Float, default=0.5)
@@ -71,9 +80,13 @@ class DriverProfile(Base):
 
 class Vehicle(Base):
     __tablename__ = "vehicles"
+    __table_args__ = (
+        UniqueConstraint("identifier", "client_id", name="uq_vehicle_identifier_per_client"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    identifier: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    identifier: Mapped[str] = mapped_column(String(80), index=True)
+    client_id: Mapped[Optional[int]] = mapped_column(ForeignKey("integration_clients.id"), nullable=True, index=True)
     vehicle_type: Mapped[str] = mapped_column(String(40), default="truck")
     payload_capacity_units: Mapped[int] = mapped_column(Integer)
     home_facility_id: Mapped[int] = mapped_column(ForeignKey("facilities.id"))
@@ -104,9 +117,13 @@ class Vehicle(Base):
 
 class Objective(Base):
     __tablename__ = "objectives"
+    __table_args__ = (
+        UniqueConstraint("name", "client_id", name="uq_objective_name_per_client"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    client_id: Mapped[Optional[int]] = mapped_column(ForeignKey("integration_clients.id"), nullable=True, index=True)
     commodity: Mapped[str] = mapped_column(String(80))
     origin_facility_id: Mapped[int] = mapped_column(ForeignKey("facilities.id"))
     destination_facility_id: Mapped[int] = mapped_column(ForeignKey("facilities.id"))
@@ -276,6 +293,7 @@ class SimEvent(Base):
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=True)
     objective_id: Mapped[int] = mapped_column(ForeignKey("objectives.id"), nullable=True)
     facility_id: Mapped[int] = mapped_column(ForeignKey("facilities.id"), nullable=True)
+    client_id: Mapped[Optional[int]] = mapped_column(ForeignKey("integration_clients.id"), nullable=True, index=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
@@ -345,6 +363,7 @@ class Shipment(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     shipment_reference: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    client_id: Mapped[Optional[int]] = mapped_column(ForeignKey("integration_clients.id"), nullable=True, index=True)
     origin_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=True, index=True)
     destination_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=True, index=True)
     origin_node_key: Mapped[str] = mapped_column(String(120), index=True)
@@ -390,6 +409,65 @@ class LogisticsRoute(Base):
     )
 
 
+class IntegrationClient(Base):
+    __tablename__ = "integration_clients"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), index=True)
+    company_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    api_key_hash: Mapped[str] = mapped_column(String(128))
+    api_key_prefix: Mapped[str] = mapped_column(String(16), index=True)
+    contact_email: Mapped[str] = mapped_column(String(255), default="")
+    password_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    allowed_ips: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    rate_limit_per_minute: Mapped[int] = mapped_column(Integer, default=1000)
+    monthly_api_calls: Mapped[int] = mapped_column(Integer, default=0)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
+    )
+
+
+class WebhookSubscription(Base):
+    __tablename__ = "webhook_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    client_id: Mapped[int] = mapped_column(ForeignKey("integration_clients.id"), index=True)
+    callback_url: Mapped[str] = mapped_column(String(500))
+    events: Mapped[str] = mapped_column(String(500))
+    secret: Mapped[str] = mapped_column(String(128), default="")
+    retry_count: Mapped[int] = mapped_column(Integer, default=3)
+    timeout_seconds: Mapped[int] = mapped_column(Integer, default=10)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
+    )
+
+
+class WebhookDelivery(Base):
+    __tablename__ = "webhook_deliveries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    subscription_id: Mapped[int] = mapped_column(ForeignKey("webhook_subscriptions.id"), index=True)
+    client_id: Mapped[Optional[int]] = mapped_column(ForeignKey("integration_clients.id"), nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(80), index=True)
+    payload: Mapped[str] = mapped_column(Text)
+    response_status: Mapped[int] = mapped_column(Integer, nullable=True)
+    response_body: Mapped[str] = mapped_column(Text, nullable=True)
+    success: Mapped[bool] = mapped_column(Boolean, default=False)
+    attempt_number: Mapped[int] = mapped_column(Integer, default=1)
+    next_retry_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    attempted_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
+    )
+
+
 class Prediction(Base):
     __tablename__ = "predictions"
 
@@ -402,3 +480,23 @@ class Prediction(Base):
     confidence: Mapped[float] = mapped_column(Float, default=0.5)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False, index=True)
+
+
+class ClientSimulation(Base):
+    __tablename__ = "client_simulations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    client_id: Mapped[int] = mapped_column(ForeignKey("integration_clients.id"), unique=True, index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="idle", index=True)
+    simulation_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    speed_multiplier: Mapped[float] = mapped_column(Float, default=120.0)
+    total_ticks: Mapped[int] = mapped_column(Integer, default=0)
+    last_save_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    event_queue_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    live_states_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False
+    )

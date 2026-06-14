@@ -1,0 +1,13 @@
+identifier,vehicle_type,payload_capacity_units,home_facility_name,average_speed_kmph
+ACM-001,truck,1000,Mumbai Warehouse,48
+ACM-002,truck,950,Mumbai Warehouse,45
+ACM-003,truck,1100,Delhi Distribution Center,50
+ACM-004,truck,900,Delhi Distribution Center,48
+ACM-005,truck,1050,Chennai Port Terminal,52
+ACM-006,truck,980,Chennai Port Terminal,47
+ACM-007,truck,1000,Kolkata Hub,46
+ACM-008,truck,920,Bangalore Campus,50
+ACM-009,truck,870,Pune Buffer Center,48
+ACM-010,truck,940,Hyderabad Connector,49
+ACM-011,truck,1020,Mumbai Warehouse,44
+ACM-012,truck,960,Delhi Distribution Center,51

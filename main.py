@@ -31,7 +31,8 @@ from database import SessionLocal, init_db
 from seed_data import seed_demo_data
 
 from app_state import simulation_engine
-from routes import crud_router, simulation_router, driver_router, ai_router, logistics_router, rl_router, comparison_router
+from services.simulation_manager import simulation_manager
+from routes import crud_router, simulation_router, driver_router, ai_router, logistics_router, rl_router, comparison_router, integration_router, management_router, client_auth_router, client_upload_router, client_dashboard_router
 
 from contextlib import asynccontextmanager
 
@@ -42,6 +43,8 @@ async def lifespan(app: FastAPI):
     with SessionLocal() as session:
         if settings.allow_demo_seed:
             seed_demo_data(session)
+        # Restore all previously running client engines
+        await simulation_manager.start_all(session)
     if settings.demo_mode:
         await simulation_engine.start(speed_multiplier=settings.simulation_speed)
         if demo_disruption_task is None or demo_disruption_task.done():
@@ -54,6 +57,10 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
     demo_disruption_task = None
+    # Graceful shutdown: save all engines
+    with SessionLocal() as session:
+        await simulation_manager.save_all(session)
+    await simulation_manager.stop_all()
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
@@ -102,6 +109,11 @@ app.include_router(ai_router)
 app.include_router(logistics_router)
 app.include_router(rl_router)
 app.include_router(comparison_router)
+app.include_router(integration_router)
+app.include_router(management_router)
+app.include_router(client_auth_router)
+app.include_router(client_upload_router)
+app.include_router(client_dashboard_router)
 
 
 # --- Auth ---
@@ -183,6 +195,50 @@ async def operations_socket(websocket: WebSocket) -> None:
             await websocket.receive_text()
     except WebSocketDisconnect:
         simulation_engine.connection_manager.disconnect(websocket)
+
+
+@app.websocket("/ws/client")
+async def client_socket(websocket: WebSocket) -> None:
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Missing token")
+        return
+
+    from middleware.client_jwt import verify_access_token
+    try:
+        payload = verify_access_token(token)
+        client_id = int(payload["sub"])
+    except Exception:
+        await websocket.close(code=4001, reason="Invalid token")
+        return
+
+    with SessionLocal() as session:
+        from models import IntegrationClient
+        client = session.get(IntegrationClient, client_id)
+        if client is None or not client.enabled:
+            await websocket.close(code=4003, reason="Client not found")
+            return
+
+    channel = f"client_{client_id}"
+    engine = simulation_manager.get_engine(client_id)
+    if engine is None:
+        await websocket.close(code=4004, reason="No active engine for client")
+        return
+
+    await engine.connection_manager.connect(websocket, channel=channel)
+    try:
+        with SessionLocal() as session:
+            try:
+                snapshot = engine.dashboard_snapshot(session)
+                await websocket.send_json(
+                    {"type": "simulation_snapshot", "payload": snapshot.model_dump(mode="json")}
+                )
+            except Exception:
+                pass
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        engine.connection_manager.disconnect(websocket, channel=channel)
 
 
 # --- Static file serving ---

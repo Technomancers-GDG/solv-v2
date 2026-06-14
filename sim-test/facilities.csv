@@ -1,0 +1,8 @@
+name,city,facility_type,latitude,longitude,base_capacity_units
+Mumbai Warehouse,Mumbai,warehouse,19.0760,72.8777,12000
+Delhi Distribution Center,Delhi,warehouse,28.6139,77.2090,10000
+Chennai Port Terminal,Chennai,port,13.1067,80.3078,15000
+Kolkata Hub,Kolkata,warehouse,22.5726,88.3639,9800
+Bangalore Campus,Bengaluru,warehouse,12.9716,77.5946,11000
+Pune Buffer Center,Pune,warehouse,18.5204,73.8567,8600
+Hyderabad Connector,Hyderabad,warehouse,17.3850,78.4867,9300

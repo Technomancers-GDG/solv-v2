@@ -26,6 +26,10 @@ class Settings:
     demo_disruption_delay_seconds: int
     demo_disruption_city: str
     demo_disruption_severity: float
+    # JWT
+    jwt_secret_key: str
+    jwt_algorithm: str
+    jwt_expiry_hours: int
     # RL & Optimization
     rl_model_path: str
     use_rl_engine: bool
@@ -61,6 +65,7 @@ def _get_bool_env(name: str, default: str) -> bool:
 
 
 def load_settings() -> Settings:
+    import secrets as _secrets
     return Settings(
         app_name=_get_env("APP_NAME", "Resilient Essential Goods Coordinator"),
         database_url=_get_env("DATABASE_URL", "sqlite:///./supply_chain.db"),
@@ -80,6 +85,10 @@ def load_settings() -> Settings:
         demo_disruption_delay_seconds=int(_get_env("DEMO_DISRUPTION_DELAY_SECONDS", "12")),
         demo_disruption_city=_get_env("DEMO_DISRUPTION_CITY", "Chennai"),
         demo_disruption_severity=float(_get_env("DEMO_DISRUPTION_SEVERITY", "0.82")),
+        # JWT
+        jwt_secret_key=_get_env("JWT_SECRET_KEY", _secrets.token_hex(32)),
+        jwt_algorithm=_get_env("JWT_ALGORITHM", "HS256"),
+        jwt_expiry_hours=int(_get_env("JWT_EXPIRY_HOURS", "24")),
         # RL & Optimization
         rl_model_path=_get_env("RL_MODEL_PATH", "data/rl_model.json"),
         use_rl_engine=_get_bool_env("USE_RL_ENGINE", "true"),

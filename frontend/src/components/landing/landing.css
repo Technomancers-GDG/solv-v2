@@ -171,6 +171,9 @@ html {
 
 .lp-nav-link:hover {
   color: var(--lp-text);
+  background: none;
+  box-shadow: none;
+  transform: none;
 }
 
 .lp-nav-actions {
@@ -191,6 +194,8 @@ html {
 
 .lp-nav-link-secondary:hover {
   background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  transform: none;
 }
 
 /* === Buttons === */

@@ -6,7 +6,7 @@ import hashlib
 import heapq
 import logging
 from collections import defaultdict
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from config import settings
 from database import SessionLocal
 from models import (
+    ClientSimulation,
     DriverDecision,
     DriverProfile,
     Facility,
@@ -57,9 +58,11 @@ else:
 
 
 class SimulationEngine:
-    def __init__(self, route_planner: RoutePlanner) -> None:
+    def __init__(self, route_planner: RoutePlanner, client_id: int | None = None, channel: str = "global") -> None:
         self.route_planner = route_planner
         self.decision_engine = DecisionEngine()
+        self.client_id = client_id
+        self._channel = channel
         self.connection_manager = ConnectionManager()
         self.status = "idle"
         self.last_error: str | None = None
@@ -139,16 +142,20 @@ class SimulationEngine:
     # ── State Loading ───────────────────────────────────────────────
 
     def load_state(self, session: Session) -> None:
+        where = Facility.client_id.is_(self.client_id) if self.client_id is not None else Facility.client_id.is_(None)
         self.facilities = {
-            facility.id: facility for facility in session.scalars(select(Facility)).all()
+            facility.id: facility for facility in session.scalars(select(Facility).where(where)).all()
         }
         self.port_links = session.scalars(select(PortLink)).all()
+        obj_where = Objective.client_id.is_(self.client_id) if self.client_id is not None else Objective.client_id.is_(None)
         self.objectives = {
-            objective.id: objective for objective in session.scalars(select(Objective)).all()
+            objective.id: objective for objective in session.scalars(select(Objective).where(obj_where)).all()
         }
-        self.vehicles = {vehicle.id: vehicle for vehicle in session.scalars(select(Vehicle)).all()}
+        veh_where = Vehicle.client_id.is_(self.client_id) if self.client_id is not None else Vehicle.client_id.is_(None)
+        self.vehicles = {vehicle.id: vehicle for vehicle in session.scalars(select(Vehicle).where(veh_where)).all()}
+        drv_where = DriverProfile.client_id.is_(self.client_id) if self.client_id is not None else DriverProfile.client_id.is_(None)
         self.drivers = {
-            driver.id: driver for driver in session.scalars(select(DriverProfile)).all()
+            driver.id: driver for driver in session.scalars(select(DriverProfile).where(drv_where)).all()
         }
         self.live_vehicle_states = {
             vehicle.id: LiveVehicleState(
@@ -175,6 +182,89 @@ class SimulationEngine:
             self.update_weather_event_map(weather)
         for news in session.scalars(select(NewsEvent).where(NewsEvent.relevant.is_(True))).all():
             self.update_news_event_map(news)
+
+    # ── State Persistence ─────────────────────────────────────────
+
+    def save_state(self, session: Session) -> None:
+        if self.client_id is None:
+            return
+        import json as _json
+        from dataclasses import asdict as _asdict
+
+        row = session.scalar(
+            select(ClientSimulation).where(ClientSimulation.client_id == self.client_id)
+        )
+        if row is None:
+            row = ClientSimulation(client_id=self.client_id)
+            session.add(row)
+        row.status = self.status
+        row.simulation_time = self.simulation_time
+        row.speed_multiplier = self.speed_multiplier
+        row.total_ticks = self._tick_counter
+        row.event_queue_json = _json.dumps(
+            [_asdict(e) for e in self.event_queue], default=str
+        )
+        row.live_states_json = _json.dumps(
+            {k: _asdict(v) for k, v in self.live_vehicle_states.items()}, default=str
+        )
+        row.last_save_at = datetime.now(timezone.utc)
+        row.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        session.commit()
+
+    def restore_state(self, row: ClientSimulation) -> None:
+        import json as _json
+
+        self.simulation_time = row.simulation_time or self.simulation_time
+        self.speed_multiplier = row.speed_multiplier
+        self._tick_counter = row.total_ticks
+
+        # Restore event queue
+        if row.event_queue_json:
+            try:
+                events = _json.loads(row.event_queue_json)
+                self.event_queue = [
+                    ScheduledEvent(
+                        due_at=datetime.fromisoformat(e["due_at"]),
+                        priority=e.get("priority", 1),
+                        sequence=e.get("sequence", 0),
+                        event_type=e["event_type"],
+                        vehicle_id=e["vehicle_id"],
+                        objective_id=e.get("objective_id"),
+                        payload=e.get("payload", {}),
+                    )
+                    for e in events
+                ]
+                heapq.heapify(self.event_queue)
+            except Exception as exc:
+                logger.warning("Failed to restore event queue for client %s: %s", self.client_id, exc)
+
+        # Restore live vehicle states
+        if row.live_states_json:
+            try:
+                states = _json.loads(row.live_states_json)
+                for vid_str, s in states.items():
+                    vid = int(vid_str)
+                    if vid in self.live_vehicle_states:
+                        lv = self.live_vehicle_states[vid]
+                        lv.status = s.get("status", lv.status)
+                        lv.current_facility_id = s.get("current_facility_id", lv.current_facility_id)
+                        if "eta" in s and s["eta"]:
+                            lv.eta = datetime.fromisoformat(s["eta"])
+                        lv.progress_pct = s.get("progress_pct", lv.progress_pct)
+                        lv.payload_units = s.get("payload_units", lv.payload_units)
+            except Exception as exc:
+                logger.warning("Failed to restore live states for client %s: %s", self.client_id, exc)
+
+    async def stop(self) -> None:
+        if self._task is not None and not self._task.done():
+            self.status = "paused"
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
+        self.status = "idle"
 
     def update_news_event_map(self, news: NewsEvent) -> None:
         if not news.relevant:
@@ -370,8 +460,12 @@ class SimulationEngine:
                         broadcast_interval = 50 if turbo else (10 if self.speed_multiplier >= 1000 else 1)
                         if self._tick_counter % broadcast_interval == 0:
                             await self.connection_manager.broadcast(
-                                {"type": "simulation_snapshot", "payload": self.dashboard_snapshot(session).model_dump(mode="json")}
+                                {"type": "simulation_snapshot", "payload": self.dashboard_snapshot(session).model_dump(mode="json")},
+                                channel=self._channel,
                             )
+                        # Periodic state save for client engines (every 50 ticks)
+                        if self.client_id is not None and self._tick_counter % 50 == 0:
+                            self.save_state(session)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -403,6 +497,7 @@ class SimulationEngine:
                 vehicle_id=event.vehicle_id,
                 objective_id=event.objective_id,
                 facility_id=event.payload.get("facility_id"),
+                client_id=self.client_id,
                 payload=event.payload,
             )
         )

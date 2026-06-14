@@ -55,3 +55,38 @@ def init_db() -> None:
     import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+
+    # Add new columns to existing tables (safe migration for SQLite)
+    _migrate_columns()
+
+
+def _migrate_columns() -> None:
+    """Add new columns to existing tables if they don't already exist.
+    Safe to run on every startup — uses ALTER TABLE IF NOT EXISTS pattern."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    migrations = [
+        # (table_name, column_name, column_type)
+        ("facilities", "client_id", "INTEGER REFERENCES integration_clients(id)"),
+        ("vehicles", "client_id", "INTEGER REFERENCES integration_clients(id)"),
+        ("driver_profiles", "client_id", "INTEGER REFERENCES integration_clients(id)"),
+        ("objectives", "client_id", "INTEGER REFERENCES integration_clients(id)"),
+        ("shipments", "client_id", "INTEGER REFERENCES integration_clients(id)"),
+        ("sim_events", "client_id", "INTEGER REFERENCES integration_clients(id)"),
+        ("webhook_deliveries", "client_id", "INTEGER REFERENCES integration_clients(id)"),
+        ("integration_clients", "password_hash", "VARCHAR(128)"),
+        ("integration_clients", "company_name", "VARCHAR(255)"),
+    ]
+
+    with engine.connect() as conn:
+        for table, column, col_type in migrations:
+            try:
+                conn.execute(
+                    __import__("sqlalchemy").text(
+                        f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"
+                    )
+                )
+                conn.commit()
+            except Exception:
+                pass  # Column already exists — SQLite doesn't have IF NOT EXISTS

@@ -6,6 +6,7 @@ import { AIChatPanel } from "./components/common/AIChatPanel";
 import { onAuthChange, logout } from "./firebase";
 import { LoginView } from "./components/views/LoginView";
 import { LandingView } from "./components/landing/LandingView";
+import ClientPortal from "./pages/ClientPortal";
 
 const DashboardView = lazy(() => import("./components/views/DashboardView").then(m => ({ default: m.DashboardView })));
 const MapView = lazy(() => import("./components/views/MapView").then(m => ({ default: m.MapView })));
@@ -23,13 +24,15 @@ const SettingsView = lazy(() => import("./components/views/SettingsView").then(m
 const RLTrainingView = lazy(() => import("./components/views/RLTrainingView").then(m => ({ default: m.RLTrainingView })));
 const AIExplainerView = lazy(() => import("./components/views/AIExplainerView").then(m => ({ default: m.AIExplainerView })));
 const ComparisonView = lazy(() => import("./components/views/ComparisonView").then(m => ({ default: m.ComparisonView })));
+const IntegrationView = lazy(() => import("./components/views/IntegrationView").then(m => ({ default: m.IntegrationView })));
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function apiFetch(path, options = {}) {
+  const { headers: optHeaders, ...rest } = options;
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers ?? {}) },
-    ...options,
+    headers: { "Content-Type": "application/json", ...(optHeaders ?? {}) },
+    ...rest,
   });
   if (!response.ok) {
     const message = await response.text();
@@ -62,6 +65,22 @@ const TRANSLATIONS = {
     rlTraining: "RL Training",
     aiExplainer: "AI Decisions",
     aiComparison: "AI vs Baseline",
+    developer: "Developer",
+    developerApiKey: "API Key",
+    developerWebhooks: "Webhooks",
+    developerLogs: "Delivery Log",
+    logisightApi: "Logisight Integration API",
+    apiKeyDescription: "Use this API key to authenticate requests to the Logisight Integration API.",
+    regenerateKey: "Regenerate Key",
+    keyRegenerated: "New API key generated. Save it now — it will not be shown again.",
+    copyKey: "Copy",
+    keyCopied: "Copied!",
+    noWebhooks: "No webhooks configured.",
+    createWebhook: "Create Webhook",
+    webhookUrl: "Payload URL",
+    webhookEvents: "Events",
+    webhookActive: "Active",
+    deleteWebhook: "Delete",
     commandCenter: "Command Center",
     prototypeBadge: "Hackathon Prototype",
     simTime: "Sim Time",
@@ -104,6 +123,22 @@ const TRANSLATIONS = {
     rlTraining: "RL प्रशिक्षण",
     aiExplainer: "AI निर्णय",
     aiComparison: "AI बनाम आधारभूत",
+    developer: "डेवलपर",
+    developerApiKey: "API कुंजी",
+    developerWebhooks: "वेबहुक",
+    developerLogs: "डिलीवरी लॉग",
+    logisightApi: "Logisight इंटीग्रेशन API",
+    apiKeyDescription: "Logisight इंटीग्रेशन API को प्रमाणित करने के लिए इस API कुंजी का उपयोग करें।",
+    regenerateKey: "कुंजी पुनर्जीवित करें",
+    keyRegenerated: "नई API कुंजी बनाई गई। अब इसे सहेजें — यह दोबारा नहीं दिखाई जाएगी।",
+    copyKey: "कॉपी करें",
+    keyCopied: "कॉपी हुआ!",
+    noWebhooks: "कोई वेबहुक कॉन्फ़िगर नहीं।",
+    createWebhook: "वेबहुक बनाएं",
+    webhookUrl: "पेलोड URL",
+    webhookEvents: "ईवेंट",
+    webhookActive: "सक्रिय",
+    deleteWebhook: "हटाएं",
     commandCenter: "कमांड केंद्र",
     prototypeBadge: "हैकथॉन प्रोटोटाइप",
     simTime: "सिम समय",
@@ -180,6 +215,7 @@ function getNavSections(t) {
       label: t.settings,
       items: [
         { key: "settings", label: t.settings, icon: "⚙️" },
+        { key: "developer", label: t.developer, icon: "🔌" },
       ],
     },
   ];
@@ -650,6 +686,8 @@ function DashboardShell({ user, onLogout, t, lang, switchLang, apiFetch: apiFetc
         return <ImpactView metrics={metrics} />;
       case "cloud":
         return <CloudView cloudHealth={cloudHealth} />;
+      case "developer":
+        return <IntegrationView apiFetch={apiFetchProp} t={t} />;
       case "settings":
         return <SettingsView lang={lang} onSwitchLang={switchLang} t={t} />;
       case "rlTraining":
@@ -747,6 +785,10 @@ export default function App() {
 
   if (location.pathname === "/") {
     return <LandingView />;
+  }
+
+  if (location.pathname.startsWith("/client")) {
+    return <ClientPortal />;
   }
 
   if (location.pathname === "/login") {
