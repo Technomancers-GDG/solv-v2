@@ -31,7 +31,7 @@ export function DashboardView({ metrics, criticalFacilities = [], proactiveDispa
 
       <div className="dashboard-grid">
         {/* AI Decisions Panel — shows judges what the AI is doing */}
-        <Panel title="🧠 AI Decision Engine — Live" className="ai-panel">
+        <Panel title="AI Decision Engine — Live">
           {aiActivity ? (
             <div className="ai-activity-panel">
               <div className="ai-stats-grid">
@@ -134,7 +134,7 @@ export function DashboardView({ metrics, criticalFacilities = [], proactiveDispa
                     <span>{f.utilization_pct.toFixed(1)}%</span>
                   </div>
                   <ProgressBar value={Math.min(100, f.utilization_pct)} />
-                  <div className="util-foot" style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85em", color: "var(--muted)", marginTop: "4px" }}><span>{f.city}</span><span>{Math.max(0, f.effective_available_units)} free</span></div>
+                  <div className="util-foot"><span>{f.city}</span><span>{Math.max(0, f.effective_available_units)} free</span></div>
                 </div>
               ))}
             </div>

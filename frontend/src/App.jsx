@@ -678,12 +678,10 @@ function DashboardShell({ user, onLogout, t, lang, switchLang, apiFetch: apiFetc
               ☰
             </button>
             <h1>{t.commandCenter}</h1>
-            <span className="prototype-badge">{t.prototypeBadge}</span>
             <div style={{ marginLeft: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <span style={{
                 display: "inline-block", width: "10px", height: "10px", borderRadius: "50%",
-                backgroundColor: wsConnected ? "#10b981" : "#ef4444",
-                boxShadow: wsConnected ? "0 0 8px #10b981" : "0 0 8px #ef4444"
+                backgroundColor: wsConnected ? "#10b981" : "#ef4444"
               }} title={wsConnected ? "Connected to Backend" : "Disconnected (Auto-reconnecting...)"} />
               <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>{wsConnected ? "Live" : "Reconnecting..."}</span>
             </div>
