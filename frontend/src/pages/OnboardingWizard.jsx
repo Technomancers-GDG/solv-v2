@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 
 const TEMPLATES = {
   facilities: { label: "Facilities", icon: "\ud83d\udce6", endpoint: "/api/v1/client/upload/facilities", fields: "name,city,facility_type,latitude,longitude,base_capacity_units" },
@@ -93,7 +92,6 @@ function UploadTile({ category, config, onComplete, completed, user }) {
 }
 
 export default function OnboardingWizard({ user, onComplete }) {
-  const navigate = useNavigate();
   const [completed, setCompleted] = useState({});
   const [allDone, setAllDone] = useState(false);
 
@@ -174,7 +172,6 @@ export default function OnboardingWizard({ user, onComplete }) {
               <button
                 onClick={() => {
                   onComplete?.();
-                  navigate("/dashboard");
                 }}
                 style={{ padding: "12px 24px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
                 Go to Dashboard

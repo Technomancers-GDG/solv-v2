@@ -38,7 +38,7 @@ export function HeroSection() {
               instantly recommends optimal reroutes so critical goods keep moving.
             </motion.p>
             <motion.div className="lp-hero-actions" variants={textVariant(0.36)}>
-              <button className="lp-btn lp-btn-primary lp-btn-lg" onClick={() => navigate("/dashboard")}>
+              <button className="lp-btn lp-btn-primary lp-btn-lg" onClick={() => navigate("/client")}>
                 Start the Demo
               </button>
               <button className="lp-btn lp-btn-secondary lp-btn-lg" onClick={() => {

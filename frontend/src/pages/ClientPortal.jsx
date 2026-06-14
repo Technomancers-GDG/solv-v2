@@ -78,6 +78,8 @@ export default function ClientPortal() {
           </button>
           <p style={{ marginTop: 16, fontSize: 13, color: "#6b7280" }}>
             <a href="/" style={{ color: "#60a5fa", textDecoration: "none" }}>Back to home</a>
+            <span style={{ margin: "0 8px", color: "#374151" }}>·</span>
+            <a href="/dashboard" style={{ color: "#60a5fa", textDecoration: "none" }}>View Demo</a>
           </p>
         </div>
       </div>
@@ -90,8 +92,8 @@ export default function ClientPortal() {
         <OnboardingWizard
           user={user}
           firebaseToken={firebaseToken}
-          onComplete={(clientId, companyName) => {
-            setStatus({ ...status, has_fleet: true, client_id: clientId, company_name: companyName });
+          onComplete={() => {
+            setStatus({ ...status, has_fleet: true });
           }}
         />
       </Suspense>
