@@ -55,7 +55,7 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
             aria-label={t.signInWithGoogle || "Sign in with Google"}
             id="google-signin-btn"
           >
-            {loading ? (
+          {loading ? (
               <span className="spinner" aria-hidden="true" />
             ) : (
               <>
@@ -71,7 +71,6 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
             )}
           </button>
 
-          {/* Local dev login — only in development */}
           {(import.meta.env.DEV || window.location.hostname === 'localhost') && (
             <button
               className="google-btn login-dev-btn"
@@ -87,7 +86,6 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
             </button>
           )}
 
-          {/* Error alert */}
           {error && (
             <div className="login-error" role="alert" aria-live="assertive">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -99,7 +97,6 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
           )}
         </div>
 
-        {/* Footer — language toggle + version */}
         <footer className="login-footer">
           <nav className="login-lang-toggle" aria-label="Language selection">
             <button

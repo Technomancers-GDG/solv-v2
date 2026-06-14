@@ -1,4 +1,5 @@
 import { useLanguage, AVAILABLE_LANGUAGES } from "../../hooks/useLanguage";
+import "./LanguageSwitcher.css";
 
 export function LanguageSwitcher() {
   const { language, setLanguage } = useLanguage();

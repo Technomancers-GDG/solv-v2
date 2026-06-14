@@ -61,7 +61,7 @@ function BarChart({ data, label, valueKey, color = "accent" }) {
           <div key={idx} className="bar-item">
             <div
               className={`bar ${color}`}
-              style={{ height: `${(item[valueKey] / max) * 150}px` }}
+              style={{ "--bar-height": `${(item[valueKey] / max) * 150}px` }}
               title={`${item.label}: ${item[valueKey].toFixed(1)}`}
             />
             <span className="bar-label">{item.label}</span>

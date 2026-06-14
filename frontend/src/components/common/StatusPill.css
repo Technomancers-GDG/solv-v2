@@ -1,0 +1,26 @@
+/* StatusPill.css — Status Badge Component */
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%);
+  border: 1.5px solid #E5E7EB;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  font-size: 0.9rem;
+}
+
+.status-pill > span {
+  color: #6B7280;
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.status-pill > strong {
+  color: #1F2937;
+  font-weight: 700;
+  font-size: 0.95rem;
+}

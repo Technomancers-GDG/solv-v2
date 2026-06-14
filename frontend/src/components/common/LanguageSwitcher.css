@@ -1,0 +1,46 @@
+/* LanguageSwitcher.css — Elegant Language Selection */
+
+.language-switcher {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.language-btn {
+  min-width: 48px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #FFFFFF;
+  border: 1.5px solid #E5E7EB;
+  color: #374151;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.language-btn:hover {
+  border-color: #D1D5DB;
+  background: #F9FAFB;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.language-btn.active {
+  background: linear-gradient(135deg, #1068B8 0%, #0F4C81 100%);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(16, 104, 184, 0.2);
+}
+
+.language-btn.active:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 104, 184, 0.3);
+}
+
+.lang-code {
+  display: block;
+  letter-spacing: 0.08em;
+}

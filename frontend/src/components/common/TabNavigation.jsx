@@ -1,3 +1,5 @@
+import "./TabNavigation.css";
+
 export function TabNavigation({ tabs, activeTab, onSelect, isLive }) {
   return (
     <div className="tab-nav-shell">

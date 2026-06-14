@@ -1,0 +1,97 @@
+/* TabNavigation.css — Tab Navigation System */
+
+.tab-nav-shell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid #E5E7EB;
+  margin-bottom: 20px;
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border: none;
+}
+
+.tab {
+  position: relative;
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  color: #6B7280;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab:hover {
+  color: #1F2937;
+}
+
+/* Active tab indicator */
+.tab.active {
+  color: #1068B8;
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -13px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #1068B8 0%, #0F4C81 100%);
+  border-radius: 3px 3px 0 0;
+  box-shadow: 0 -2px 6px rgba(16, 104, 184, 0.15);
+}
+
+/* Live Indicator */
+.live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6B7280;
+  background: #F3F4F6;
+}
+
+.live-indicator::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #9CA3AF;
+  flex-shrink: 0;
+}
+
+.live-indicator.connected {
+  color: #059669;
+  background: #D1F4E8;
+}
+
+.live-indicator.connected::before {
+  background: #059669;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2);
+  animation: live-pulse 2s infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}

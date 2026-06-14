@@ -1,34 +1,80 @@
-/* AIDecisionWidgets.css — Windows 11 Fluent Design */
+/* AIDecisionWidgets.css — Premium Logistics Decision Display */
+
+:root {
+  --primary-dark: #2f5668;
+  --primary: #4f7285;
+  --primary-light: #d8e4ea;
+  --success: #4f8b71;
+  --success-light: #dcefe5;
+  --warning: #c28b58;
+  --warning-light: #f6e6d4;
+  --error: #c06157;
+  --error-light: #fae0dc;
+  --neutral-50: #fcfaf7;
+  --neutral-100: #f5efe8;
+  --neutral-200: #e3d9cf;
+  --neutral-300: #cbbfb2;
+  --neutral-400: #aa9b8a;
+  --neutral-500: #7e7062;
+  --neutral-600: #63584d;
+  --neutral-700: #493f36;
+  --neutral-800: #302923;
+  --neutral-900: #1f1916;
+}
+
+/* ============================================
+   DECISION PANEL
+   ============================================ */
 
 .decision-explanation-panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  color: var(--text);
-  margin-bottom: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(244, 237, 228, 0.88) 100%);
+  border: 1px solid var(--neutral-200);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 18px 40px rgba(38, 50, 61, 0.08), 0 2px 8px rgba(38, 50, 61, 0.04);
+  color: var(--neutral-800);
+  margin-bottom: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .decision-explanation-panel:hover {
-  box-shadow: var(--shadow-hover);
+  box-shadow: 0 22px 48px rgba(38, 50, 61, 0.11), 0 4px 12px rgba(38, 50, 61, 0.06);
+  border-color: var(--primary-light);
 }
 
+/* Flash animation for new decisions */
+@keyframes decision-flash {
+  0% {
+    background-color: #f6e6d4;
+    border-color: #e1b98a;
+  }
+  50% {
+    background-color: rgba(246, 230, 212, 0.5);
+  }
+  100% {
+    background-color: transparent;
+    border-color: var(--neutral-200);
+  }
+}
+
+.decision-explanation-panel.decision-flash {
+  animation: decision-flash 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Panel Header */
 .decision-panel-topline {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(48, 67, 79, 0.08);
 }
 
 .decision-kicker {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--neutral-500);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -36,113 +82,234 @@
 .ai-confidence-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  border: 1px solid transparent;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 1.5px solid transparent;
+  transition: all 0.2s ease;
 }
 
+.ai-confidence-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Decision Title */
 .decision-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 14px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--neutral-900);
+  margin-bottom: 20px;
+  letter-spacing: -0.01em;
 }
 
+/* Section Styling */
 .decision-section {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .decision-section > span {
   display: block;
-  font-size: 0.78rem;
-  color: var(--muted);
-  margin-bottom: 6px;
-  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--neutral-500);
+  margin-bottom: 8px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .decision-section p {
-  font-size: 0.9rem;
-  line-height: 1.6;
+  font-size: 0.95rem;
+  line-height: 1.7;
   margin: 0;
-  color: var(--text);
+  color: var(--neutral-700);
 }
 
+/* Impact List */
 .impact-list-styled {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .impact-list-styled li {
-  font-size: 0.9rem;
-  margin-bottom: 8px;
+  font-size: 0.95rem;
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  color: var(--text);
+  gap: 12px;
+  color: var(--neutral-700);
+  padding: 8px 12px;
+  border-left: 3px solid var(--success);
+  background: var(--success-light);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.impact-list-styled li:hover {
+  background: rgba(5, 150, 105, 0.1);
+  transform: translateX(4px);
 }
 
 .impact-checkmark {
   color: var(--success);
-  font-weight: bold;
+  font-weight: 800;
+  font-size: 1rem;
+  flex-shrink: 0;
 }
 
-/* Route Comparison */
+/* ============================================
+   ROUTE COMPARISON BLOCK
+   ============================================ */
+
 .route-comparison-block {
-  background-color: rgba(0, 0, 0, 0.02);
-  border-radius: 8px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  margin-top: 18px;
+  background: linear-gradient(135deg, rgba(250, 245, 239, 0.96) 0%, rgba(234, 241, 244, 0.94) 100%);
+  border-radius: 20px;
+  padding: 20px;
+  border: 1px solid var(--neutral-200);
+  margin-top: 20px;
+  box-shadow: 0 14px 28px rgba(38, 50, 61, 0.06);
 }
 
 .route-compare-header {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .route-compare-eyebrow {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--neutral-500);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
+/* Route Cards Row */
 .route-compare-cards-row {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
 }
 
 .route-compare-card {
-  background: #FFFFFF;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1.5px solid var(--neutral-200);
+  border-radius: 16px;
+  padding: 16px;
   flex: 1;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 10px 18px rgba(38, 50, 61, 0.05);
+  transition: all 0.2s ease;
+}
+
+.route-compare-card:hover {
+  border-color: var(--neutral-300);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.route-compare-card.after {
+  border-color: var(--primary);
+  background: var(--primary-light);
 }
 
 .compare-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--muted);
-  margin-bottom: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--neutral-500);
+  margin-bottom: 6px;
   text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .route-compare-card strong {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 4px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--neutral-900);
+  margin-bottom: 6px;
 }
+
+.compare-metrics {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--neutral-600);
+  font-weight: 600;
+}
+
+.route-compare-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.compare-badge-improved {
+  margin-top: 10px;
+  font-size: 0.7rem;
+  background: var(--success);
+  color: #FFFFFF;
+  padding: 4px 10px;
+  border-radius: 6px;
+  align-self: flex-start;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ============================================
+   AI ACTIVITY FEED
+   ============================================ */
+
+.ai-activity-feed {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.ai-activity-feed::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ai-activity-feed::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ai-activity-feed::-webkit-scrollbar-thumb {
+  background: var(--neutral-300);
+  border-radius: 3px;
+}
+
+.ai-activity-feed::-webkit-scrollbar-thumb:hover {
+  background: var(--neutral-400);
+}
+
+.ai-feed-item {
+  display: flex;
+  gap: 14px;
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--neutral-100);
+  transition: all 0.2s ease;
+}
+
+.ai-feed-item:hover {
+  background: var(--neutral-50);
+  padding-left: 16px;
+}
+
+.ai-feed-item:last-child {
+  border-bottom: none;
+}
+
 
 .compare-metrics {
   display: flex;

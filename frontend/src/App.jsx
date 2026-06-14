@@ -667,8 +667,8 @@ export default function App() {
   if (!authReady) {
     return (
       <section className="login-view" aria-label="Loading">
-        <div className="login-card" style={{ textAlign: "center" }}>
-          <div className="logo-mark large" style={{ margin: "0 auto 16px" }} aria-hidden="true">SOLV</div>
+        <div className="login-card auth-loading-card">
+          <div className="logo-mark large auth-loading-mark" aria-hidden="true">SOLV</div>
           <p className="muted-text" role="status" aria-live="polite">Loading authentication...</p>
         </div>
       </section>

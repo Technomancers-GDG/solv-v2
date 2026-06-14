@@ -1,3 +1,5 @@
+import "./StatusPill.css";
+
 export function StatusPill({ label, value }) {
   return (
     <div className="status-pill" role="status" aria-live="polite">

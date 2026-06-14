@@ -1,6 +1,12 @@
 import { AIActivityFeed, AIDecisionPanel, RouteComparisonBlock } from "../common/AIDecisionWidgets";
 import "./DashboardView.css";
 
+function riskToneClass(risk) {
+  if (risk > 0.6) return "risk-card risk-card-high";
+  if (risk > 0.3) return "risk-card risk-card-medium";
+  return "risk-card risk-card-low";
+}
+
 export function DashboardView({ metrics, criticalFacilities, proactiveDispatches, riskForecast, auditChain, blockchainVerify, facilityLookup, aiActivity, latestDecision, previousRoute, activityFeed }) {
   const rl = aiActivity?.rl_engine;
   const formatINR = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val || 0);
@@ -12,15 +18,13 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
   const confidence = latestDecision?.confidence ?? (rl?.enabled ? 100 - Math.round((rl.epsilon ?? 0.08) * 100) : 92);
 
   return (
-    <main className="dashboard-view" aria-label="Command Center Dashboard">
+    <main className="dashboard-view" aria-label="Global Network Telemetry">
       <header className="dashboard-header">
         <h1>Global Network Telemetry</h1>
         <p>Real-time autonomous routing, capacity tracking, and predictive dispatch intelligence.</p>
       </header>
 
       <div className="cmd-bento-grid">
-        
-        {/* Top Highlight 1: Financial Impact */}
         <section className="cmd-panel panel-hero-1">
           <h2 className="cmd-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -35,7 +39,6 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
           </div>
         </section>
 
-        {/* Top Highlight 2: Environmental Impact */}
         <section className="cmd-panel panel-hero-2">
           <h2 className="cmd-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -50,7 +53,6 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
           </div>
         </section>
 
-        {/* Top Highlight 3: Operational Impact */}
         <section className="cmd-panel panel-hero-3">
           <h2 className="cmd-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 2 22 22 22"/></svg>
@@ -65,7 +67,6 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
           </div>
         </section>
 
-        {/* AI Operations Core */}
         <section className="cmd-panel panel-ai-core">
           <h2 className="cmd-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -76,7 +77,7 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
             <div className="ai-telemetry">
               <div className="telemetry-item">
                 <span className="telemetry-label">Engine Status</span>
-                <span className="telemetry-value" style={{ color: '#4ade80' }}>Active (v2.4)</span>
+                  <span className="telemetry-value">Active (v2.4)</span>
               </div>
               <div className="telemetry-item">
                 <span className="telemetry-label">Live Reroutes</span>
@@ -109,7 +110,6 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
           </div>
         </section>
 
-        {/* Capacity Saturation Watch */}
         <section className="cmd-panel panel-capacity">
           <h2 className="cmd-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -125,7 +125,7 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
                     <span className="item-title">{f.facility_name}</span>
                     <span className="item-sub">{f.city} • {Math.max(0, f.effective_available_units)} units free</span>
                   </div>
-                  <span className="item-value" style={{ color: f.utilization_pct > 85 ? '#f87171' : '#fbbf24' }}>
+                  <span className={`item-value ${f.utilization_pct > 85 ? "item-value-danger" : "item-value-warn"}`}>
                     {f.utilization_pct.toFixed(1)}%
                   </span>
                 </li>
@@ -134,7 +134,6 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
           )}
         </section>
 
-        {/* Predictive Dispatches */}
         <section className="cmd-panel panel-dispatch">
           <h2 className="cmd-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -150,8 +149,8 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
                     <span className="item-title">{facilityLookup[d.destination_facility_id]?.name ?? "Facility"}</span>
                     <span className="item-sub">{d.reason}</span>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span className="item-value" style={{ color: '#60a5fa' }}>+{d.recommended_units}</span>
+                  <div className="dispatch-meta">
+                    <span className="item-value">+{d.recommended_units}</span>
                     <div className="item-sub">ETA {d.eta_hours}h</div>
                   </div>
                 </li>
@@ -160,20 +159,19 @@ export function DashboardView({ metrics, criticalFacilities, proactiveDispatches
           )}
         </section>
 
-        {/* Distributed Risk Topology */}
         <section className="cmd-panel panel-risk">
           <h2 className="cmd-panel-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
             12-Hour Geographical Risk Topology
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+          <div className="risk-grid">
             {riskForecast.slice(0, 4).map((rf, i) => (
-              <div key={i} style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontSize: '0.9rem', color: '#FFF', fontWeight: 600 }}>{rf.city}</div>
-                <div style={{ fontSize: '2rem', fontWeight: 300, color: rf.risk > 0.6 ? '#f87171' : rf.risk > 0.3 ? '#fbbf24' : '#4ade80', margin: '4px 0' }}>
+              <div key={i} className={riskToneClass(rf.risk)}>
+                <div className="risk-city">{rf.city}</div>
+                <div className="risk-percent">
                   {(rf.risk * 100).toFixed(0)}%
                 </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--cmd-text-secondary)' }}>{rf.factors?.join(", ")}</div>
+                <div className="risk-factors">{rf.factors?.join(", ")}</div>
               </div>
             ))}
           </div>
