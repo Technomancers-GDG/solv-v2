@@ -631,6 +631,17 @@ button.scale-btn:disabled {
   background: #dde3eb;
 }
 
+.client-map-container {
+  height: 100%;
+  width: 100%;
+}
+
+.client-map-container .leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: #1a2332;
+}
+
 .map-container .leaflet-popup-content {
   margin: 10px 12px;
   line-height: 1.45;

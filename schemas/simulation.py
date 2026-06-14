@@ -83,6 +83,8 @@ class DashboardSnapshot(BaseModel):
     alerts: list[RecommendationRead]
     metrics: MetricsSummary
     active_events: list[dict[str, Any]]
+    objectives: list[dict[str, Any]] = []
+    route_templates: list[dict[str, Any]] = []
 
 
 class ScenarioPresetRead(ORMModel):

@@ -6,7 +6,8 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,7 +32,8 @@ from database import SessionLocal, init_db
 from seed_data import seed_demo_data
 
 from app_state import simulation_engine
-from routes import crud_router, simulation_router, driver_router, ai_router, logistics_router, rl_router, comparison_router
+from services.simulation_manager import simulation_manager
+from routes import crud_router, simulation_router, driver_router, ai_router, logistics_router, rl_router, comparison_router, integration_router, management_router, client_auth_router, client_upload_router, client_dashboard_router
 
 from contextlib import asynccontextmanager
 
@@ -42,6 +44,8 @@ async def lifespan(app: FastAPI):
     with SessionLocal() as session:
         if settings.allow_demo_seed:
             seed_demo_data(session)
+        # Restore all previously running client engines
+        await simulation_manager.start_all(session)
     if settings.demo_mode:
         await simulation_engine.start(speed_multiplier=settings.simulation_speed)
         if demo_disruption_task is None or demo_disruption_task.done():
@@ -54,6 +58,10 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
     demo_disruption_task = None
+    # Graceful shutdown: save all engines
+    with SessionLocal() as session:
+        await simulation_manager.save_all(session)
+    await simulation_manager.stop_all()
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
@@ -102,6 +110,11 @@ app.include_router(ai_router)
 app.include_router(logistics_router)
 app.include_router(rl_router)
 app.include_router(comparison_router)
+app.include_router(integration_router)
+app.include_router(management_router)
+app.include_router(client_auth_router)
+app.include_router(client_upload_router)
+app.include_router(client_dashboard_router)
 
 
 # --- Auth ---
@@ -170,6 +183,22 @@ async def _trigger_demo_disruption() -> None:
 
 
 
+# --- Diagnostic ---
+@app.get("/api/diag/engines")
+async def diag_engines():
+    """Diagnostic: list all simulation engines and their status."""
+    return {
+        "global_engine": {
+            "status": simulation_engine.status,
+            "client_id": simulation_engine.client_id,
+            "vehicle_count": len(simulation_engine.live_vehicle_states),
+            "tick": simulation_engine._tick_counter,
+            "speed": simulation_engine.speed_multiplier,
+        },
+        "client_engines": simulation_manager.list_engines(),
+    }
+
+
 # --- WebSocket ---
 @app.websocket("/ws/operations")
 async def operations_socket(websocket: WebSocket) -> None:
@@ -185,6 +214,66 @@ async def operations_socket(websocket: WebSocket) -> None:
         simulation_engine.connection_manager.disconnect(websocket)
 
 
+@app.websocket("/ws/client")
+async def client_socket(websocket: WebSocket) -> None:
+    token = websocket.query_params.get("token")
+    if not token:
+        logger.info("[DIAG] /ws/client: missing token, closing 4001")
+        await websocket.close(code=4001, reason="Missing token")
+        return
+
+    logger.info("[DIAG] /ws/client: token received, verifying...")
+    try:
+        _init_firebase()
+        decoded = firebase_auth.verify_id_token(token, clock_skew_seconds=60)
+        firebase_uid = decoded.get("uid")
+        logger.info("[DIAG] /ws/client: token verified, firebase_uid=%s", firebase_uid)
+    except Exception as exc:
+        logger.warning("[DIAG] /ws/client: token verification failed: %s", exc)
+        await websocket.close(code=4001, reason="Invalid token")
+        return
+
+    with SessionLocal() as session:
+        from models import IntegrationClient
+        client = session.scalar(
+            select(IntegrationClient).where(IntegrationClient.firebase_uid == firebase_uid)
+        )
+        if client is None or not client.enabled:
+            logger.warning("[DIAG] /ws/client: client not found or disabled for uid=%s", firebase_uid)
+            await websocket.close(code=4003, reason="Client not found")
+            return
+        client_id = client.id
+        logger.info("[DIAG] /ws/client: client found, client_id=%s", client_id)
+
+    channel = f"client_{client_id}"
+    engine = simulation_manager.get_engine(client_id)
+    if engine is None:
+        logger.warning("[DIAG] /ws/client: NO engine for client_id=%s, closing 4004", client_id)
+        await websocket.close(code=4004, reason="No active engine for client")
+        return
+
+    logger.info("[DIAG] /ws/client: engine found for client_id=%s, status=%s, vehicles=%s",
+                client_id, engine.status, len(engine.live_vehicle_states))
+    await engine.connection_manager.connect(websocket, channel=channel)
+    logger.info("[DIAG] /ws/client: websocket connected for client_id=%s", client_id)
+    try:
+        with SessionLocal() as session:
+            try:
+                snapshot = engine.dashboard_snapshot(session)
+                await websocket.send_json(
+                    {"type": "simulation_snapshot", "payload": snapshot.model_dump(mode="json")}
+                )
+                logger.info("[DIAG] /ws/client: initial snapshot sent for client_id=%s, vehicles=%s",
+                            client_id, len(snapshot.vehicles))
+            except Exception as exc:
+                logger.error("[DIAG] /ws/client: snapshot failed for client_id=%s: %s", client_id, exc)
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        logger.info("[DIAG] /ws/client: disconnect for client_id=%s", client_id)
+        engine.connection_manager.disconnect(websocket, channel=channel)
+
+
 # --- Static file serving ---
 FRONTEND_DIST = Path("frontend/dist")
 DRIVER_DIST = Path("driver-app-main/dist")
@@ -194,6 +283,14 @@ if FRONTEND_DIST.exists():
 
     @app.get("/", include_in_schema=False)
     async def frontend_index() -> FileResponse:
+        return FileResponse(FRONTEND_DIST / "index.html")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def frontend_catch_all(full_path: str) -> FileResponse:
+        """Serve index.html for all client-side routes (SPA)."""
+        path = full_path.rstrip("/")
+        if path.startswith("api/") or path.startswith("ws/"):
+            raise HTTPException(status_code=404)
         return FileResponse(FRONTEND_DIST / "index.html")
 
 if DRIVER_DIST.exists():

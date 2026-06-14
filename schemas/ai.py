@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 class RLDecisionRequest(BaseModel):
     facility_utilization: float
@@ -28,6 +28,29 @@ class AIChatRequest(BaseModel):
     history: list[dict[str, str]] | None = None
     vehicle_id: int | None = None
     stream: bool = True
+
+    @field_validator("history", mode="before")
+    @classmethod
+    def sanitize_history(cls, v):
+        if v is None:
+            return None
+        if not isinstance(v, list):
+            return []
+        sanitized = []
+        for entry in v:
+            if not isinstance(entry, dict):
+                sanitized.append({"role": "user", "content": str(entry)})
+                continue
+            role = entry.get("role")
+            if isinstance(role, str) and role.lower() in ("none", "null", ""):
+                role = "user"
+            elif not isinstance(role, str) or not role.strip():
+                role = "user"
+            content = entry.get("content")
+            if not isinstance(content, str) or content is None:
+                content = ""
+            sanitized.append({"role": role, "content": content})
+        return sanitized
 
 class AIChatResponse(BaseModel):
     response: str

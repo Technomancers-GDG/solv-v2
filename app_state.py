@@ -17,11 +17,16 @@ from services.predictive_forecast import PredictiveForecastService
 from services.rl_decision_engine import get_rl_engine
 from services.route_planner import RoutePlanner
 from services.simulation import SimulationEngine
+from services.simulation_manager import simulation_manager
 
 news_model = NewsRelevanceService()
 route_planner = RoutePlanner()
 event_ingestion_service = EventIngestionService(news_model)
-simulation_engine = SimulationEngine(route_planner)
+
+# Demo/general engine (client_id=None, channel="global")
+simulation_engine = SimulationEngine(route_planner, client_id=None, channel="global")
+simulation_manager.register_engine(None, simulation_engine)
+
 forecast_service = PredictiveForecastService()
 inventory_optimizer = InventoryOptimizer()
 data_fusion_service = DataFusionService()
@@ -31,3 +36,4 @@ logistics_decision_engine = LogisticsDecisionEngine()
 logistics_execution_service = LogisticsExecutionService()
 telemetry_simulation_service = TelemetrySimulationService()
 driver_performance_service = DriverPerformanceService(telemetry_simulation_service)
+multi_objective_optimizer = NSGA2Optimizer()

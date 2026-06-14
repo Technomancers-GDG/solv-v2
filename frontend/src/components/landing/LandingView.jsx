@@ -8,6 +8,7 @@ import { OutcomesSection } from "./OutcomesSection";
 import { ProductPreviewSection } from "./ProductPreviewSection";
 import { TrustSection } from "./TrustSection";
 import { CTASection } from "./CTASection";
+import { PartnerSection } from "./PartnerSection";
 import { Footer } from "./Footer";
 import "./landing.css";
 
@@ -43,6 +44,7 @@ export function LandingView() {
       <OutcomesSection />
       <ProductPreviewSection />
       <TrustSection />
+      <PartnerSection />
       <CTASection />
       <Footer />
     </div>

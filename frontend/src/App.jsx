@@ -1,3 +1,5 @@
+import { lazy, Suspense } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import { useState, useEffect, useCallback, useMemo, useRef, startTransition, useDeferredValue, lazy, Suspense, Component } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AIRerouteToast } from "./components/common/AIDecisionWidgets";
@@ -7,6 +9,8 @@ import { logout } from "./firebase";
 import { LoginView } from "./components/views/LoginView";
 import { LandingView } from "./components/landing/LandingView";
 
+const DashboardShell = lazy(() => import("./components/DashboardShell"));
+const ClientPortal = lazy(() => import("./pages/ClientPortal"));
 const DashboardView = lazy(() => import("./components/views/DashboardView").then(m => ({ default: m.DashboardView })));
 const MapView = lazy(() => import("./components/views/MapView").then(m => ({ default: m.MapView })));
 const LiveOpsView = lazy(() => import("./components/views/LiveOpsView").then(m => ({ default: m.LiveOpsView })));
@@ -716,37 +720,17 @@ function DashboardShell({ user, onLogout, t, lang, switchLang, apiFetch: apiFetc
 
 export default function App() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { lang, t, switchLang } = useLanguage();
-  const [user, setUser] = useState(null);
-  const [authReady, setAuthReady] = useState(false);
-
-  useEffect(() => {
-    setAuthReady(true);
-  }, []);
-
-  const handleLogin = (userData) => {
-    setUser(userData);
-    navigate("/dashboard");
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      setUser(null);
-      navigate("/");
-    } catch (err) {
-      console.error("Logout failed:", err);
-    }
-  };
 
   if (location.pathname === "/") {
     return <LandingView />;
   }
 
-  if (location.pathname === "/login") {
-    if (user) return <Navigate to="/dashboard" replace />;
-    return <LoginView t={t} onLogin={handleLogin} lang={lang} onSwitchLang={switchLang} />;
+  if (location.pathname.startsWith("/client")) {
+    return (
+      <Suspense fallback={<div className="loading">Loading...</div>}>
+        <ClientPortal />
+      </Suspense>
+    );
   }
 
   if (location.pathname === "/dashboard") {
@@ -762,15 +746,14 @@ export default function App() {
     }
     if (!user) return <Navigate to="/login" replace />;
     return (
-      <DashboardShell
-        user={user}
-        onLogout={handleLogout}
-        t={t}
-        lang={lang}
-        switchLang={switchLang}
-        apiFetch={apiFetch}
-      />
+      <Suspense fallback={<div className="loading">Loading...</div>}>
+        <DashboardShell user={null} onLogout={() => {}} clientContext={null} />
+      </Suspense>
     );
+  }
+
+  if (location.pathname === "/login") {
+    return <Navigate to="/" replace />;
   }
 
   return <Navigate to="/" replace />;

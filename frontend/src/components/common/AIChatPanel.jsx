@@ -73,7 +73,10 @@ export function AIChatPanel({ apiFetch }) {
     const placeholder = { role: "model", content: "", suggestions: null, error: false, timestamp: Date.now() };
     setMessages(prev => [...prev, userMsg, placeholder]);
 
-    const history = [...messagesRef.current, userMsg].map(m => ({ role: m.role, content: m.content }));
+    const history = [...messagesRef.current, userMsg].map(m => ({
+      role: String(m.role ?? "user"),
+      content: String(m.content ?? ""),
+    }));
     const controller = new AbortController();
     abortRef.current = controller;
     const gen = ++genRef.current;
@@ -87,7 +90,18 @@ export function AIChatPanel({ apiFetch }) {
         body,
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+      if (!response.ok) {
+        let detail = `Request failed: ${response.status}`;
+        try {
+          const errBody = await response.json();
+          if (Array.isArray(errBody.detail)) {
+            detail = errBody.detail.map(d => d.msg || JSON.stringify(d)).join("; ");
+          } else if (errBody.detail) {
+            detail = String(errBody.detail);
+          }
+        } catch {}
+        throw new Error(detail);
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import secrets
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from models import DriverProfile, Facility, Objective, PortLink, ScenarioPreset, Vehicle
+from models import DriverProfile, Facility, IntegrationClient, Objective, PortLink, ScenarioPreset, Vehicle
 
 
 FACILITY_SEEDS = [
@@ -1027,6 +1030,7 @@ def _seed_scenario_presets(session: Session) -> None:
 def seed_demo_data(session: Session) -> None:
     if session.scalar(select(Facility.id).limit(1)) is not None:
         _seed_scenario_presets(session)
+        _seed_demo_integration_client(session)
         return
 
     session.add_all(Facility(**facility) for facility in FACILITY_SEEDS)
@@ -1814,3 +1818,32 @@ def seed_demo_data(session: Session) -> None:
     session.add_all(port_links)
     session.commit()
     _seed_scenario_presets(session)
+    _seed_demo_integration_client(session)
+
+
+def _seed_demo_integration_client(session: Session) -> None:
+    existing = session.scalar(select(IntegrationClient).where(IntegrationClient.name == "Demo Client"))
+    if existing is not None:
+        return
+
+    api_key = f"regc_{secrets.token_hex(24)}"
+    api_key_hash = hashlib.sha256(f"integ-api-v1-2026:{api_key}".encode()).hexdigest()
+    api_key_prefix = api_key[:8]
+
+    client = IntegrationClient(
+        name="Demo Client",
+        api_key_hash=api_key_hash,
+        api_key_prefix=api_key_prefix,
+        contact_email="demo@example.com",
+        rate_limit_per_minute=5000,
+        enabled=True,
+    )
+    session.add(client)
+    session.commit()
+
+    print("=" * 60)
+    print("  Integration API Demo Key Created!")
+    print(f"  Key: {api_key}")
+    print(f"  Use: X-API-Key: {api_key}")
+    print(f"  Or:  Authorization: Bearer {api_key}")
+    print("=" * 60)

@@ -5,21 +5,13 @@ echo "========================================"
 echo "Build script for Render deployment"
 echo "========================================"
 
-# 0. Run tests before building
-echo "[0/6] Running backend tests..."
-python -m pytest tests/ -v --tb=short || { echo "Backend tests failed!"; exit 1; }
-
-# 0b. Run frontend tests if node available
-if command -v node &> /dev/null; then
-    echo "[0/6] Running frontend tests..."
-    cd frontend
-    npm test || { echo "Frontend tests failed!"; exit 1; }
-    cd ..
-fi
-
-# 1. Install Python dependencies
+# 1. Install Python dependencies first
 echo "[1/6] Installing Python dependencies..."
 pip install -r requirements.txt
+
+# 1b. Run tests after dependencies are installed
+echo "[1b/6] Running backend tests..."
+python -m pytest tests/ -v --tb=short || { echo "Backend tests failed!"; exit 1; }
 
 # 2. Install Node.js and npm if not available (Render's Python runtime may not have them by default)
 # Note: Render's newer Python runtimes include Node. If not, uncomment the following:
@@ -32,6 +24,7 @@ echo "         NPM version: $(npm --version)"
 echo "[3/6] Building admin frontend..."
 cd frontend
 npm install --legacy-peer-deps
+npm test || { echo "Frontend tests failed!"; exit 1; }
 npm run build
 cd ..
 
