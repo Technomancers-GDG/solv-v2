@@ -6,50 +6,56 @@
 - `frontend/`: Admin dashboard — React 18 + Vite (port 5173)
 - `driver-app-main/`: Driver mobile app — React 18 + Vite (port 5174)
 - `services/`, `routes/`, `schemas/`, `models.py` — backend layers
-- `main.py:34-51` — lifespan startup seeds DB + starts simulation if `DEMO_MODE=true`
-- `config.py:13-47` — all env vars with defaults (via `python-dotenv`)
-- `database.py:54-57` — `init_db()` creates tables; `get_session()` yields `SessionLocal`
+- `services/simulation/` — simulation engine sub-package (engine, decision_engine, connection_manager)
+- `app_state.py` — singleton instances for engine, planner, AI services (not a FastAPI dependency)
+- `config.py` — all env vars with defaults via `python-dotenv`; `load_settings()` returns frozen `Settings`
+- `database.py` — SQLite with WAL mode + `QueuePool`; `init_db()` creates tables; `get_session()` yields `SessionLocal`
 
 ## Development commands
 
-```powershell
+```bash
 # Backend
-python -m venv .venv; .\.venv\Scripts\Activate.ps1
+python -m venv .venv && source .venv/bin/activate  # Linux/Mac
+# or: .\.venv\Scripts\Activate.ps1                   # Windows
 pip install -r requirements.txt
-python -m uvicorn main:app --reload  # http://localhost:8000
+python -m uvicorn main:app --reload                   # http://localhost:8000
 
 # Admin frontend (separate terminal)
-cd frontend; npm install --legacy-peer-deps; npm run dev  # http://localhost:5173
+cd frontend && npm install --legacy-peer-deps && npm run dev  # http://localhost:5173
 
 # Driver app (separate terminal)
-cd driver-app-main; npm install --legacy-peer-deps; npm run dev  # http://localhost:5174
+cd driver-app-main && npm install --legacy-peer-deps && npm run dev  # http://localhost:5174
 ```
 
-Use `start-backend.bat`, `start-admin-frontend.bat`, `start-driver-app.bat` for one-click starts.
+One-click `.bat` files exist for Windows: `start-backend.bat`, `start-admin-frontend.bat`, `start-driver-app.bat`.
 
 ## Testing
 
-```powershell
+```bash
 # Backend (all)
 python -m pytest tests/ -v
 
 # Backend (single file)
-python -m pytest tests/test_simulation.py -v
+python -m pytest tests/test_simulation.py -v --cov=
 
 # Frontend
-cd frontend; npm test
+cd frontend && npm test
 
-# CI runs: backend tests (with coverage) → frontend tests → frontend + driver builds
+# Driver app
+cd driver-app-main && npm test
+
+# CI order (build.sh): backend tests → frontend tests → frontend build → driver build
 ```
+
+CI runs 3 parallel jobs: backend (pytest + coverage + codecov), frontend (vitest + build), driver-app (vitest + build).
 
 ## Vite proxy (both frontends)
 
-`/api` → `https://sim-backend-...run.app` and `/ws` → `wss://sim-backend-...run.app`.
-To proxy local backend instead, change `target` in each `vite.config.js` to `http://127.0.0.1:8000`.
+Both `vite.config.js` files proxy `/api` → `http://127.0.0.1:8000` and `/ws` → `ws://127.0.0.1:8000`. No remote targets configured.
 
 ## Static serving (production)
 
-FastAPI serves `frontend/dist/` at `/` and `driver-app-main/dist/` at `/driver` when those dirs exist (see `main.py:178-193`). Build with `cd frontend; npm run build` then open `http://localhost:8000`.
+FastAPI serves `frontend/dist/` at `/` and `driver-app-main/dist/` at `/driver` when those dirs exist. Build with `cd frontend && npm run build` (and/or `driver-app-main`), then open `http://localhost:8000`.
 
 ## GSD workflow system
 
@@ -57,8 +63,13 @@ Do not touch `get-shit-done/`, `agents/`, `.planning/`, or `.clinerules` unless 
 
 ## Key quirks
 
-- `npm install` requires `--legacy-peer-deps` (see `build.sh:34,41`)
+- `npm install` requires `--legacy-peer-deps` (see `build.sh`)
 - Backend auto-seeds facilities, drivers, vehicles, objectives on startup when `ALLOW_DEMO_SEED=true` and DB is empty
-- Session-based DB access via `get_session()` generator (no `Depends` pattern)
-- Route modules registered in `main.py:88-93` — crud, simulation, driver, ai, logistics, rl
-- `render.yaml` and `Dockerfile` define the deployed runtime; `build.sh` is the CI/CD pipeline
+- DB access uses `get_session()` generator (`with SessionLocal() as session:`) — no FastAPI `Depends` pattern
+- No linter or formatter configured in the repo — skip those steps
+- Firebase auth is optional (gracefully degrades when `firebase-service-account.json` is missing)
+- Gemini/Groq AI features require `GEMINI_API_KEY` or `GROQ_API_KEY` set in environment or `.env`
+- Rate limiting via `slowapi` (10 req/min for AI endpoints, configurable via `AI_RATE_LIMIT_PER_MIN`)
+- `opencode.json` has a hardcoded Windows path for the SQLite MCP tool — update it if working on a different machine
+- WebSocket live stream at `/ws/operations`; CORS is open (`allow_origins=["*"]`) unless `CORS_ORIGINS` env is set
+- Frontend tests use Vitest (configured in `frontend/vite.config.js` with `globals: true`)

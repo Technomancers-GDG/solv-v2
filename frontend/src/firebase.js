@@ -11,11 +11,23 @@ const firebaseConfig = {
   appId: (import.meta.env.VITE_FIREBASE_APP_ID || "").trim(),
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
+const firebaseEnabled = Boolean(firebaseConfig.apiKey);
+let app = null;
+let auth = null;
+let googleProvider = null;
+
+if (firebaseEnabled) {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  googleProvider = new GoogleAuthProvider();
+} else {
+  console.info("Firebase not configured — auth features disabled");
+}
+
+export { auth, googleProvider };
 
 export async function signInWithGoogle() {
+  if (!auth) throw new Error("Firebase is not configured");
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const idToken = await result.user.getIdToken();
@@ -27,9 +39,14 @@ export async function signInWithGoogle() {
 }
 
 export async function logout() {
+  if (!auth) return;
   return signOut(auth);
 }
 
 export function onAuthChange(callback) {
+  if (!auth) {
+    callback(null);
+    return () => {};
+  }
   return onAuthStateChanged(auth, callback);
 }

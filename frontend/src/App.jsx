@@ -3,7 +3,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-
 import { AIRerouteToast } from "./components/common/AIDecisionWidgets";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { AIChatPanel } from "./components/common/AIChatPanel";
-import { onAuthChange, logout } from "./firebase";
+import { logout } from "./firebase";
 import { LoginView } from "./components/views/LoginView";
 import { LandingView } from "./components/landing/LandingView";
 
