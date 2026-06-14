@@ -172,9 +172,14 @@ class SimulationEngine:
             destinations = [objective.destination_facility_id, *objective.fallback_facility_ids]
             objective_destinations.append((objective.origin_facility_id, destinations))
         self.route_planner.prewarm_objective_routes(session, self.facilities, objective_destinations)
-        self.routes = {
-            route.route_key: route for route in session.scalars(select(RouteTemplate)).all()
-        }
+        if self.client_id is not None:
+            facility_ids = list(self.facilities.keys())
+            route_where = (RouteTemplate.origin_facility_id.in_(facility_ids)) | (RouteTemplate.destination_facility_id.in_(facility_ids))
+            self.routes = {route.route_key: route for route in session.scalars(select(RouteTemplate).where(route_where)).all()}
+        else:
+            self.routes = {
+                route.route_key: route for route in session.scalars(select(RouteTemplate)).all()
+            }
         self._load_event_maps(session)
 
     def _load_event_maps(self, session: Session) -> None:
@@ -314,9 +319,25 @@ class SimulationEngine:
     def seed_dispatch_queue(self) -> None:
         self.event_queue.clear()
         self.inbound_reserved = defaultdict(int)
+
+        # Auto-assign vehicles to objectives by home-facility match when no explicit assignment exists
+        obj_vehicles: dict[int, list[int]] = {}
+        for objective in self.objectives.values():
+            obj_vehicles[objective.id] = list(objective.assigned_vehicle_ids)
+
+        for vehicle in self.vehicles.values():
+            already_assigned = any(vehicle.id in vids for vids in obj_vehicles.values())
+            if already_assigned:
+                continue
+            for objective in self.objectives.values():
+                if vehicle.home_facility_id and objective.origin_facility_id and vehicle.home_facility_id == objective.origin_facility_id:
+                    obj_vehicles[objective.id].append(vehicle.id)
+                    vehicle.default_objective_id = objective.id
+                    break
+
         stagger = 0
         for objective in self.objectives.values():
-            for vehicle_id in objective.assigned_vehicle_ids:
+            for vehicle_id in obj_vehicles.get(objective.id, []):
                 if vehicle_id not in self.vehicles:
                     continue
                 self._schedule(
@@ -1602,6 +1623,8 @@ class SimulationEngine:
                     facility_name=facility.name,
                     facility_type=facility.facility_type,
                     city=facility.city,
+                    latitude=facility.latitude,
+                    longitude=facility.longitude,
                     utilization_pct=util_pct,
                     effective_available_units=effective_avail,
                     queue_capacity_units=facility.queue_capacity_units,
@@ -1632,6 +1655,32 @@ class SimulationEngine:
             alerts=recent_alerts,
             metrics=self.current_metrics,
             active_events=active_events,
+            objectives=[
+                {
+                    "id": obj.id,
+                    "name": obj.name,
+                    "commodity": obj.commodity,
+                    "origin_facility_id": obj.origin_facility_id,
+                    "destination_facility_id": obj.destination_facility_id,
+                    "dispatch_interval_minutes": obj.dispatch_interval_minutes,
+                    "sla_minutes": obj.sla_minutes,
+                    "priority": obj.priority,
+                }
+                for obj in self.objectives.values()
+            ],
+            route_templates=[
+                {
+                    "id": rt.id,
+                    "route_key": rt.route_key,
+                    "origin_facility_id": rt.origin_facility_id,
+                    "destination_facility_id": rt.destination_facility_id,
+                    "distance_km": rt.distance_km,
+                    "duration_minutes": rt.duration_minutes,
+                    "encoded_polyline": rt.encoded_polyline,
+                    "source": rt.source,
+                }
+                for rt in self.routes.values()
+            ],
         )
 
     def _progress_for_state(self, state: LiveVehicleState) -> float:

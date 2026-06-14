@@ -1,7 +1,7 @@
 import { Panel, MetricCard, ProgressBar } from "../common/UiPrimitives";
 import { AIActivityFeed, AIDecisionPanel, RouteComparisonBlock } from "../common/AIDecisionWidgets";
 
-export function DashboardView({ metrics, criticalFacilities = [], proactiveDispatches = [], riskForecast = [], auditChain = [], blockchainVerify, facilityLookup, aiActivity, latestDecision, previousRoute, activityFeed }) {
+export function DashboardView({ metrics, criticalFacilities = [], proactiveDispatches = [], riskForecast = [], facilityLookup, aiActivity, latestDecision, previousRoute, activityFeed }) {
   const rl = aiActivity?.rl_engine;
   const actionBreakdown = aiActivity?.recent_action_breakdown ?? {};
   const explorationPct = rl ? Math.round((rl.epsilon ?? 1) * 100) : 100;
@@ -13,7 +13,7 @@ export function DashboardView({ metrics, criticalFacilities = [], proactiveDispa
   const estimatedBaseline = baselineCost > 0 ? baselineCost : costsSaved * 1.28;
   const co2Saved = Number(metrics?.co2_saved_kg ?? 0);
   const co2Baseline = co2Saved > 0 ? co2Saved * 1.35 : 0;
-  const confidence = latestDecision?.confidence ?? (rl?.enabled ? 100 - Math.round((rl.epsilon ?? 0.08) * 100) : 92);
+  const confidence = latestDecision?.confidence ?? (rl?.enabled ? 100 - Math.round((rl.epsilon ?? 0.08) * 100) : null);
 
   return (
     <div className="view-dashboard">
@@ -112,13 +112,20 @@ export function DashboardView({ metrics, criticalFacilities = [], proactiveDispa
                 <AIActivityFeed events={activityFeed} />
               </div>
             </div>
-          ) : (
+          ) : latestDecision ? (
             <div className="ai-activity-panel">
               <AIDecisionPanel decision={latestDecision} confidence={confidence} />
               <RouteComparisonBlock comparison={latestDecision?.comparison} previousRoute={previousRoute} />
               <div className="ai-feed-section">
                 <h5>Recent AI Actions</h5>
                 <AIActivityFeed events={activityFeed} />
+              </div>
+            </div>
+          ) : (
+            <div className="ai-activity-panel">
+              <div className="ai-feed-empty">
+                <span className="ai-feed-empty-icon">🧠</span>
+                <span>No AI recommendations generated yet.</span>
               </div>
             </div>
           )}
@@ -140,7 +147,7 @@ export function DashboardView({ metrics, criticalFacilities = [], proactiveDispa
             </div>
           )}
         </Panel>
-        <Panel title="Proactive Dispatch AI">
+        <Panel title="Proactive Dispatch AI" className="full-width">
           {proactiveDispatches.length === 0 ? <div className="empty">No proactive dispatches needed.</div> : (
             <div className="dispatch-list">
               {proactiveDispatches.slice(0, 5).map((d, i) => (
@@ -168,23 +175,6 @@ export function DashboardView({ metrics, criticalFacilities = [], proactiveDispa
               </div>
             ))}
           </div>
-        </Panel>
-        <Panel title="Recent Audit Blocks">
-          <div className="audit-list">
-            {auditChain.slice(-5).map((b, i) => (
-              <div className="audit-item" key={i}>
-                <span className="audit-index">#{b.index}</span>
-                <span className="audit-type">{b.decision_type}</span>
-                <span className="audit-action">{b.action}</span>
-                <span className="audit-hash" title={b.hash}>{(b.hash ?? "").slice(0, 8)}...</span>
-              </div>
-            ))}
-          </div>
-          {blockchainVerify && (
-            <div className={`verify-badge ${blockchainVerify.valid ? "valid" : "invalid"}`}>
-              {blockchainVerify.valid ? "\u2713 Chain Verified" : "\u26A0 Tampering Detected"} • {blockchainVerify.block_count} blocks
-            </div>
-          )}
         </Panel>
       </div>
     </div>

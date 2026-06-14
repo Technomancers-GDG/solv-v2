@@ -1,28 +1,52 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { clientApi } from "../lib/clientApi";
 
 const TEMPLATES = {
-  facilities: { label: "Facilities", icon: "\ud83d\udce6", template: "/api/v1/client/templates/facilities.csv", endpoint: "/api/v1/client/upload/facilities", fields: "name,city,facility_type,latitude,longitude,base_capacity_units" },
-  vehicles: { label: "Vehicles", icon: "\ud83d\ude9b", template: "/api/v1/client/templates/vehicles.csv", endpoint: "/api/v1/client/upload/vehicles", fields: "identifier,vehicle_type,payload_capacity_units,home_facility_name,average_speed_kmph" },
-  drivers: { label: "Drivers", icon: "\ud83d\udc64", template: "/api/v1/client/templates/drivers.csv", endpoint: "/api/v1/client/upload/drivers", fields: "name,active" },
-  objectives: { label: "Objectives", icon: "\ud83d\udccb", template: "/api/v1/client/templates/objectives.csv", endpoint: "/api/v1/client/upload/objectives", fields: "name,commodity,origin_facility_name,destination_facility_name,dispatch_interval_minutes,sla_minutes,priority" },
+  facilities: { label: "Facilities", icon: "\ud83d\udce6", endpoint: "/api/v1/client/upload/facilities", fields: "name,city,facility_type,latitude,longitude,base_capacity_units" },
+  vehicles: { label: "Vehicles", icon: "\ud83d\ude9b", endpoint: "/api/v1/client/upload/vehicles", fields: "identifier,vehicle_type,payload_capacity_units,home_facility_name,average_speed_kmph" },
+  drivers: { label: "Drivers", icon: "\ud83d\udc64", endpoint: "/api/v1/client/upload/drivers", fields: "name,active" },
+  objectives: { label: "Objectives", icon: "\ud83d\udccb", endpoint: "/api/v1/client/upload/objectives", fields: "name,commodity,origin_facility_name,destination_facility_name,dispatch_interval_minutes,sla_minutes,priority" },
 };
 
 const ORDER = ["facilities", "vehicles", "drivers", "objectives"];
 
-function UploadTile({ category, config, onComplete, completed }) {
+function apiFetch(token, path, options = {}) {
+  const { headers: optHeaders, ...rest } = options;
+  const isGet = !options.method || options.method.toUpperCase() === "GET";
+  return fetch(path, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(isGet ? {} : { "Content-Type": "text/csv" }),
+      ...(optHeaders || {}),
+    },
+    ...rest,
+  }).then(r => { if (!r.ok) throw new Error(r.status === 401 ? "Authentication failed" : "Upload failed"); return r.json(); });
+}
+
+function UploadTile({ category, config, onComplete, completed, user }) {
   const [csvText, setCsvText] = useState("");
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+
+  const getToken = async () => {
+    if (!user) {
+      throw new Error("Sign in required");
+    }
+    return user.getIdToken(true);
+  };
 
   const handleImport = async () => {
     if (!csvText.trim()) return;
     setImporting(true);
     setError("");
     try {
-      const resp = await clientApi.post(config.endpoint, csvText.trim(), { "Content-Type": "text/csv" });
+      const token = await getToken();
+      const resp = await apiFetch(token, config.endpoint, {
+        method: "POST",
+        body: csvText.trim(),
+        headers: { "Content-Type": "text/csv" },
+      });
       setResult(resp);
       if (resp.success) onComplete(category);
     } catch (err) {
@@ -33,12 +57,11 @@ function UploadTile({ category, config, onComplete, completed }) {
   };
 
   return (
-    <div style={{ background: "#1a2332", border: completed ? "2px solid #059669" : "1px solid #2a3342", borderRadius: 12, padding: 20, transition: "border 0.3s" }}>
+    <div style={{ background: "#1a2332", border: completed ? "2px solid #059669" : "1px solid #2a3342", borderRadius: 12, padding: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
         <span style={{ fontSize: 24 }}>{config.icon}</span>
         <div>
           <h3 style={{ color: "#f4f7fb", margin: 0, fontSize: 16 }}>{config.label}</h3>
-          <a href={config.template} download style={{ color: "#60a5fa", fontSize: 12 }}>Download template</a>
         </div>
         {completed && <span style={{ marginLeft: "auto", color: "#10b981", fontSize: 20 }}>&#10003;</span>}
       </div>
@@ -47,7 +70,7 @@ function UploadTile({ category, config, onComplete, completed }) {
           <textarea
             value={csvText}
             onChange={e => setCsvText(e.target.value)}
-            placeholder={`Paste CSV data here, or use the template:\n${config.fields}`}
+            placeholder={`Paste CSV data here:\n${config.fields}`}
             rows={5}
             style={{ width: "100%", padding: 10, background: "#111827", border: "1px solid #374151", borderRadius: 6, color: "#f4f7fb", fontSize: 12, fontFamily: "monospace", resize: "vertical" }}
           />
@@ -69,25 +92,49 @@ function UploadTile({ category, config, onComplete, completed }) {
   );
 }
 
-export default function ClientUploadWizard() {
+export default function OnboardingWizard({ user, onComplete }) {
   const navigate = useNavigate();
   const [completed, setCompleted] = useState({});
   const [allDone, setAllDone] = useState(false);
-  const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadStatus = async () => {
+      if (!user) return;
+      try {
+        const token = await user.getIdToken(true);
+        const s = await apiFetch(token, "/api/v1/client/upload-status");
+        if (cancelled) return;
+        const c = {};
+        if (s.facilities) c.facilities = true;
+        if (s.vehicles) c.vehicles = true;
+        if (s.drivers) c.drivers = true;
+        if (s.objectives) c.objectives = true;
+        setCompleted(c);
+        if (s.all_complete) setAllDone(true);
+      } catch {
+        if (!cancelled) {
+          setCompleted({});
+          setAllDone(false);
+        }
+      }
+    };
+
+    loadStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleComplete = (category) => {
-    setCompleted(c => ({ ...c, [category]: true }));
+    setCompleted(c => {
+      const next = { ...c, [category]: true };
+      if (ORDER.every(k => next[k])) setAllDone(true);
+      return next;
+    });
   };
-
-  useEffect(() => {
-    clientApi.get("/api/v1/client/upload-status").then(setStatus).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (status?.all_complete || ORDER.every(k => completed[k])) {
-      setAllDone(true);
-    }
-  }, [completed, status]);
 
   const doneCount = ORDER.filter(k => completed[k]).length;
 
@@ -96,8 +143,10 @@ export default function ClientUploadWizard() {
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div className="logo-mark large" style={{ margin: "0 auto 12px", background: "#2563eb" }}>L</div>
-          <h2 style={{ color: "#f4f7fb", margin: 0 }}>Upload Your Fleet Data</h2>
-          <p style={{ color: "#8b8d93", marginTop: 8 }}>Upload all 4 categories to activate your operations</p>
+          <h2 style={{ color: "#f4f7fb", margin: 0 }}>Set Up Your Fleet</h2>
+          <p style={{ color: "#8b8d93", marginTop: 8 }}>
+            Welcome{user?.displayName ? `, ${user.displayName}` : ""}. Upload all 4 categories to activate your operations dashboard.
+          </p>
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 24, justifyContent: "center" }}>
@@ -113,7 +162,7 @@ export default function ClientUploadWizard() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
           {ORDER.map(category => (
-            <UploadTile key={category} category={category} config={TEMPLATES[category]} onComplete={handleComplete} completed={!!completed[category]} />
+            <UploadTile key={category} category={category} config={TEMPLATES[category]} onComplete={handleComplete} completed={!!completed[category]} user={user} />
           ))}
         </div>
 
@@ -122,7 +171,11 @@ export default function ClientUploadWizard() {
             <div style={{ background: "#065f46", borderRadius: 12, padding: 24 }}>
               <span style={{ fontSize: 36 }}>&#127881;</span>
               <h3 style={{ color: "#6ee7b7", margin: "8px 0" }}>Your operations are now live!</h3>
-              <button onClick={() => navigate("/client/dashboard")}
+              <button
+                onClick={() => {
+                  onComplete?.();
+                  navigate("/dashboard");
+                }}
                 style={{ padding: "12px 24px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
                 Go to Dashboard
               </button>

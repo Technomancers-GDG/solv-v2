@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -415,10 +413,10 @@ class IntegrationClient(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(200), index=True)
     company_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    firebase_uid: Mapped[Optional[str]] = mapped_column(String(128), unique=True, nullable=True, index=True)
     api_key_hash: Mapped[str] = mapped_column(String(128))
     api_key_prefix: Mapped[str] = mapped_column(String(16), index=True)
     contact_email: Mapped[str] = mapped_column(String(255), default="")
-    password_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     allowed_ips: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     rate_limit_per_minute: Mapped[int] = mapped_column(Integer, default=1000)
     monthly_api_calls: Mapped[int] = mapped_column(Integer, default=0)

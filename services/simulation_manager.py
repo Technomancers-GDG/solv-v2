@@ -24,7 +24,21 @@ class SimulationManager:
         self._save_task: asyncio.Task[None] | None = None
 
     def get_engine(self, client_id: int | None) -> Any | None:
-        return self._engines.get(client_id)
+        engine = self._engines.get(client_id)
+        if engine is not None:
+            logger.info("[DIAG] get_engine(client_id=%s) -> found, status=%s", client_id, engine.status)
+        else:
+            logger.info("[DIAG] get_engine(client_id=%s) -> NOT FOUND. Active engines: %s",
+                        client_id, list(self._engines.keys()))
+        return engine
+
+    def list_engines(self) -> list[dict[str, Any]]:
+        """Diagnostic: list all active engines with their status."""
+        return [
+            {"client_id": cid, "status": e.status, "channel": e._channel,
+             "vehicle_count": len(e.live_vehicle_states), "tick": e._tick_counter}
+            for cid, e in self._engines.items()
+        ]
 
     def register_engine(self, client_id: int | None, engine: Any) -> None:
         self._engines[client_id] = engine
@@ -36,17 +50,26 @@ class SimulationManager:
         from app_state import route_planner
         from services.simulation import SimulationEngine
 
+        logger.info("[DIAG] start_client called for client_id=%s", client_id)
         async with self._lock:
             if client_id in self._engines:
                 engine = self._engines[client_id]
+                logger.info("[DIAG] Engine already exists for client_id=%s status=%s", client_id, engine.status)
                 if engine.status not in ("running",):
+                    logger.info("[DIAG] Restarting non-running engine for client_id=%s", client_id)
                     await engine.start()
                 return engine
 
-            engine = SimulationEngine(route_planner, client_id=client_id, channel=f"client_{client_id}")
-            engine.load_state(session)
-            self._engines[client_id] = engine
-            await engine.start()
+            logger.info("[DIAG] Creating new engine for client_id=%s channel=client_%s", client_id, client_id)
+            try:
+                engine = SimulationEngine(route_planner, client_id=client_id, channel=f"client_{client_id}")
+                self._engines[client_id] = engine
+                await engine.start()
+                logger.info("[DIAG] Engine started successfully for client_id=%s status=%s", client_id, engine.status)
+            except Exception as exc:
+                self._engines.pop(client_id, None)
+                logger.error("[DIAG] Engine start FAILED for client_id=%s: %s", client_id, exc)
+                raise
             return engine
 
     async def stop_client(self, client_id: int) -> None:
@@ -80,6 +103,9 @@ class SimulationManager:
         rows = session.scalars(
             select(ClientSimulation).where(ClientSimulation.status.in_(["running", "paused"]))
         ).all()
+
+        logger.info("[DIAG] start_all: found %s engine(s) to restore: %s",
+                    len(rows), [{"client_id": r.client_id, "status": r.status} for r in rows])
 
         for row in rows:
             try:

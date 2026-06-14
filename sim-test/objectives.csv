@@ -1,7 +1,7 @@
 name,commodity,origin_facility_name,destination_facility_name,dispatch_interval_minutes,sla_minutes,priority
-Mumbai to Delhi Medical,Medical Equipment,Mumbai Warehouse,Delhi Distribution Center,120,1440,1
-Delhi to Kolkata Relief,Relief Kits,Delhi Distribution Center,Kolkata Hub,150,1560,2
-Chennai to Bangalore Pharma,Pharmaceuticals,Chennai Port Terminal,Bangalore Campus,90,1080,1
-Mumbai to Chennai Food,Food Grains,Mumbai Warehouse,Chennai Port Terminal,180,1800,3
-Bangalore to Pune Medicine,Emergency Medicines,Bangalore Campus,Pune Buffer Center,100,1200,2
-Hyderabad to Bangalore Supplies,Medical Supplies,Hyderabad Connector,Bangalore Campus,120,1440,1
+Mum-Del Medical,Medical Equipment,Acme Mumbai Hub,Acme Delhi DC,120,1440,1
+Del-Kol Relief,Relief Kits,Acme Delhi DC,Acme Kolkata Depot,150,1560,2
+Chn-Bgl Pharma,Pharmaceuticals,Acme Chennai Terminal,Acme Bangalore Site,90,1080,1
+Mum-Chn Food,Food Grains,Acme Mumbai Hub,Acme Chennai Terminal,180,1800,3
+Bgl-Pune Medicine,Emergency Medicines,Acme Bangalore Site,Acme Pune Center,100,1200,2
+Hyd-Bgl Supplies,Medical Supplies,Acme Hyderabad Node,Acme Bangalore Site,120,1440,1

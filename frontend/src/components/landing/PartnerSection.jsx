@@ -37,9 +37,16 @@ export function PartnerSection() {
               </div>
             ))}
           </div>
-          <button className="lp-btn lp-btn-primary lp-btn-lg" onClick={() => navigate("/client/register")}>
+          <button className="lp-btn lp-btn-primary lp-btn-lg" onClick={() => navigate("/client")}>
             Integrate Your Fleet
           </button>
+          <p style={{ marginTop: 16, fontSize: 14, color: "#6b7280" }}>
+            Already registered?{" "}
+            <a href="/client" style={{ color: "#60a5fa", textDecoration: "none", fontWeight: 500, cursor: "pointer" }}
+              onClick={(e) => { e.preventDefault(); navigate("/client"); }}>
+              Sign in to your portal
+            </a>
+          </p>
         </motion.div>
       </div>
     </section>

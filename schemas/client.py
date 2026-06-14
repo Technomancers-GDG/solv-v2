@@ -60,6 +60,7 @@ class DashboardResponse(BaseModel):
     metrics: dict[str, Any]
     recent_decisions: list[dict[str, Any]]
     webhook_deliveries: list[dict[str, Any]]
+    vehicles: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class UploadResult(BaseModel):

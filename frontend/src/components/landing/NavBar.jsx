@@ -1,14 +1,49 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { onAuthChange, signInWithGoogle, logout } from "../../firebase";
 
 export function NavBar() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    return onAuthChange((u) => setUser(u));
+  }, []);
 
   const scrollTo = (id) => {
     setMobileOpen(false);
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleSignIn = async () => {
+    try {
+      const result = await signInWithGoogle();
+      // After sign-in, check client status and redirect
+      if (result?.idToken) {
+        try {
+          const resp = await fetch("/api/auth/client-status", {
+            headers: { Authorization: `Bearer ${result.idToken}` },
+          });
+          const status = await resp.json();
+          if (status.has_fleet) {
+            navigate("/dashboard");
+          } else {
+            navigate("/client");
+          }
+        } catch {
+          navigate("/dashboard");
+        }
+      }
+    } catch (err) {
+      console.error("Sign in failed:", err);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/");
   };
 
   return (
@@ -26,14 +61,34 @@ export function NavBar() {
           <button className="lp-nav-link" onClick={() => scrollTo("features")}>Features</button>
           <button className="lp-nav-link" onClick={() => scrollTo("trust")}>Why Logisight</button>
           <div className="lp-nav-actions-mobile">
-            <button className="lp-nav-link-secondary" onClick={() => { setMobileOpen(false); navigate("/login"); }}>Sign In</button>
-            <button className="lp-btn lp-btn-primary" onClick={() => { setMobileOpen(false); navigate("/dashboard"); }}>Start Demo</button>
+            {user ? (
+              <>
+                <span style={{ color: "#94a3b8", fontSize: 14, padding: "4px 8px" }}>{user.displayName || user.email}</span>
+                <button className="lp-nav-link-secondary" onClick={() => { setMobileOpen(false); navigate("/dashboard"); }}>Dashboard</button>
+                <button className="lp-nav-link-secondary" onClick={() => { setMobileOpen(false); handleLogout(); }}>Sign Out</button>
+              </>
+            ) : (
+              <>
+                <button className="lp-btn lp-btn-primary" onClick={() => { setMobileOpen(false); handleSignIn(); }}>Sign In</button>
+                <button className="lp-nav-link-secondary" onClick={() => { setMobileOpen(false); navigate("/dashboard"); }}>View Demo</button>
+              </>
+            )}
           </div>
         </div>
 
         <div className="lp-nav-actions">
-          <button className="lp-nav-link-secondary" onClick={() => navigate("/login")}>Sign In</button>
-          <button className="lp-btn lp-btn-primary" onClick={() => navigate("/dashboard")}>Start Demo</button>
+          {user ? (
+            <>
+              <span style={{ color: "#94a3b8", fontSize: 13, marginRight: 8 }}>{user.displayName || user.email?.split("@")[0]}</span>
+              <button className="lp-nav-link-secondary" onClick={() => navigate("/dashboard")}>Dashboard</button>
+              <button className="lp-nav-link-secondary" onClick={handleLogout}>Sign Out</button>
+            </>
+          ) : (
+            <>
+              <button className="lp-btn lp-btn-primary" onClick={handleSignIn}>Sign In</button>
+              <button className="lp-nav-link-secondary" onClick={() => navigate("/dashboard")}>View Demo</button>
+            </>
+          )}
         </div>
 
         <button

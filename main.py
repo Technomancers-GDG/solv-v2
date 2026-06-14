@@ -6,7 +6,8 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
@@ -182,6 +183,22 @@ async def _trigger_demo_disruption() -> None:
 
 
 
+# --- Diagnostic ---
+@app.get("/api/diag/engines")
+async def diag_engines():
+    """Diagnostic: list all simulation engines and their status."""
+    return {
+        "global_engine": {
+            "status": simulation_engine.status,
+            "client_id": simulation_engine.client_id,
+            "vehicle_count": len(simulation_engine.live_vehicle_states),
+            "tick": simulation_engine._tick_counter,
+            "speed": simulation_engine.speed_multiplier,
+        },
+        "client_engines": simulation_manager.list_engines(),
+    }
+
+
 # --- WebSocket ---
 @app.websocket("/ws/operations")
 async def operations_socket(websocket: WebSocket) -> None:
@@ -201,31 +218,44 @@ async def operations_socket(websocket: WebSocket) -> None:
 async def client_socket(websocket: WebSocket) -> None:
     token = websocket.query_params.get("token")
     if not token:
+        logger.info("[DIAG] /ws/client: missing token, closing 4001")
         await websocket.close(code=4001, reason="Missing token")
         return
 
-    from middleware.client_jwt import verify_access_token
+    logger.info("[DIAG] /ws/client: token received, verifying...")
     try:
-        payload = verify_access_token(token)
-        client_id = int(payload["sub"])
-    except Exception:
+        _init_firebase()
+        decoded = firebase_auth.verify_id_token(token, clock_skew_seconds=60)
+        firebase_uid = decoded.get("uid")
+        logger.info("[DIAG] /ws/client: token verified, firebase_uid=%s", firebase_uid)
+    except Exception as exc:
+        logger.warning("[DIAG] /ws/client: token verification failed: %s", exc)
         await websocket.close(code=4001, reason="Invalid token")
         return
 
     with SessionLocal() as session:
         from models import IntegrationClient
-        client = session.get(IntegrationClient, client_id)
+        client = session.scalar(
+            select(IntegrationClient).where(IntegrationClient.firebase_uid == firebase_uid)
+        )
         if client is None or not client.enabled:
+            logger.warning("[DIAG] /ws/client: client not found or disabled for uid=%s", firebase_uid)
             await websocket.close(code=4003, reason="Client not found")
             return
+        client_id = client.id
+        logger.info("[DIAG] /ws/client: client found, client_id=%s", client_id)
 
     channel = f"client_{client_id}"
     engine = simulation_manager.get_engine(client_id)
     if engine is None:
+        logger.warning("[DIAG] /ws/client: NO engine for client_id=%s, closing 4004", client_id)
         await websocket.close(code=4004, reason="No active engine for client")
         return
 
+    logger.info("[DIAG] /ws/client: engine found for client_id=%s, status=%s, vehicles=%s",
+                client_id, engine.status, len(engine.live_vehicle_states))
     await engine.connection_manager.connect(websocket, channel=channel)
+    logger.info("[DIAG] /ws/client: websocket connected for client_id=%s", client_id)
     try:
         with SessionLocal() as session:
             try:
@@ -233,11 +263,14 @@ async def client_socket(websocket: WebSocket) -> None:
                 await websocket.send_json(
                     {"type": "simulation_snapshot", "payload": snapshot.model_dump(mode="json")}
                 )
-            except Exception:
-                pass
+                logger.info("[DIAG] /ws/client: initial snapshot sent for client_id=%s, vehicles=%s",
+                            client_id, len(snapshot.vehicles))
+            except Exception as exc:
+                logger.error("[DIAG] /ws/client: snapshot failed for client_id=%s: %s", client_id, exc)
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        logger.info("[DIAG] /ws/client: disconnect for client_id=%s", client_id)
         engine.connection_manager.disconnect(websocket, channel=channel)
 
 
@@ -250,6 +283,14 @@ if FRONTEND_DIST.exists():
 
     @app.get("/", include_in_schema=False)
     async def frontend_index() -> FileResponse:
+        return FileResponse(FRONTEND_DIST / "index.html")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def frontend_catch_all(full_path: str) -> FileResponse:
+        """Serve index.html for all client-side routes (SPA)."""
+        path = full_path.rstrip("/")
+        if path.startswith("api/") or path.startswith("ws/"):
+            raise HTTPException(status_code=404)
         return FileResponse(FRONTEND_DIST / "index.html")
 
 if DRIVER_DIST.exists():

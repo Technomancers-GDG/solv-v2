@@ -14,7 +14,7 @@ import {
   ZAxis,
   Cell
 } from "recharts";
-import { formatINRCompact } from "../../App";
+import { formatINRCompact } from "../DashboardShell";
 
 export function ComparisonView({ apiFetch }) {
   const [loading, setLoading] = useState(true);

@@ -59,6 +59,8 @@ class FacilityLoadView(BaseModel):
     facility_name: str
     facility_type: str
     city: str
+    latitude: float
+    longitude: float
     utilization_pct: float
     effective_available_units: int
     queue_capacity_units: int

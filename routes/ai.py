@@ -273,10 +273,8 @@ def ai_activity_metrics(session: Session = Depends(get_session)) -> dict[str, An
 from schemas.ai import AIChatRequest, AIChatResponse
 from services.ai_service import chat_stream
 from fastapi.responses import StreamingResponse
-from limiter import limiter
 
 @ai_router.post("/api/ai/chat")
-@limiter.limit("10/minute")
 async def ai_chat(request: Request, payload: AIChatRequest, session: Session = Depends(get_session)):
     """
     AI chat with streaming support and automatic fallback.

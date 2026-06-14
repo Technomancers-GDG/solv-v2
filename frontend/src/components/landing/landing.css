@@ -194,6 +194,7 @@ html {
 
 .lp-nav-link-secondary:hover {
   background: rgba(255, 255, 255, 0.06);
+  color: var(--lp-text);
   box-shadow: none;
   transform: none;
 }
@@ -222,6 +223,7 @@ html {
 
 .lp-btn-primary:hover {
   background: #a8e85c;
+  color: #08090c;
   transform: translateY(-1px);
   box-shadow: 0 8px 24px var(--lp-accent-dim);
 }
@@ -234,6 +236,7 @@ html {
 
 .lp-btn-secondary:hover {
   background: rgba(255, 255, 255, 0.06);
+  color: var(--lp-text);
   border-color: rgba(255, 255, 255, 0.2);
 }
 

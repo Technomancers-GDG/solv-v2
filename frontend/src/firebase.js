@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from "firebase/auth";
 
 const firebaseConfig = {
   // TODO: Replace with your Firebase project config from Firebase Console
@@ -19,8 +19,21 @@ export async function signInWithGoogle() {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const idToken = await result.user.getIdToken();
-    return { user: result.user, idToken };
+    return { user: result.user, idToken, mode: "popup" };
   } catch (error) {
+    const message = String(error?.message || error || "");
+    const code = String(error?.code || "");
+    const shouldRedirect =
+      code === "auth/popup-blocked" ||
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/cancelled-popup-request" ||
+      /cross-origin-opener-policy|window\.closed/i.test(message);
+
+    if (shouldRedirect) {
+      await signInWithRedirect(auth, googleProvider);
+      return { mode: "redirect" };
+    }
+
     console.error("Google Sign-In error:", error);
     throw error;
   }

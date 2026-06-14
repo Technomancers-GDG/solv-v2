@@ -5,6 +5,7 @@ import asyncio
 import csv
 import io
 import json as _json
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -12,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_session
-from middleware.client_jwt import get_current_client
+from middleware.firebase_client import get_or_create_client
 from models import (
     ClientSimulation,
     DriverProfile,
@@ -22,6 +23,8 @@ from models import (
     Vehicle,
 )
 from schemas.client import UploadResult
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/client/upload", tags=["Client Portal Upload"])
 
@@ -69,10 +72,19 @@ def _check_auto_start(client_id: int, session: Session) -> bool:
 
     # Trigger engine start in background
     from services.simulation_manager import simulation_manager
+
+    async def _start_and_log():
+        try:
+            await simulation_manager.start_client(client_id, session)
+            logger.info("[DIAG] _check_auto_start: engine started successfully for client_id=%s", client_id)
+        except Exception as exc:
+            logger.error("[DIAG] _check_auto_start: engine start FAILED for client_id=%s: %s", client_id, exc)
+
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(simulation_manager.start_client(client_id, session))
+        loop.create_task(_start_and_log())
     except RuntimeError:
+        logger.warning("[DIAG] _check_auto_start: no event loop, skipping engine start for client_id=%s", client_id)
         pass  # No event loop available (test environment)
 
     return True
@@ -81,11 +93,12 @@ def _check_auto_start(client_id: int, session: Session) -> bool:
 @router.post("/facilities", response_model=UploadResult)
 async def upload_facilities(
     request: Request,
-    client: IntegrationClient = Depends(get_current_client),
+    client: IntegrationClient = Depends(get_or_create_client),
     session: Session = Depends(get_session),
 ):
     rows = await _read_rows(request)
     imported = 0
+    updated = 0
     errors: list[dict[str, Any]] = []
 
     for i, row in enumerate(rows):
@@ -116,6 +129,7 @@ async def upload_facilities(
                 existing.longitude = lng
                 existing.base_capacity_units = cap
                 existing.updated_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).replace(tzinfo=None)
+                updated += 1
             else:
                 session.add(Facility(
                     name=name, city=city, facility_type=ftype,
@@ -125,24 +139,25 @@ async def upload_facilities(
                     initial_inventory_units=0,
                     client_id=client.id,
                 ))
-            imported += 1
+                imported += 1
         except Exception as exc:
             errors.append({"row": i + 1, "message": str(exc)})
 
     session.commit()
     auto_started = _check_auto_start(client.id, session)
 
-    return UploadResult(success=len(errors) == 0, imported=imported, errors=errors, auto_started=auto_started)
+    return UploadResult(success=len(errors) == 0, imported=imported, updated=updated, errors=errors, auto_started=auto_started)
 
 
 @router.post("/vehicles", response_model=UploadResult)
 async def upload_vehicles(
     request: Request,
-    client: IntegrationClient = Depends(get_current_client),
+    client: IntegrationClient = Depends(get_or_create_client),
     session: Session = Depends(get_session),
 ):
     rows = await _read_rows(request)
     imported = 0
+    updated = 0
     errors: list[dict[str, Any]] = []
 
     for i, row in enumerate(rows):
@@ -181,6 +196,7 @@ async def upload_vehicles(
                 existing.payload_capacity_units = payload
                 existing.home_facility_id = home_fac.id
                 existing.average_speed_kmph = speed
+                updated += 1
             else:
                 session.add(Vehicle(
                     identifier=identifier, vehicle_type=vtype,
@@ -191,23 +207,24 @@ async def upload_vehicles(
                     average_speed_kmph=speed,
                     client_id=client.id,
                 ))
-            imported += 1
+                imported += 1
         except Exception as exc:
             errors.append({"row": i + 1, "message": str(exc)})
 
     session.commit()
     auto_started = _check_auto_start(client.id, session)
-    return UploadResult(success=len(errors) == 0, imported=imported, errors=errors, auto_started=auto_started)
+    return UploadResult(success=len(errors) == 0, imported=imported, updated=updated, errors=errors, auto_started=auto_started)
 
 
 @router.post("/drivers", response_model=UploadResult)
 async def upload_drivers(
     request: Request,
-    client: IntegrationClient = Depends(get_current_client),
+    client: IntegrationClient = Depends(get_or_create_client),
     session: Session = Depends(get_session),
 ):
     rows = await _read_rows(request)
     imported = 0
+    updated = 0
     errors: list[dict[str, Any]] = []
 
     for i, row in enumerate(rows):
@@ -223,25 +240,27 @@ async def upload_drivers(
             )
             if existing:
                 existing.active = active
+                updated += 1
             else:
                 session.add(DriverProfile(name=name, active=active, client_id=client.id))
-            imported += 1
+                imported += 1
         except Exception as exc:
             errors.append({"row": i + 1, "message": str(exc)})
 
     session.commit()
     auto_started = _check_auto_start(client.id, session)
-    return UploadResult(success=len(errors) == 0, imported=imported, errors=errors, auto_started=auto_started)
+    return UploadResult(success=len(errors) == 0, imported=imported, updated=updated, errors=errors, auto_started=auto_started)
 
 
 @router.post("/objectives", response_model=UploadResult)
 async def upload_objectives(
     request: Request,
-    client: IntegrationClient = Depends(get_current_client),
+    client: IntegrationClient = Depends(get_or_create_client),
     session: Session = Depends(get_session),
 ):
     rows = await _read_rows(request)
     imported = 0
+    updated = 0
     errors: list[dict[str, Any]] = []
 
     for i, row in enumerate(rows):
@@ -287,6 +306,7 @@ async def upload_objectives(
                 existing.dispatch_interval_minutes = interval
                 existing.sla_minutes = sla
                 existing.priority = priority
+                updated += 1
             else:
                 # Assign vehicles from the same client
                 vehicles = session.scalars(
@@ -304,13 +324,13 @@ async def upload_objectives(
                     assigned_vehicle_ids=assigned_ids,
                     client_id=client.id,
                 ))
-            imported += 1
+                imported += 1
         except Exception as exc:
             errors.append({"row": i + 1, "message": str(exc)})
 
     session.commit()
     auto_started = _check_auto_start(client.id, session)
-    return UploadResult(success=len(errors) == 0, imported=imported, errors=errors, auto_started=auto_started)
+    return UploadResult(success=len(errors) == 0, imported=imported, updated=updated, errors=errors, auto_started=auto_started)
 
 
 async def _read_rows(request: Request) -> list[dict[str, Any]]:
