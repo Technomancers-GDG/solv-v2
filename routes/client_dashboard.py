@@ -112,7 +112,7 @@ def _compute_client_metrics(client_id: int, session: Session) -> dict:
         )
     ) or 0
     on_time_delivery_pct = round(
-        on_time_count / max(completed_shipments, 1) * 100, 1
+        min(on_time_count / max(completed_shipments, 1), 1.0) * 100, 1
     )
 
     return {
