@@ -617,13 +617,20 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
     let socket;
     let pingTimer;
     let reconnectTimer;
+    let cancelled = false;
 
-    function connectWs() {
+    async function connectWs() {
       const wsBase = import.meta.env.VITE_WS_BASE_URL ||
         `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
 
+      let token = clientContext?.firebaseToken;
+      if (user?.getIdToken) {
+        try { token = await user.getIdToken(false); } catch {}
+      }
+      if (cancelled) return;
+
       const wsPath = clientContext
-        ? `/ws/client?token=${encodeURIComponent(clientContext.firebaseToken)}`
+        ? `/ws/client?token=${encodeURIComponent(token)}`
         : "/ws/operations";
 
       console.log("[RC5-DIAG] WebSocket: clientContext=",
@@ -667,11 +674,12 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
     connectWs();
 
     return () => {
+      cancelled = true;
       clearInterval(pingTimer);
       clearTimeout(reconnectTimer);
       if (socket) socket.close();
     };
-  }, [clientContext]);
+  }, [clientContext, user]);
 
   const runAction = useCallback(async (path, body = null, msg = "") => {
     try {
@@ -749,7 +757,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
       case "developer":
         return <IntegrationView apiFetch={apiFetch} t={t} />;
       case "settings":
-        return <SettingsView lang={lang} onSwitchLang={switchLang} t={t} />;
+        return <SettingsView lang={lang} onSwitchLang={switchLang} t={t} currentSpeed={currentSpeed} onSetSpeed={handleSetSpeed} clientContext={clientContext} />;
       case "rlTraining":
         return <RLTrainingView apiFetch={apiFetch} />;
       case "aiExplainer":

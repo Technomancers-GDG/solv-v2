@@ -221,6 +221,8 @@ def sdg_metrics(session: Session = Depends(get_session)) -> MetricsSummary:
         warehouse_utilization_pct=snapshot.warehouse_utilization_pct,
         reroute_count=snapshot.reroute_count, active_trucks=snapshot.active_trucks,
         queued_trucks=snapshot.queued_trucks,
+        financial_costs_saved_usd=snapshot.financial_costs_saved_usd,
+        financial_costs_incurred_usd=snapshot.financial_costs_incurred_usd,
         stockouts_prevented=getattr(snapshot, "stockouts_prevented", current.stockouts_prevented),
         critical_deliveries_saved=getattr(snapshot, "critical_deliveries_saved", current.critical_deliveries_saved),
         beneficiary_locations_served=getattr(snapshot, "beneficiary_locations_served", current.beneficiary_locations_served),

@@ -1554,6 +1554,8 @@ class SimulationEngine:
                     reroute_count=self.current_metrics.reroute_count,
                     active_trucks=self.current_metrics.active_trucks,
                     queued_trucks=self.current_metrics.queued_trucks,
+                    financial_costs_saved_usd=self.current_metrics.financial_costs_saved_usd,
+                    financial_costs_incurred_usd=self.current_metrics.financial_costs_incurred_usd,
                 )
             )
 
@@ -1606,6 +1608,8 @@ class SimulationEngine:
     def dashboard_snapshot(self, session: Session) -> DashboardSnapshot:
         if not self.facilities or not self.vehicles or not self.live_vehicle_states:
             self.load_state(session)
+        self.routes = {k: session.merge(v) for k, v in self.routes.items()}
+        self.objectives = {k: session.merge(v) for k, v in self.objectives.items()}
         recent_alerts = session.scalars(
             select(Recommendation).order_by(Recommendation.created_at.desc()).limit(8)
         ).all()

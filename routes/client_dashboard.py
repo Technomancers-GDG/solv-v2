@@ -374,6 +374,7 @@ def client_objectives(
             "sla_minutes": o.sla_minutes,
             "priority": o.priority,
             "assigned_vehicle_ids": o.assigned_vehicle_ids,
+            "fallback_facility_ids": o.fallback_facility_ids,
             "client_id": o.client_id,
         }
         for o in objectives

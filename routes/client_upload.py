@@ -45,6 +45,23 @@ def _parse_json(content: str) -> list[dict[str, Any]]:
     return data
 
 
+def _parse_fallback_names(raw: str | list[str] | None) -> list[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [str(n).strip() for n in raw if str(n).strip()]
+    if isinstance(raw, str):
+        raw = raw.strip()
+        if not raw:
+            return []
+        if "," in raw:
+            return [n.strip() for n in raw.split(",") if n.strip()]
+        if ";" in raw:
+            return [n.strip() for n in raw.split(";") if n.strip()]
+        return [raw]
+    return []
+
+
 def _check_auto_start(client_id: int, session: Session) -> bool:
     has_facilities = session.scalar(
         select(func.count(Facility.id)).where(Facility.client_id == client_id)
@@ -296,6 +313,17 @@ async def upload_objectives(
             sla = int(row.get("sla_minutes", 720))
             priority = int(row.get("priority", 1))
 
+            fallback_facility_names = _parse_fallback_names(row.get("fallback_facility_names", ""))
+            fallback_ids: list[int] = []
+            for fb_name in fallback_facility_names:
+                fb = session.scalar(
+                    select(Facility).where(Facility.name == fb_name, Facility.client_id == client.id)
+                )
+                if fb is None:
+                    errors.append({"row": i + 1, "field": "fallback_facility_names", "message": f"Fallback facility '{fb_name}' not found"})
+                    continue
+                fallback_ids.append(fb.id)
+
             existing = session.scalar(
                 select(Objective).where(Objective.name == name, Objective.client_id == client.id)
             )
@@ -306,6 +334,7 @@ async def upload_objectives(
                 existing.dispatch_interval_minutes = interval
                 existing.sla_minutes = sla
                 existing.priority = priority
+                existing.fallback_facility_ids = fallback_ids
                 updated += 1
             else:
                 # Assign vehicles from the same client
@@ -322,6 +351,7 @@ async def upload_objectives(
                     sla_minutes=sla,
                     priority=priority,
                     assigned_vehicle_ids=assigned_ids,
+                    fallback_facility_ids=fallback_ids,
                     client_id=client.id,
                 ))
                 imported += 1
