@@ -1,4 +1,4 @@
-import { Panel, MetricCard, ProgressBar } from "../common/UiPrimitives";
+import { Panel, ProgressBar } from "../common/UiPrimitives";
 import { AIActivityFeed, AIDecisionPanel, RouteComparisonBlock } from "../common/AIDecisionWidgets";
 
 export function DashboardView({ metrics, criticalFacilities = [], proactiveDispatches = [], riskForecast = [], facilityLookup, aiActivity, latestDecision, previousRoute, activityFeed }) {
@@ -17,17 +17,101 @@ export function DashboardView({ metrics, criticalFacilities = [], proactiveDispa
 
   return (
     <div className="view-dashboard">
-      <div className="metrics-grid">
-        <MetricCard label="Financial Costs Saved (AI)" value={`${formatINR(costsSaved)} saved`} context={`vs ${formatINR(estimatedBaseline)} baseline`} tone="green" />
-        <MetricCard label="Operational Costs" value={formatINR(costsIncurred)} context={`road-only baseline ${formatINR(estimatedBaseline)}`} tone="coral" />
-        <MetricCard label="Critical Deliveries Saved" value={metrics?.critical_deliveries_saved ?? 0} context={`${metrics?.reroute_count ?? 0} AI reroutes considered`} tone="teal" />
-        <MetricCard label="Stockouts Prevented" value={metrics?.stockouts_prevented ?? 0} context="vs no proactive dispatch baseline" tone="amber" />
-        <MetricCard label="Beneficiary Locations" value={metrics?.beneficiary_locations_served ?? 0} tone="steel" />
-        <MetricCard label="Wastage Prevented" value={`${Number(metrics?.spoilage_or_wastage_prevented ?? 0).toFixed(0)} units`} tone="coral" />
-        <MetricCard label="CO₂ Saved" value={`${co2Saved.toFixed(1)} kg`} context={co2Baseline ? `vs ${co2Baseline.toFixed(1)} kg road baseline` : "baseline estimated from road-only route"} tone="green" />
-        <MetricCard label="On-Time Delivery" value={`${metrics?.on_time_delivery_pct ?? 0}%`} context="compared with delayed-route baseline" tone="blue" />
+      <div className="dashboard-header">
+        <h1>Global Network Telemetry</h1>
+        <p>Real-time autonomous routing, capacity tracking, and predictive dispatch intelligence.</p>
       </div>
 
+      <div className="bento-row">
+        <div className="bento-card fin-card">
+          <div className="eyebrow">$ FINANCIAL OPTIMIZATION</div>
+          <h2>{formatINR(costsSaved)}</h2>
+          <div className="subtext">
+            <span>📈</span> Saved against {formatINR(estimatedBaseline)} static routing baseline
+          </div>
+        </div>
+        <div className="bento-card carbon-card">
+          <div className="eyebrow">$ CARBON EMISSIONS REDUCED</div>
+          <h2>{co2Saved.toFixed(1)} kg</h2>
+          <div className="subtext">
+            <span>💧</span> CO₂ offset via AI-optimized logistics routes
+          </div>
+        </div>
+        <div className="bento-card stockout-card">
+          <div className="eyebrow">⚠️ CRITICAL STOCKOUTS PREVENTED</div>
+          <h2>{metrics?.stockouts_prevented ?? 0} Events</h2>
+          <div className="subtext">
+            <span>🕒</span> {metrics?.critical_deliveries_saved ?? 0} critical deliveries salvaged
+          </div>
+        </div>
+      </div>
+
+      <div className="bento-row-bottom">
+        <div className="bento-card engine-card">
+          <div className="engine-stats">
+            <div className="engine-stats-header">$ AUTONOMOUS ROUTING ENGINE</div>
+            <div className="stat-row">
+              <span>Engine Status</span>
+              <strong>Active (v2.4)</strong>
+            </div>
+            <div className="stat-row">
+              <span>Live Reroutes</span>
+              <strong>{aiActivity?.reroute_count ?? 0}</strong>
+            </div>
+            <div className="stat-row">
+              <span>Cascade Detections</span>
+              <strong>{aiActivity?.cascade_detections_today ?? 0}</strong>
+            </div>
+            <div className="stat-row">
+              <span>Driver Acceptance</span>
+              <strong>{aiActivity?.driver_acceptance_rate ?? 0}%</strong>
+            </div>
+            <div className="stat-row">
+              <span>Global Confidence</span>
+              <strong>{confidence}%</strong>
+            </div>
+          </div>
+          <div className="engine-recommendation">
+            <div className="rec-header">
+              <span>LATEST RECOMMENDATION</span>
+              <span className="confidence-pill">Confidence Score: {confidence}%</span>
+            </div>
+            <h3 className="rec-title">→ {latestDecision?.title ?? "Awaiting Intelligence..."}</h3>
+            <div className="rec-details">
+              <div className="rec-detail-row">
+                <h4>Reason</h4>
+                <p>{latestDecision?.reason ?? "System monitoring network conditions."}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="bento-card saturation-card">
+          <div className="eyebrow">📊 NETWORK SATURATION</div>
+          <div className="saturation-list" style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px' }}>
+            <div className="sat-item">
+              <div className="sat-item-info">
+                <h4>{metrics?.network_saturation?.active_shipments ?? 0}</h4>
+                <p>Active shipments across all routes</p>
+              </div>
+              <span className="sat-value">{(metrics?.network_saturation?.saturation_pct ?? 60).toFixed(0)}%</span>
+            </div>
+            <div className="sat-item">
+              <div className="sat-item-info">
+                <h4>{metrics?.network_saturation?.fleet_utilization ?? 0}%</h4>
+                <p>Fleet utilization rate</p>
+              </div>
+              <span className="sat-value">•</span>
+            </div>
+            <div className="sat-item">
+              <div className="sat-item-info">
+                <h4>{metrics?.network_saturation?.avg_delay_min ?? 0} min</h4>
+                <p>Average delay across active routes</p>
+              </div>
+              <span className="sat-value">⏱</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="dashboard-grid">
         {/* AI Decisions Panel — shows judges what the AI is doing */}

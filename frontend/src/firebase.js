@@ -1,145 +1,94 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 
-const firebaseConfig = {
-  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY || "").trim(),
-  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "").trim(),
-  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID || "").trim(),
-  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "").trim(),
-  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "").trim(),
-  appId: (import.meta.env.VITE_FIREBASE_APP_ID || "").trim(),
-};
-
-const firebaseEnabled = Boolean(firebaseConfig.apiKey);
-const useDemoAuth = import.meta.env.VITE_USE_DEMO_AUTH === "true";
+const apiKey = (import.meta.env.VITE_FIREBASE_API_KEY || "").trim();
+const hasFirebaseConfig = !!(apiKey && apiKey !== "YOUR_API_KEY");
 
 let app = null;
 let auth = null;
 let googleProvider = null;
 
-if (firebaseEnabled) {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  googleProvider = new GoogleAuthProvider();
-} else if (!useDemoAuth) {
-  console.info("Firebase not configured — auth features disabled");
+if (hasFirebaseConfig) {
+  try {
+    const firebaseConfig = {
+      apiKey: apiKey,
+      authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "").trim(),
+      projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID || "").trim(),
+      storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "").trim(),
+      messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "").trim(),
+      appId: (import.meta.env.VITE_FIREBASE_APP_ID || "").trim(),
+    };
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    googleProvider = new GoogleAuthProvider();
+  } catch (error) {
+    console.error("Firebase initialization failed:", error);
+  }
 }
 
 export { auth, googleProvider };
 
-const DEMO_UID = "demo-uid-001";
-const DEMO_EMAIL = "demo@logisight.io";
-const DEMO_NAME = "Demo User";
-
-function base64urlEncode(data) {
-  const bytes = new TextEncoder().encode(JSON.stringify(data));
-  const binary = String.fromCharCode(...bytes);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function createFakeJwt() {
-  const header = { alg: "RS256", typ: "JWT", kid: "demo" };
-  const payload = {
-    uid: DEMO_UID,
-    email: DEMO_EMAIL,
-    name: DEMO_NAME,
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 86400,
-  };
-  return `${base64urlEncode(header)}.${base64urlEncode(payload)}.demo`;
-}
-
-const fakeJwtToken = createFakeJwt();
-
-let demoUser = null;
-let demoListeners = [];
-
-class MockUser {
-  constructor() {
-    this.uid = DEMO_UID;
-    this.email = DEMO_EMAIL;
-    this.displayName = DEMO_NAME;
-    this.emailVerified = true;
-    this.isAnonymous = false;
-    this.metadata = { creationTime: null, lastSignInTime: null };
-  }
-  getIdToken(forceRefresh) {
-    return Promise.resolve(fakeJwtToken);
-  }
-  toJSON() {
-    return { uid: this.uid, email: this.email, displayName: this.displayName };
-  }
-}
-
-function notifyDemoListeners(user) {
-  demoListeners.forEach((cb) => {
-    try {
-      cb(user);
-    } catch (e) {
-      console.error("Demo auth listener error:", e);
-    }
-  });
-}
-
-function isDemoMode() {
-  return useDemoAuth && !firebaseEnabled;
-}
-
-function getDemoUser() {
-  if (!demoUser) demoUser = new MockUser();
-  return demoUser;
+function _mockJwt(overrides = {}) {
+  const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const payload = btoa(JSON.stringify({
+    uid: "mock-google-uid-123",
+    email: "demo.google@logisight.io",
+    name: "Demo Google User",
+    ...overrides,
+  }));
+  const sig = btoa("fake-signature");
+  return `${header}.${payload}.${sig}`;
 }
 
 export async function signInWithGoogle() {
-  if (isDemoMode()) {
-    const user = getDemoUser();
-    notifyDemoListeners(user);
-    return { user, idToken: fakeJwtToken, mode: "demo" };
+  if (!hasFirebaseConfig || !auth) {
+    console.warn("Firebase is disabled or not configured. Falling back to Demo login.");
+    const demoUser = {
+      uid: "mock-google-uid-123",
+      displayName: "Demo Google User",
+      email: "demo.google@logisight.io",
+      photoURL: "https://api.dicebear.com/7.x/bottts/svg?seed=demo",
+      getIdToken: async () => _mockJwt(),
+    };
+    localStorage.setItem("logisight-demo-user", JSON.stringify(demoUser));
+    return { user: demoUser, idToken: _mockJwt() };
   }
-  if (!auth) throw new Error("Firebase is not configured");
+
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const idToken = await result.user.getIdToken();
-    return { user: result.user, idToken, mode: "popup" };
+    return { user: result.user, idToken };
   } catch (error) {
-    const message = String(error?.message || error || "");
-    const code = String(error?.code || "");
-    const shouldRedirect =
-      code === "auth/popup-blocked" ||
-      code === "auth/popup-closed-by-user" ||
-      code === "auth/cancelled-popup-request" ||
-      /cross-origin-opener-policy|window\.closed/i.test(message);
-
-    if (shouldRedirect) {
-      await signInWithRedirect(auth, googleProvider);
-      return { mode: "redirect" };
-    }
-
     console.error("Google Sign-In error:", error);
     throw error;
   }
 }
 
 export async function logout() {
-  if (isDemoMode()) {
-    demoListeners = [];
-    notifyDemoListeners(null);
-    return;
+  localStorage.removeItem("logisight-demo-user");
+  if (!hasFirebaseConfig || !auth) {
+    return Promise.resolve();
   }
-  if (!auth) return;
   return signOut(auth);
 }
 
 export function onAuthChange(callback) {
-  if (isDemoMode()) {
-    demoListeners.push(callback);
-    callback(getDemoUser());
-    return () => {
-      demoListeners = demoListeners.filter((cb) => cb !== callback);
-    };
-  }
-  if (!auth) {
-    callback(null);
+  if (!hasFirebaseConfig || !auth) {
+    // Check if demo user is stored in localStorage
+    const savedUser = localStorage.getItem("logisight-demo-user");
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        if (!user.uid) user.uid = "mock-google-uid-123";
+        user.getIdToken = async () => _mockJwt({ email: user.email, name: user.displayName });
+        callback(user);
+      } catch (e) {
+        callback(null);
+      }
+    } else {
+      callback(null);
+    }
+    // Return unsubscribe function
     return () => {};
   }
   return onAuthStateChanged(auth, callback);

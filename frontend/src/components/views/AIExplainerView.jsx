@@ -3,7 +3,13 @@ import { Panel } from "../common/UiPrimitives";
 
 function formatTimeOnly(dateStr) {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  try {
+    const d = new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z");
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return "—";
+  }
 }
 
 function formatCompact(n) {
@@ -16,6 +22,8 @@ function formatCompact(n) {
 export function AIExplainerView({ apiFetch, recommendations, dashboard, vehicles, facilityLookup }) {
   const [selectedRecId, setSelectedRecId] = useState(null);
   const [aiActivity, setAiActivity] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [actionFilter, setActionFilter] = useState("all");
 
   useEffect(() => {
     apiFetch("/api/metrics/ai-activity")
@@ -24,7 +32,32 @@ export function AIExplainerView({ apiFetch, recommendations, dashboard, vehicles
   }, [apiFetch]);
 
   const activeRecs = recommendations || [];
-  const selectedRec = activeRecs.find(r => r.id === selectedRecId) || activeRecs[0];
+  const actionTypes = useMemo(() => {
+    const types = new Set();
+    activeRecs.forEach(r => {
+      const action = (r.action || "").replace(/_/g, " ");
+      if (action) types.add(action);
+    });
+    return ["all", ...Array.from(types)];
+  }, [activeRecs]);
+
+  const filteredRecs = useMemo(() => {
+    return activeRecs.filter(r => {
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const action = (r.action || "").toLowerCase();
+        const explanation = (r.explanation || "").toLowerCase();
+        if (!action.includes(q) && !explanation.includes(q)) return false;
+      }
+      if (actionFilter !== "all") {
+        const action = (r.action || "").replace(/_/g, " ");
+        if (action !== actionFilter) return false;
+      }
+      return true;
+    });
+  }, [activeRecs, searchQuery, actionFilter]);
+
+  const selectedRec = filteredRecs.find(r => r.id === selectedRecId) || filteredRecs[0];
   const metrics = dashboard?.metrics || {};
   const completedTrips = metrics.completed_trips ?? aiActivity?.completed_trips ?? 0;
   const totalDecisions = (aiActivity?.rl_engine?.train_step ?? 0) + activeRecs.length;
@@ -81,12 +114,36 @@ export function AIExplainerView({ apiFetch, recommendations, dashboard, vehicles
 
       <div className="explainer-content">
         <div className="rec-list">
-          {activeRecs.length === 0 && (
+          <div className="search-controls" style={{ marginBottom: "12px" }}>
+            <div className="search-input-wrap" style={{ minWidth: "140px", maxWidth: "100%" }}>
+              <span className="search-input-icon">🔍</span>
+              <input
+                type="text"
+                className="search-input"
+                placeholder="Search decisions..."
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setSelectedRecId(null); }}
+              />
+            </div>
+            {actionTypes.length > 1 && (
+              <select
+                className="filter-select"
+                value={actionFilter}
+                onChange={e => { setActionFilter(e.target.value); setSelectedRecId(null); }}
+                style={{ minWidth: "110px" }}
+              >
+                {actionTypes.map(t => (
+                  <option key={t} value={t}>{t === "all" ? "All Actions" : t}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          {filteredRecs.length === 0 && (
             <div className="empty-state-rec">
-              No recent recommendations — start the simulation to see AI decisions.
+              {searchQuery || actionFilter !== "all" ? "No decisions match your filters." : "No recent recommendations — start the simulation to see AI decisions."}
             </div>
           )}
-          {activeRecs.map(rec => (
+          {filteredRecs.map(rec => (
             <div
               key={rec.id}
               className={`rec-card ${selectedRec?.id === rec.id ? 'active' : ''}`}

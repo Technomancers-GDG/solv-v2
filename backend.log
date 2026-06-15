@@ -1,8 +1,0 @@
-[DEBUG] ROUTE_USE_OSRM=False OSRM_BASE_URL=https://router.project-osrm.org
-INFO:     Started server process [4784]
-INFO:     Waiting for application startup.
-[INFO] Simulation started at 120.0x.
-[INFO] Demo mode startup completed.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-[EVENT] Disruption triggered: Chennai flood

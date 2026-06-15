@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import { useLocation, Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { onAuthChange, signInWithGoogle, logout } from "../firebase";
 
 const DashboardShell = lazy(() => import("../components/DashboardShell"));
@@ -20,33 +20,45 @@ export default function ClientPortal() {
   const [loading, setLoading] = useState(true);
   const [firebaseToken, setFirebaseToken] = useState(null);
 
-  useEffect(() => {
-    const unsub = onAuthChange(async (userOrNull) => {
-      setUser(userOrNull);
-      if (userOrNull) {
-        try {
-          const token = await userOrNull.getIdToken(true);
-          setFirebaseToken(token);
-          const resp = await fetch("/api/auth/client-status", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            setStatus(data);
-          } else {
-            setStatus({ authenticated: false, has_fleet: false });
-          }
-        } catch {
-          setStatus({ authenticated: false, has_fleet: false });
-        }
-      } else {
-        setFirebaseToken(null);
-        setStatus(null);
-      }
+  const resolveAuth = async (u) => {
+    if (!u) {
+      setFirebaseToken(null);
+      setStatus(null);
       setLoading(false);
+      return;
+    }
+    try {
+      const token = await u.getIdToken(true);
+      setFirebaseToken(token);
+      const resp = await fetch("/api/auth/client-status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setStatus(resp.ok ? await resp.json() : { authenticated: false, has_fleet: false });
+    } catch {
+      setStatus({ authenticated: false, has_fleet: false });
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    const unsub = onAuthChange(async (u) => {
+      setUser(u);
+      resolveAuth(u);
     });
     return unsub;
   }, []);
+
+  const handleLogin = async () => {
+    try {
+      const result = await signInWithGoogle();
+      if (result?.user) {
+        setUser(result.user);
+        resolveAuth(result.user);
+      }
+    } catch (err) {
+      console.error("Sign in failed:", err);
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -65,13 +77,7 @@ export default function ClientPortal() {
             Sign in to access your logistics operations dashboard.
           </p>
           <button
-            onClick={async () => {
-              try {
-                await signInWithGoogle();
-              } catch (err) {
-                console.error("Sign in failed:", err);
-              }
-            }}
+            onClick={handleLogin}
             style={{ padding: "12px 24px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, fontSize: 15, fontWeight: 600, cursor: "pointer" }}
           >
             Sign in with Google
@@ -92,8 +98,12 @@ export default function ClientPortal() {
         <OnboardingWizard
           user={user}
           firebaseToken={firebaseToken}
-          onComplete={() => {
-            setStatus({ ...status, has_fleet: true });
+          onComplete={async () => {
+            const token = await user.getIdToken(true);
+            const resp = await fetch("/api/auth/client-status", {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (resp.ok) setStatus(await resp.json());
           }}
         />
       </Suspense>

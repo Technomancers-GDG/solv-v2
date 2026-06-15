@@ -14,7 +14,7 @@ import {
   ZAxis,
   Cell
 } from "recharts";
-import { formatINRCompact } from "../DashboardShell";
+import { formatINRCompact } from "../../App";
 
 export function ComparisonView({ apiFetch }) {
   const [loading, setLoading] = useState(true);
@@ -78,9 +78,9 @@ export function ComparisonView({ apiFetch }) {
     }));
   }, [tripsData]);
 
-  if (loading) return <div className="loading">Generating statistical comparison...</div>;
+  if (loading) return <div className="loading" style={{textAlign: 'center', padding: '60px', color: 'var(--text-muted)'}}>Generating statistical comparison...</div>;
   if (error) return <div className="banner error">{error}</div>;
-  if (!summaryData) return <div className="loading">No comparison data available.</div>;
+  if (!summaryData) return <div className="loading" style={{textAlign: 'center', padding: '60px', color: 'var(--text-muted)'}}>No comparison data available.</div>;
 
   const { baseline, ai, improvement, stats } = summaryData;
   const imp = improvement || {};
@@ -88,73 +88,77 @@ export function ComparisonView({ apiFetch }) {
 
   return (
     <section className="analytics-layout comparison-view">
-      <div className="view-header">
-        <h2>AI vs Baseline Performance (A/B Test)</h2>
-        <p>Rigorous statistical comparison tracking per-trip metrics against a non-AI baseline.</p>
+      <div className="view-header" style={{ marginBottom: "2rem" }}>
+        <h2 style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>AI vs Baseline Performance (A/B Test)</h2>
+        <p style={{ color: "var(--text-muted)", fontSize: '1.1rem' }}>Rigorous statistical comparison tracking per-trip metrics against a non-AI baseline.</p>
       </div>
 
-      <div className="metrics-summary">
-        <div className="metric-card">
-          <span className="metric-label">Delivery Delay Reduction</span>
-          <span className="metric-value">{(imp.delay_reduction_minutes ?? 0).toFixed(1)} <span className="metric-unit">min/trip</span></span>
-          <span className="metric-trend positive" title={`p-value: ${st.p_value_time?.toExponential(2) || "—"}`}>
-            {st.statistically_significant ? "Statistically Significant (p < 0.05)" : "Not Significant"}
-          </span>
+      <div className="bento-row" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+        <div style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px' }}>Delivery Delay Reduction</div>
+          <div style={{ fontSize: '2rem', fontWeight: '800', color: '#10b981' }}>{(imp.delay_reduction_minutes ?? 0).toFixed(1)} <span style={{fontSize: '1rem', color: 'var(--text-muted)'}}>min/trip</span></div>
+          <div style={{ fontSize: '0.8rem', color: st.statistically_significant ? '#10b981' : 'var(--text-muted)', marginTop: '8px', fontWeight: '700' }} title={`p-value: ${st.p_value_time?.toExponential(2) || "—"}`}>
+            {st.statistically_significant ? "✓ Statistically Significant" : "Not Significant"}
+          </div>
         </div>
 
-        <div className="metric-card">
-          <span className="metric-label">Overflow Events Prevented</span>
-          <span className="metric-value">{imp.overflow_reduction ?? 0} <span className="metric-unit">events</span></span>
+        <div style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px' }}>Overflow Events Prevented</div>
+          <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)' }}>{imp.overflow_reduction ?? 0} <span style={{fontSize: '1rem', color: 'var(--text-muted)'}}>events</span></div>
         </div>
 
-        <div className="metric-card">
-          <span className="metric-label">Cost Saved (Total)</span>
-          <span className="metric-value">₹{Math.round((imp.delay_reduction_minutes ?? 0) * 100).toLocaleString()}</span>
-          <span className="metric-trend positive">Cohen's d: {st.effect_size_cohens_d?.toFixed(2) ?? "—"}</span>
+        <div style={{ background: 'var(--dark-panel)', padding: '24px', borderRadius: '20px', color: 'white' }}>
+          <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px' }}>Cost Saved (Total)</div>
+          <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--accent-lime-strong)' }}>₹{Math.round((imp.delay_reduction_minutes ?? 0) * 100).toLocaleString()}</div>
+          <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', marginTop: '8px', fontWeight: '700' }}>Cohen's d: {st.effect_size_cohens_d?.toFixed(2) ?? "—"}</div>
         </div>
 
-        <div className="metric-card">
-          <span className="metric-label">Stockouts Prevented</span>
-          <span className="metric-value">{imp.stockout_delta ?? 0}</span>
-          <span className="metric-unit">facilities saved</span>
+        <div style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px' }}>Stockouts Prevented</div>
+          <div style={{ fontSize: '2rem', fontWeight: '800', color: '#f59e0b' }}>{imp.stockout_delta ?? 0}</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px', fontWeight: '600' }}>facilities saved</div>
         </div>
       </div>
 
-      <div className="charts-grid">
+      <div className="bento-row" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "24px", marginTop: "24px" }}>
         
         <Panel title="Performance by Condition (Delay Minutes)">
-          <div className="chart-wrapper">
-            <ResponsiveContainer>
-              <BarChart data={groupedBarData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                <XAxis dataKey="name" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <RechartsTooltip contentStyle={{ backgroundColor: "#1e293b", borderColor: "#334155", color: "#f8fafc" }} />
-                <Legend wrapperStyle={{ paddingTop: "20px" }} />
-                <Bar dataKey="BaselineDelay" fill="#64748b" name="Baseline Delay (min)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="AIDelay" fill="#10b981" name="AI Delay (min)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: 'var(--shadow-sm)' }}>
+            <div style={{ height: "300px", width: "100%" }}>
+              <ResponsiveContainer>
+                <BarChart data={groupedBarData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--text-muted)" tick={{fontWeight: 600, fontSize: 12}} />
+                  <YAxis stroke="var(--text-muted)" tick={{fontWeight: 600, fontSize: 12}} />
+                  <RechartsTooltip cursor={{fill: 'var(--bg-color)'}} contentStyle={{ backgroundColor: "var(--dark-panel)", borderColor: "var(--dark-panel)", color: "white", borderRadius: '12px', fontWeight: 600 }} />
+                  <Legend wrapperStyle={{ paddingTop: "20px" }} />
+                  <Bar dataKey="BaselineDelay" fill="var(--text-muted)" name="Baseline Delay (min)" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="AIDelay" fill="var(--accent-lime)" name="AI Delay (min)" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </Panel>
 
         <Panel title="Per-Trip Scatter: Baseline vs AI Time">
-          <div className="chart-wrapper">
-            <ResponsiveContainer>
-              <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis type="number" dataKey="baselineTime" name="Baseline Time" unit="m" stroke="#94a3b8" label={{ value: "Baseline Time (min)", position: "insideBottom", offset: -10, fill: "#94a3b8" }} />
-                <YAxis type="number" dataKey="aiTime" name="AI Time" unit="m" stroke="#94a3b8" label={{ value: "AI Time (min)", angle: -90, position: "insideLeft", fill: "#94a3b8" }} />
-                <ZAxis type="number" dataKey="costSaved" range={[40, 400]} name="Cost Saved" />
-                <RechartsTooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: "#1e293b", borderColor: "#334155" }} />
-                <Legend wrapperStyle={{ paddingTop: "20px" }} />
-                <Scatter name="Trips" data={scatterData} fill="#10b981">
-                  {scatterData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.aiTime < entry.baselineTime ? "#10b981" : "#64748b"} opacity={0.7} />
-                  ))}
-                </Scatter>
-              </ScatterChart>
-            </ResponsiveContainer>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: 'var(--shadow-sm)' }}>
+            <div style={{ height: "300px", width: "100%" }}>
+              <ResponsiveContainer>
+                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis type="number" dataKey="baselineTime" name="Baseline Time" unit="m" stroke="var(--text-muted)" tick={{fontWeight: 600, fontSize: 12}} label={{ value: "Baseline Time (min)", position: "insideBottom", offset: -10, fill: "var(--text-muted)", fontWeight: 700 }} />
+                  <YAxis type="number" dataKey="aiTime" name="AI Time" unit="m" stroke="var(--text-muted)" tick={{fontWeight: 600, fontSize: 12}} label={{ value: "AI Time (min)", angle: -90, position: "insideLeft", fill: "var(--text-muted)", fontWeight: 700 }} />
+                  <ZAxis type="number" dataKey="costSaved" range={[40, 400]} name="Cost Saved" />
+                  <RechartsTooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: "var(--dark-panel)", borderColor: "var(--dark-panel)", borderRadius: '12px', color: 'white', fontWeight: 600 }} />
+                  <Legend wrapperStyle={{ paddingTop: "20px" }} />
+                  <Scatter name="Trips" data={scatterData} fill="var(--accent-lime)">
+                    {scatterData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.aiTime < entry.baselineTime ? "var(--accent-lime)" : "var(--text-muted)"} opacity={0.8} />
+                    ))}
+                  </Scatter>
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </Panel>
 
