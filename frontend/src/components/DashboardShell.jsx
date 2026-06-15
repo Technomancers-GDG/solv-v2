@@ -3,6 +3,13 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition, use
 import { AIRerouteToast } from "./common/AIDecisionWidgets";
 import { ErrorBoundary } from "./common/ErrorBoundary";
 import { AIChatPanel } from "./common/AIChatPanel";
+import { 
+  LayoutDashboard, Map, Activity, 
+  TrendingUp, Box, Clapperboard, 
+  BrainCircuit, Search, LineChart, 
+  Network, Target, Radio, 
+  Globe2, Settings, Plug 
+} from "lucide-react";
 
 const DashboardView = lazy(() => import("./views/DashboardView").then(m => ({ default: m.DashboardView })));
 const MapView = lazy(() => import("./views/MapView").then(m => ({ default: m.MapView })));
@@ -157,46 +164,46 @@ function getNavSections(t, clientContext) {
     {
       label: t.operations,
       items: [
-        { key: "dashboard", label: t.dashboard, icon: "📊" },
-        { key: "map", label: t.liveMap, icon: "🗺️" },
-        { key: "liveOps", label: t.liveOps, icon: "⚡" },
+        { key: "dashboard", label: t.dashboard, icon: <LayoutDashboard size={20} /> },
+        { key: "map", label: t.liveMap, icon: <Map size={20} /> },
+        { key: "liveOps", label: t.liveOps, icon: <Activity size={20} /> },
       ],
     },
     {
       label: t.intelligence,
       items: [
-        { key: "forecast", label: t.forecast, icon: "🔮" },
-        { key: "inventory", label: t.inventory, icon: "📦" },
-        { key: "scenarios", label: t.scenarios, icon: "🎬" },
+        { key: "forecast", label: t.forecast, icon: <TrendingUp size={20} /> },
+        { key: "inventory", label: t.inventory, icon: <Box size={20} /> },
+        { key: "scenarios", label: t.scenarios, icon: <Clapperboard size={20} /> },
       ],
     },
     {
       label: t.aiIntelligence,
       items: [
-        { key: "rlTraining", label: t.rlTraining, icon: "🧠" },
-        { key: "aiExplainer", label: t.aiExplainer, icon: "🔍" },
-        { key: "aiComparison", label: t.aiComparison, icon: "📈" },
+        { key: "rlTraining", label: t.rlTraining, icon: <BrainCircuit size={20} /> },
+        { key: "aiExplainer", label: t.aiExplainer, icon: <Search size={20} /> },
+        { key: "aiComparison", label: t.aiComparison, icon: <LineChart size={20} /> },
       ],
     },
     {
       label: t.network,
       items: [
-        { key: "network", label: t.networkView, icon: "🌐" },
-        { key: "objectives", label: t.objectives, icon: "🎯" },
-        { key: "events", label: t.events, icon: "📡" },
+        { key: "network", label: t.networkView, icon: <Network size={20} /> },
+        { key: "objectives", label: t.objectives, icon: <Target size={20} /> },
+        { key: "events", label: t.events, icon: <Radio size={20} /> },
       ],
     },
     {
       label: t.analytics,
       items: [
-        { key: "impact", label: t.impact, icon: "🌍" },
+        { key: "impact", label: t.impact, icon: <Globe2 size={20} /> },
       ],
     },
     {
       label: t.settings,
       items: [
-        { key: "settings", label: t.settings, icon: "⚙️" },
-        { key: "developer", label: t.developer, icon: "🔌" },
+        { key: "settings", label: t.settings, icon: <Settings size={20} /> },
+        { key: "developer", label: t.developer, icon: <Plug size={20} /> },
       ],
     },
   ];
@@ -213,16 +220,13 @@ function getNavSections(t, clientContext) {
   return sections;
 }
 
-function Sidebar({ active, onNavigate, collapsed, onToggle, t, clientContext }) {
+function Sidebar({ active, onNavigate, collapsed, onMouseEnter, onMouseLeave, t, clientContext }) {
   const sections = getNavSections(t, clientContext);
   return (
-    <aside className={`sidebar ${collapsed ? "collapsed" : "open"}`}>
+    <aside className={`sidebar ${collapsed ? "collapsed" : "open"}`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <div className="sidebar-header">
         <div className="logo-mark">L</div>
         {!collapsed && <span className="logo-text">Logisight</span>}
-        <button className="collapse-btn" onClick={onToggle} aria-label="Toggle sidebar">
-          {collapsed ? "\u203A" : "\u2039"}
-        </button>
       </div>
       <nav className="sidebar-nav">
         {sections.map((section) => (
@@ -492,7 +496,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
   }
 
   const [activeView, setActiveView] = useState("dashboard");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -617,20 +621,13 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
     let socket;
     let pingTimer;
     let reconnectTimer;
-    let cancelled = false;
 
-    async function connectWs() {
+    function connectWs() {
       const wsBase = import.meta.env.VITE_WS_BASE_URL ||
         `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
 
-      let token = clientContext?.firebaseToken;
-      if (user?.getIdToken) {
-        try { token = await user.getIdToken(false); } catch {}
-      }
-      if (cancelled) return;
-
       const wsPath = clientContext
-        ? `/ws/client?token=${encodeURIComponent(token)}`
+        ? `/ws/client?token=${encodeURIComponent(clientContext.firebaseToken)}`
         : "/ws/operations";
 
       console.log("[RC5-DIAG] WebSocket: clientContext=",
@@ -674,12 +671,11 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
     connectWs();
 
     return () => {
-      cancelled = true;
       clearInterval(pingTimer);
       clearTimeout(reconnectTimer);
       if (socket) socket.close();
     };
-  }, [clientContext, user]);
+  }, [clientContext]);
 
   const runAction = useCallback(async (path, body = null, msg = "") => {
     try {
@@ -757,7 +753,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
       case "developer":
         return <IntegrationView apiFetch={apiFetch} t={t} />;
       case "settings":
-        return <SettingsView lang={lang} onSwitchLang={switchLang} t={t} currentSpeed={currentSpeed} onSetSpeed={handleSetSpeed} clientContext={clientContext} />;
+        return <SettingsView lang={lang} onSwitchLang={switchLang} t={t} />;
       case "rlTraining":
         return <RLTrainingView apiFetch={apiFetch} />;
       case "aiExplainer":
@@ -772,7 +768,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
   return (
     <div className="app-shell">
       <AIRerouteToast toasts={toasts} onDismiss={dismissToast} />
-      <Sidebar active={activeView} onNavigate={setActiveView} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)} t={t} clientContext={clientContext} />
+      <Sidebar active={activeView} onNavigate={setActiveView} collapsed={sidebarCollapsed} onMouseEnter={() => setSidebarCollapsed(false)} onMouseLeave={() => setSidebarCollapsed(true)} t={t} clientContext={clientContext} />
       <div className={`main-content ${sidebarCollapsed ? "expanded" : ""}`}>
         <header className="top-bar" lang={lang}>
           <div className="top-bar-left">

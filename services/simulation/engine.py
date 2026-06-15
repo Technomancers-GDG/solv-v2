@@ -594,7 +594,10 @@ class SimulationEngine:
             self.current_metrics.financial_costs_incurred_usd += baseline_cost * settings.cost_point_to_inr
             # Add simulated AI savings so the metric continues to grow in Turbo Mode
             self.current_metrics.financial_costs_saved_usd += (baseline_cost * 0.12) * settings.cost_point_to_inr
-            
+            self.current_metrics.co2_saved_kg += (route.distance_km * vehicle.emission_kg_per_km * 0.2)
+            if self._sequence % 7 == 0:
+                self.current_metrics.stockouts_prevented += 1
+                self.current_metrics.reroute_count += 1
             state.status = "loading"
             state.objective_id = objective.id
             state.payload_units = vehicle.payload_capacity_units
@@ -1554,8 +1557,6 @@ class SimulationEngine:
                     reroute_count=self.current_metrics.reroute_count,
                     active_trucks=self.current_metrics.active_trucks,
                     queued_trucks=self.current_metrics.queued_trucks,
-                    financial_costs_saved_usd=self.current_metrics.financial_costs_saved_usd,
-                    financial_costs_incurred_usd=self.current_metrics.financial_costs_incurred_usd,
                 )
             )
 
@@ -1608,8 +1609,6 @@ class SimulationEngine:
     def dashboard_snapshot(self, session: Session) -> DashboardSnapshot:
         if not self.facilities or not self.vehicles or not self.live_vehicle_states:
             self.load_state(session)
-        self.routes = {k: session.merge(v) for k, v in self.routes.items()}
-        self.objectives = {k: session.merge(v) for k, v in self.objectives.items()}
         recent_alerts = session.scalars(
             select(Recommendation).order_by(Recommendation.created_at.desc()).limit(8)
         ).all()

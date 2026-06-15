@@ -285,24 +285,16 @@ export function RLTrainingView({ apiFetch }) {
     return () => { mountedRef.current = false; };
   }, []);
 
-  /* ── helpers ── */
-  const fetchWithTimeout = useCallback((url, defaultValue, timeoutMs = 15000) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    return apiFetch(url, { signal: controller.signal })
-      .then((result) => { clearTimeout(timer); return result; })
-      .catch(() => { clearTimeout(timer); return defaultValue; });
-  }, [apiFetch]);
-
+  /* ── fetch helpers ── */
   const fetchAll = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
       const [s, h, ep, ad, qv] = await Promise.all([
-        fetchWithTimeout("/api/rl/stats", null),
-        fetchWithTimeout("/api/rl/training-history?limit=500", []),
-        fetchWithTimeout("/api/rl/episodes?limit=50", []),
-        fetchWithTimeout("/api/rl/action-distribution", []),
-        fetchWithTimeout("/api/rl/q-values", null),
+        apiFetch("/api/rl/stats").catch(() => null),
+        apiFetch("/api/rl/training-history?limit=500").catch(() => []),
+        apiFetch("/api/rl/episodes?limit=50").catch(() => []),
+        apiFetch("/api/rl/action-distribution").catch(() => []),
+        apiFetch("/api/rl/q-values").catch(() => null),
       ]);
       if (!mountedRef.current) return;
       setStats(s);
@@ -316,7 +308,7 @@ export function RLTrainingView({ apiFetch }) {
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [fetchWithTimeout]);
+  }, [apiFetch]);
 
   useEffect(() => {
     fetchAll(true);

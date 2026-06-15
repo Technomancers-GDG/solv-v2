@@ -230,18 +230,8 @@ async def client_socket(websocket: WebSocket) -> None:
         logger.info("[DIAG] /ws/client: token verified, firebase_uid=%s", firebase_uid)
     except Exception as exc:
         logger.warning("[DIAG] /ws/client: token verification failed: %s", exc)
-        if settings.demo_mode or not settings.firebase_enabled:
-            from middleware.firebase_client import _decode_unverified_firebase_token
-            decoded = _decode_unverified_firebase_token(token)
-            if decoded is not None:
-                firebase_uid = decoded.get("uid")
-                logger.info("[DIAG] /ws/client: token accepted via unverified decode (demo mode), firebase_uid=%s", firebase_uid)
-            else:
-                await websocket.close(code=4001, reason="Invalid token")
-                return
-        else:
-            await websocket.close(code=4001, reason="Invalid token")
-            return
+        await websocket.close(code=4001, reason="Invalid token")
+        return
 
     with SessionLocal() as session:
         from models import IntegrationClient

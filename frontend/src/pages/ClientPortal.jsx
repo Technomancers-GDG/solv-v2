@@ -7,7 +7,7 @@ const OnboardingWizard = lazy(() => import("./OnboardingWizard"));
 
 function Loading() {
   return (
-    <div style={{ minHeight: "100vh", background: "#101622", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b8d93" }}>
+    <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse at top, #eef2f6, #f8fafc)", display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontWeight: 500 }}>
       Loading...
     </div>
   );
@@ -57,11 +57,22 @@ export default function ClientPortal() {
 
   if (!user) {
     return (
-      <div style={{ minHeight: "100vh", background: "#101622", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ textAlign: "center", background: "#1a2332", padding: 40, borderRadius: 12, border: "1px solid #2a3342", maxWidth: 400 }}>
-          <div className="logo-mark large" style={{ margin: "0 auto 12px", background: "#2563eb" }}>L</div>
-          <h2 style={{ color: "#f4f7fb", marginBottom: 8 }}>Client Portal</h2>
-          <p style={{ color: "#8b8d93", marginBottom: 24 }}>
+      <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse at top, #eef2f6, #f8fafc)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, system-ui, sans-serif" }}>
+        <div style={{ 
+          textAlign: "center", 
+          background: "rgba(255, 255, 255, 0.7)", 
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          padding: "48px 40px", 
+          borderRadius: 28, 
+          border: "1px solid rgba(0,0,0,0.04)", 
+          boxShadow: "0 24px 64px rgba(0,0,0,0.08)",
+          width: "100%",
+          maxWidth: 420 
+        }}>
+          <div className="logo-mark large" style={{ margin: "0 auto 20px", background: "#111", color: "#eaf86b", width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "1.2rem", boxShadow: "0 8px 16px rgba(0,0,0,0.1)" }}>L</div>
+          <h2 style={{ color: "#111", marginBottom: 8, fontSize: "1.75rem", fontWeight: 800, letterSpacing: "-0.03em" }}>Client Portal</h2>
+          <p style={{ color: "#475569", marginBottom: 32, fontSize: "0.95rem", lineHeight: 1.5 }}>
             Sign in to access your logistics operations dashboard.
           </p>
           <button
@@ -72,14 +83,28 @@ export default function ClientPortal() {
                 console.error("Sign in failed:", err);
               }
             }}
-            style={{ padding: "12px 24px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, fontSize: 15, fontWeight: 600, cursor: "pointer" }}
+            style={{ 
+              width: "100%",
+              padding: "14px 24px", 
+              background: "#111", 
+              color: "#fff", 
+              border: "none", 
+              borderRadius: 100, 
+              fontSize: "0.95rem", 
+              fontWeight: 600, 
+              cursor: "pointer",
+              transition: "transform 0.2s, background 0.2s",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.background = '#000'; }}
+            onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.background = '#111'; }}
           >
             Sign in with Google
           </button>
-          <p style={{ marginTop: 16, fontSize: 13, color: "#6b7280" }}>
-            <a href="/" style={{ color: "#60a5fa", textDecoration: "none" }}>Back to home</a>
-            <span style={{ margin: "0 8px", color: "#374151" }}>·</span>
-            <a href="/dashboard" style={{ color: "#60a5fa", textDecoration: "none" }}>View Demo</a>
+          <p style={{ marginTop: 24, fontSize: "0.85rem", color: "#64748b", fontWeight: 500 }}>
+            <a href="/" style={{ color: "#475569", textDecoration: "none", transition: "color 0.2s" }} onMouseOver={(e) => e.currentTarget.style.color = '#111'} onMouseOut={(e) => e.currentTarget.style.color = '#475569'}>Back to home</a>
+            <span style={{ margin: "0 12px", color: "#cbd5e1" }}>•</span>
+            <a href="/dashboard" style={{ color: "#475569", textDecoration: "none", transition: "color 0.2s" }} onMouseOver={(e) => e.currentTarget.style.color = '#111'} onMouseOut={(e) => e.currentTarget.style.color = '#475569'}>View Demo</a>
           </p>
         </div>
       </div>

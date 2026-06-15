@@ -1,7 +1,7 @@
 import { Panel, MetricCard } from "../common/UiPrimitives";
 
 export function ImpactView({ metrics }) {
-  const formatINR = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val || 0);
+  const formatINR = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', notation: 'compact', maximumFractionDigits: 1 }).format(val || 0);
 
   return (
     <div className="view-impact">

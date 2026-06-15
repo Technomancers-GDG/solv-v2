@@ -257,14 +257,6 @@ def upsert_objectives(body: ObjectiveImportBatch, session: Session = Depends(get
                 errors.append(ErrorDetail(field=obj.name, message=f"Destination facility '{obj.destination_facility_name}' not found"))
                 continue
 
-            fallback_ids: list[int] = []
-            for fb_name in obj.fallback_facility_names:
-                fb = session.scalar(select(Facility).where(Facility.name == fb_name))
-                if fb is None:
-                    errors.append(ErrorDetail(field=obj.name, message=f"Fallback facility '{fb_name}' not found"))
-                    continue
-                fallback_ids.append(fb.id)
-
             existing = session.scalar(select(Objective).where(Objective.name == obj.name))
             if existing:
                 existing.commodity = obj.commodity
@@ -274,7 +266,6 @@ def upsert_objectives(body: ObjectiveImportBatch, session: Session = Depends(get
                 existing.sla_minutes = obj.sla_minutes
                 existing.priority = obj.priority
                 existing.active = obj.active
-                existing.fallback_facility_ids = fallback_ids
                 existing.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
                 updated += 1
             else:
@@ -284,7 +275,6 @@ def upsert_objectives(body: ObjectiveImportBatch, session: Session = Depends(get
                     dispatch_interval_minutes=obj.dispatch_interval_minutes,
                     sla_minutes=obj.sla_minutes, priority=obj.priority,
                     active=obj.active,
-                    fallback_facility_ids=fallback_ids,
                 ))
                 imported += 1
         except Exception as exc:

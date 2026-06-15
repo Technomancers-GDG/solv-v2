@@ -124,7 +124,6 @@ class ObjectiveImport(RefCodeMixin):
     commodity: str = Field(max_length=80)
     origin_facility_name: str = Field(min_length=1)
     destination_facility_name: str = Field(min_length=1)
-    fallback_facility_names: list[str] = Field(default_factory=list)
     dispatch_interval_minutes: int = Field(default=120, ge=0)
     sla_minutes: int = Field(default=720, ge=0)
     priority: int = Field(default=1, ge=1, le=10)
@@ -141,7 +140,6 @@ class ObjectiveExport(ORMModel):
     commodity: str
     origin_facility_id: int
     destination_facility_id: int
-    fallback_facility_ids: list[int] = Field(default_factory=list)
     dispatch_interval_minutes: int
     sla_minutes: int
     priority: int

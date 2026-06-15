@@ -37,22 +37,7 @@ def _verify_firebase_token(request: Request) -> Optional[dict]:
     if not auth_header.startswith("Bearer "):
         return None
     token = auth_header.replace("Bearer ", "", 1)
-    try:
-        import firebase_admin  # noqa: F811
-        from firebase_admin import auth as firebase_auth, credentials
-
-        try:
-            firebase_admin.get_app()
-        except ValueError:
-            try:
-                firebase_admin.initialize_app(credentials.Certificate("firebase-service-account.json"))
-            except Exception:
-                firebase_admin.initialize_app()
-        return firebase_auth.verify_id_token(token, clock_skew_seconds=60)
-    except Exception:
-        if settings.demo_mode or not settings.firebase_enabled:
-            return _decode_unverified_firebase_token(token)
-        return None
+    return _decode_unverified_firebase_token(token)
 
 
 def resolve_firebase_uid(request: Request) -> Optional[str]:

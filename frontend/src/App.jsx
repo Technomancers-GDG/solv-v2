@@ -23,7 +23,7 @@ export default function App() {
   if (location.pathname === "/dashboard") {
     return (
       <Suspense fallback={<div className="loading">Loading...</div>}>
-        <DashboardShell user={null} onLogout={() => {}} clientContext={null} />
+        <DashboardShell user={null} onLogout={() => { window.location.href = "/"; }} clientContext={null} />
       </Suspense>
     );
   }

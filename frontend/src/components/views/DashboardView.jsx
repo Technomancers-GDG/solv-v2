@@ -1,17 +1,45 @@
+import { useRef, useEffect } from "react";
 import { Panel, MetricCard, ProgressBar } from "../common/UiPrimitives";
 import { AIActivityFeed, AIDecisionPanel, RouteComparisonBlock } from "../common/AIDecisionWidgets";
 
 export function DashboardView({ metrics, criticalFacilities = [], proactiveDispatches = [], riskForecast = [], facilityLookup, aiActivity, latestDecision, previousRoute, activityFeed }) {
+  const prevSavedRef = useRef(0);
+  const offsetSavedRef = useRef(0);
+  const prevIncurredRef = useRef(0);
+  const offsetIncurredRef = useRef(0);
+  const prevCo2Ref = useRef(0);
+  const offsetCo2Ref = useRef(0);
+
+  useEffect(() => {
+    const currentSaved = Number(metrics?.financial_costs_saved_usd ?? 0);
+    if (currentSaved < prevSavedRef.current) {
+      offsetSavedRef.current += prevSavedRef.current;
+    }
+    prevSavedRef.current = currentSaved;
+
+    const currentIncurred = Number(metrics?.financial_costs_incurred_usd ?? 0);
+    if (currentIncurred < prevIncurredRef.current) {
+      offsetIncurredRef.current += prevIncurredRef.current;
+    }
+    prevIncurredRef.current = currentIncurred;
+
+    const currentCo2 = Number(metrics?.co2_saved_kg ?? 0);
+    if (currentCo2 < prevCo2Ref.current) {
+      offsetCo2Ref.current += prevCo2Ref.current;
+    }
+    prevCo2Ref.current = currentCo2;
+  }, [metrics?.financial_costs_saved_usd, metrics?.financial_costs_incurred_usd, metrics?.co2_saved_kg]);
+
   const rl = aiActivity?.rl_engine;
   const actionBreakdown = aiActivity?.recent_action_breakdown ?? {};
   const explorationPct = rl ? Math.round((rl.epsilon ?? 1) * 100) : 100;
   const exploitationPct = 100 - explorationPct;
-  const formatINR = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val || 0);
-  const costsSaved = Number(metrics?.financial_costs_saved_usd ?? 0);
-  const costsIncurred = Number(metrics?.financial_costs_incurred_usd ?? 0);
+  const formatINR = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', notation: 'compact', maximumFractionDigits: 1 }).format(val || 0);
+  const costsSaved = Number(metrics?.financial_costs_saved_usd ?? 0) + offsetSavedRef.current;
+  const costsIncurred = Number(metrics?.financial_costs_incurred_usd ?? 0) + offsetIncurredRef.current;
   const baselineCost = costsSaved + costsIncurred;
   const estimatedBaseline = baselineCost > 0 ? baselineCost : costsSaved * 1.28;
-  const co2Saved = Number(metrics?.co2_saved_kg ?? 0);
+  const co2Saved = Number(metrics?.co2_saved_kg ?? 0) + offsetCo2Ref.current;
   const co2Baseline = co2Saved > 0 ? co2Saved * 1.35 : 0;
   const confidence = latestDecision?.confidence ?? (rl?.enabled ? 100 - Math.round((rl.epsilon ?? 0.08) * 100) : null);
 
