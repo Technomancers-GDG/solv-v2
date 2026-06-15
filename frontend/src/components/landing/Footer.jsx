@@ -35,7 +35,7 @@ export function Footer() {
           <div>
             <h4>Resources</h4>
             <ul className="lp-footer-links">
-              <li><a href="/client">Dashboard</a></li>
+              <li><a href="/dashboard">Dashboard</a></li>
               <li><a href="#docs">Documentation</a></li>
               <li><a href="#status">System Status</a></li>
             </ul>

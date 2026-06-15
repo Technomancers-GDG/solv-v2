@@ -55,7 +55,7 @@ export function LoginView({ t, onLogin, lang, onSwitchLang }) {
 
           <button
             className="google-btn"
-            style={{ background: "rgba(255,255,255,0.06)", color: "#e8e9ec", border: "1px solid rgba(255,255,255,0.12)" }}
+            style={{ background: "white", color: "var(--text-main)", border: "1px solid var(--border)" }}
             onClick={() => onLogin({ displayName: 'Demo User', email: 'demo@logisight.io' })}
           >
             Continue as Demo User

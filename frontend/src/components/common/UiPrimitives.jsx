@@ -1,7 +1,7 @@
 export function Panel({ title, children, className = "" }) {
   return (
-    <div className={`panel ${className}`}>
-      {title && <div className="panel-header"><h3>{title}</h3></div>}
+    <div className={`bento-card ${className}`} style={{ padding: '32px', marginBottom: '24px' }}>
+      {title && <div className="eyebrow" style={{marginBottom: "24px"}}>{title.toUpperCase()}</div>}
       <div className="panel-body">{children}</div>
     </div>
   );
@@ -9,19 +9,19 @@ export function Panel({ title, children, className = "" }) {
 
 export function MetricCard({ label, value, tone = "neutral", trend, context }) {
   return (
-    <div className={`metric-card tone-${tone}`}>
-      <div className="metric-label">{label}</div>
-      <div className="metric-value">{value}</div>
-      {context && <div className="metric-context">{context}</div>}
-      {trend !== undefined && <div className="metric-trend">{trend > 0 ? "\u2191" : "\u2193"} {Math.abs(trend).toFixed(1)}%</div>}
+    <div className={`bento-card metric-card tone-${tone}`} style={{ padding: '24px', flex: '1', display: 'flex', flexDirection: 'column' }}>
+      <div className="eyebrow" style={{marginBottom: "8px", color: tone === 'dark' ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)'}}>{label.toUpperCase()}</div>
+      <div style={{ fontSize: '2rem', fontWeight: '800', color: tone === 'green' ? 'var(--accent-lime-strong)' : tone === 'dark' ? 'white' : 'var(--text-main)' }}>{value}</div>
+      {context && <div className="metric-context" style={{color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '8px'}}>{context}</div>}
+      {trend !== undefined && <div className="metric-trend" style={{color: trend > 0 ? '#10b981' : '#ef4444', fontSize: '0.85rem', fontWeight: '800', marginTop: '8px'}}>{trend > 0 ? "\u2191" : "\u2193"} {Math.abs(trend).toFixed(1)}%</div>}
     </div>
   );
 }
 
 export function ProgressBar({ value, compact }) {
   return (
-    <div className={`progress-bar ${compact ? "compact" : ""}`}>
-      <div className="progress-fill" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    <div className={`progress-bar ${compact ? "compact" : ""}`} style={{ background: 'var(--bg-color)', borderRadius: '999px', height: compact ? '8px' : '12px', overflow: 'hidden' }}>
+      <div className="progress-fill" style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: 'var(--accent-lime-strong)', height: '100%', borderRadius: '999px' }} />
     </div>
   );
 }

@@ -36,73 +36,76 @@ export function AIExplainerView({ apiFetch, recommendations, dashboard, vehicles
   }, [aiActivity]);
 
   if (activeRecs.length === 0 && !aiActivity) {
-    return <div className="loading">Awaiting AI decisions to explain...</div>;
+    return <div className="loading" style={{textAlign: 'center', padding: '60px', color: 'var(--text-muted)'}}>Awaiting AI decisions to explain...</div>;
   }
 
   return (
     <section className="analytics-layout explainer-view">
       <div className="view-header" style={{ marginBottom: "2rem" }}>
-        <h2>Decision Explainability Engine</h2>
-        <p style={{ color: "#94a3b8" }}>Transparent breakdown of the factors influencing AI rerouting and dispatch decisions.</p>
+        <h2 style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>Decision Explainability Engine</h2>
+        <p style={{ color: "var(--text-muted)", fontSize: '1.1rem' }}>Transparent breakdown of the factors influencing AI rerouting and dispatch decisions.</p>
       </div>
 
-      {/* ── Section 4: AI Performance Summary ── */}
-      <div className="metrics-summary" style={{ marginBottom: "2rem" }}>
-        <div className="metric-card">
-          <span className="metric-label">AI Decisions Made</span>
-          <span className="metric-value">{totalDecisions}</span>
-          <span className="metric-unit">this session</span>
+      <div className="bento-row" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+        <div style={{ background: 'var(--dark-panel)', padding: '24px', borderRadius: '20px', color: 'white' }}>
+          <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px' }}>AI Decisions Made</div>
+          <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--accent-lime-strong)' }}>{totalDecisions}</div>
+          <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', marginTop: '8px' }}>this session</div>
         </div>
-        <div className="metric-card">
-          <span className="metric-label">Reroutes Executed</span>
-          <span className="metric-value">{metrics.reroute_count ?? aiActivity?.reroute_count ?? 0}</span>
-          <span className="metric-unit">AI-optimized trips</span>
+        <div style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px' }}>Reroutes Executed</div>
+          <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)' }}>{metrics.reroute_count ?? aiActivity?.reroute_count ?? 0}</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>AI-optimized trips</div>
         </div>
-        <div className="metric-card">
-          <span className="metric-label">CO₂ Saved</span>
-          <span className="metric-value">{metrics.co2_saved_kg ? `${Math.round(metrics.co2_saved_kg)} kg` : "—"}</span>
-          <span className="metric-unit">vs baseline routing</span>
+        <div style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px' }}>CO₂ Saved</div>
+          <div style={{ fontSize: '2rem', fontWeight: '800', color: '#10b981' }}>{metrics.co2_saved_kg ? `${Math.round(metrics.co2_saved_kg)} kg` : "—"}</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>vs baseline routing</div>
         </div>
-        <div className="metric-card">
-          <span className="metric-label">Stockouts Prevented</span>
-          <span className="metric-value">{metrics.stockouts_prevented ?? aiActivity?.stockouts_prevented ?? 0}</span>
-          <span className="metric-unit">facilities saved</span>
+        <div style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px' }}>Stockouts Prevented</div>
+          <div style={{ fontSize: '2rem', fontWeight: '800', color: '#f59e0b' }}>{metrics.stockouts_prevented ?? aiActivity?.stockouts_prevented ?? 0}</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>facilities saved</div>
         </div>
-        <div className="metric-card">
-          <span className="metric-label">Acceptance Rate</span>
-          <span className="metric-value">{correctRate != null ? `${correctRate}%` : "—"}</span>
-          <span className="metric-unit">driver / AI alignment</span>
+        <div style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px' }}>Acceptance Rate</div>
+          <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)' }}>{correctRate != null ? `${correctRate}%` : "—"}</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>driver / AI alignment</div>
         </div>
-        <div className="metric-card">
-          <span className="metric-label">On-Time Delivery</span>
-          <span className="metric-value">{metrics.on_time_delivery_pct != null ? `${metrics.on_time_delivery_pct}%` : "—"}</span>
-          <span className="metric-unit">SLA compliance</span>
+        <div style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px' }}>On-Time Delivery</div>
+          <div style={{ fontSize: '2rem', fontWeight: '800', color: '#3b82f6' }}>{metrics.on_time_delivery_pct != null ? `${metrics.on_time_delivery_pct}%` : "—"}</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>SLA compliance</div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1.5rem" }}>
-        <div className="rec-list" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxHeight: "calc(100vh - 200px)", overflowY: "auto", paddingRight: "0.5rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "24px" }}>
+        <div className="rec-list" style={{ display: "flex", flexDirection: "column", gap: "16px", maxHeight: "calc(100vh - 200px)", overflowY: "auto", paddingRight: "8px" }}>
           {activeRecs.length === 0 && (
-            <div className="panel" style={{ padding: "2rem", textAlign: "center", color: "#94a3b8" }}>
+            <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)", background: "white", borderRadius: "20px", boxShadow: "var(--shadow-sm)" }}>
               No recent recommendations — start the simulation to see AI decisions.
             </div>
           )}
           {activeRecs.map(rec => (
             <div 
               key={rec.id} 
-              className={`metric-card ${selectedRec?.id === rec.id ? 'active' : ''}`}
               style={{ 
                 cursor: "pointer", 
-                border: selectedRec?.id === rec.id ? "1px solid #3b82f6" : "1px solid #334155",
-                backgroundColor: selectedRec?.id === rec.id ? "rgba(59, 130, 246, 0.1)" : "var(--panel-bg)"
+                padding: "20px",
+                borderRadius: "16px",
+                transition: "all 0.2s",
+                boxShadow: "var(--shadow-sm)",
+                border: selectedRec?.id === rec.id ? "2px solid var(--accent-lime-strong)" : "none",
+                backgroundColor: selectedRec?.id === rec.id ? "var(--dark-panel)" : "white",
+                color: selectedRec?.id === rec.id ? "white" : "var(--text-main)"
               }}
               onClick={() => setSelectedRecId(rec.id)}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                <span style={{ fontWeight: 600, color: selectedRec?.id === rec.id ? "#2563eb" : "#e2e8f0" }}>{(rec.action || "").replace(/_/g, " ").toUpperCase()}</span>
-                <span style={{ color: "#475569", fontSize: "0.85rem" }}>{formatTimeOnly(rec.simulation_time)}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+                <span style={{ fontWeight: 800, fontSize: "1rem", color: selectedRec?.id === rec.id ? "var(--accent-lime-strong)" : "var(--text-main)" }}>{(rec.action || "").replace(/_/g, " ").toUpperCase()}</span>
+                <span style={{ color: selectedRec?.id === rec.id ? "rgba(255,255,255,0.7)" : "var(--text-muted)", fontSize: "0.85rem", fontWeight: "600" }}>{formatTimeOnly(rec.simulation_time)}</span>
               </div>
-              <div style={{ fontSize: "0.9rem", color: "#334155", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+              <div style={{ fontSize: "0.9rem", color: selectedRec?.id === rec.id ? "white" : "var(--text-muted)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: "1.5" }}>
                 {rec.explanation}
               </div>
             </div>
@@ -111,18 +114,20 @@ export function AIExplainerView({ apiFetch, recommendations, dashboard, vehicles
 
         <div className="rec-details">
           {selectedRec ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
               <Panel title={`Decision Detail: ${(selectedRec.action || "").replace(/_/g, " ").toUpperCase()}`}>
-                <div style={{ padding: "1rem" }}>
-                  <h4 style={{ color: "#94a3b8", marginBottom: "0.5rem", textTransform: "uppercase", fontSize: "0.8rem", letterSpacing: "1px" }}>Primary Explanation</h4>
-                  <p style={{ fontSize: "1.1rem", lineHeight: 1.6, color: "#0f172a", marginBottom: "1.5rem" }}>
-                    {selectedRec.explanation}
-                  </p>
+                <div>
+                  <div style={{ background: "var(--bg-color)", padding: "24px", borderRadius: "16px", marginBottom: "24px" }}>
+                    <h4 style={{ color: "var(--text-muted)", marginBottom: "12px", textTransform: "uppercase", fontSize: "0.75rem", fontWeight: "800", letterSpacing: "0.05em" }}>Primary Explanation</h4>
+                    <p style={{ fontSize: "1.1rem", lineHeight: 1.6, color: "var(--text-main)", margin: 0, fontWeight: "500" }}>
+                      {selectedRec.explanation}
+                    </p>
+                  </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "1.5rem" }}>
-                    <div style={{ backgroundColor: "#1e293b", padding: "1rem", borderRadius: "8px", borderLeft: "4px solid #3b82f6" }}>
-                      <h4 style={{ color: "#94a3b8", marginBottom: "0.75rem", fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "1px" }}>Key Insights</h4>
-                      <ul style={{ margin: 0, paddingLeft: "1.2rem", color: "#cbd5e1", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "24px" }}>
+                    <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "16px", borderLeft: "4px solid #3b82f6", boxShadow: "var(--shadow-sm)" }}>
+                      <h4 style={{ color: "var(--text-muted)", marginBottom: "12px", fontSize: "0.75rem", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.05em" }}>Key Insights</h4>
+                      <ul style={{ margin: 0, paddingLeft: "20px", color: "var(--text-main)", display: "flex", flexDirection: "column", gap: "8px", fontWeight: "500" }}>
                         {(selectedRec.structured_explanation?.insights || []).map((ins, i) => (
                           <li key={i}>{ins}</li>
                         ))}
@@ -132,9 +137,9 @@ export function AIExplainerView({ apiFetch, recommendations, dashboard, vehicles
                       </ul>
                     </div>
 
-                    <div style={{ backgroundColor: "#1e293b", padding: "1rem", borderRadius: "8px", borderLeft: "4px solid #10b981" }}>
-                      <h4 style={{ color: "#94a3b8", marginBottom: "0.75rem", fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "1px" }}>Predicted Impact</h4>
-                      <ul style={{ margin: 0, paddingLeft: "1.2rem", color: "#cbd5e1", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "16px", borderLeft: "4px solid #10b981", boxShadow: "var(--shadow-sm)" }}>
+                      <h4 style={{ color: "var(--text-muted)", marginBottom: "12px", fontSize: "0.75rem", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.05em" }}>Predicted Impact</h4>
+                      <ul style={{ margin: 0, paddingLeft: "20px", color: "var(--text-main)", display: "flex", flexDirection: "column", gap: "8px", fontWeight: "500" }}>
                         {(selectedRec.structured_explanation?.impact || []).map((imp, i) => (
                           <li key={i}>{imp}</li>
                         ))}
@@ -145,9 +150,9 @@ export function AIExplainerView({ apiFetch, recommendations, dashboard, vehicles
                     </div>
                   </div>
 
-                  <div style={{ backgroundColor: "rgba(239, 68, 68, 0.1)", padding: "1rem", borderRadius: "8px", borderLeft: "4px solid #ef4444" }}>
-                    <h4 style={{ color: "#fca5a5", marginBottom: "0.5rem", fontSize: "0.85rem", textTransform: "uppercase", letterSpacing: "1px" }}>Counterfactual (What if we didn't intervene?)</h4>
-                    <p style={{ color: "#7f1d1d", margin: 0 }}>
+                  <div style={{ backgroundColor: "#fef2f2", padding: "24px", borderRadius: "16px", borderLeft: "4px solid #ef4444" }}>
+                    <h4 style={{ color: "#ef4444", marginBottom: "8px", fontSize: "0.75rem", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.05em" }}>Counterfactual (What if we didn't intervene?)</h4>
+                    <p style={{ color: "#7f1d1d", margin: 0, fontWeight: "600" }}>
                       {selectedRec.counterfactual || "If baseline was followed -> Expected normal operations."}
                     </p>
                   </div>
@@ -155,51 +160,48 @@ export function AIExplainerView({ apiFetch, recommendations, dashboard, vehicles
               </Panel>
 
               <Panel title="Scoring Breakdown">
-                <div style={{ padding: "1rem" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
-                    {Object.entries(selectedRec.score_breakdown || {}).map(([key, value]) => (
-                      <div key={key} style={{ backgroundColor: "#1e293b", padding: "0.75rem", borderRadius: "6px" }}>
-                        <div style={{ color: "#94a3b8", fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.25rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={key.replace(/_/g, ' ')}>
-                          {key.replace(/_/g, ' ')}
-                        </div>
-                        <div style={{ color: "#f8fafc", fontSize: "1.1rem", fontWeight: 600 }}>{typeof value === 'number' && !Number.isNaN(value) ? value.toFixed(3) : value ?? "—"}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+                  {Object.entries(selectedRec.score_breakdown || {}).map(([key, value]) => (
+                    <div key={key} style={{ backgroundColor: "white", padding: "20px", borderRadius: "16px", boxShadow: "var(--shadow-sm)", minWidth: 0 }}>
+                      <div style={{ color: "var(--text-muted)", fontSize: "0.75rem", fontWeight: "800", textTransform: "uppercase", marginBottom: "8px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={key.replace(/_/g, ' ')}>
+                        {key.replace(/_/g, ' ')}
                       </div>
-                    ))}
-                    
-                    <div style={{ backgroundColor: "#1e293b", padding: "0.75rem", borderRadius: "6px", border: "1px dashed #3b82f6" }}>
-                        <div style={{ color: "#94a3b8", fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.25rem" }}>TOTAL SCORE</div>
-                        <div style={{ color: "#f8fafc", fontSize: "1.1rem", fontWeight: 600 }}>{(selectedRec.recommended_cost ?? 0).toFixed(2)}</div>
+                      <div style={{ color: "var(--text-main)", fontSize: "1.2rem", fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={String(value)}>{typeof value === 'number' && !Number.isNaN(value) ? value.toFixed(3) : value ?? "—"}</div>
                     </div>
+                  ))}
+                  
+                  <div style={{ backgroundColor: "var(--dark-panel)", color: "white", padding: "20px", borderRadius: "16px", boxShadow: "var(--shadow-sm)" }}>
+                      <div style={{ color: "var(--accent-lime-strong)", fontSize: "0.75rem", fontWeight: "800", textTransform: "uppercase", marginBottom: "8px" }}>TOTAL SCORE</div>
+                      <div style={{ color: "white", fontSize: "1.5rem", fontWeight: 800 }}>{(selectedRec.recommended_cost ?? 0).toFixed(2)}</div>
                   </div>
                 </div>
               </Panel>
             </div>
           ) : (
-            <div className="panel" style={{ padding: "3rem", textAlign: "center", color: "#94a3b8" }}>
+            <div style={{ padding: "60px", textAlign: "center", color: "var(--text-muted)", background: "white", borderRadius: "24px", boxShadow: "var(--shadow-sm)" }}>
               Select a decision to view explainability details.
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Section 3: Decision Outcome Tracker ── */}
       {activeRecs.length > 0 && (
-        <div style={{ marginTop: "2rem" }}>
+        <div style={{ marginTop: "24px" }}>
           <Panel title="Decision Outcome Tracker">
-            <div style={{ padding: "1rem" }}>
-              <p style={{ color: "#94a3b8", marginBottom: "1rem" }}>
+            <div>
+              <p style={{ color: "var(--text-muted)", marginBottom: "20px", fontWeight: "500" }}>
                 The last {Math.min(5, activeRecs.length)} AI decisions and their predicted vs actual outcomes.
               </p>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+              <div style={{ background: "white", borderRadius: "16px", padding: "24px", boxShadow: "var(--shadow-sm)" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
                   <thead>
-                    <tr style={{ borderBottom: "1px solid #334155" }}>
-                      <th style={{ padding: "0.5rem", textAlign: "left", color: "#94a3b8" }}>Time</th>
-                      <th style={{ padding: "0.5rem", textAlign: "left", color: "#94a3b8" }}>Action</th>
-                      <th style={{ padding: "0.5rem", textAlign: "left", color: "#94a3b8" }}>Baseline Cost</th>
-                      <th style={{ padding: "0.5rem", textAlign: "left", color: "#94a3b8" }}>AI Cost</th>
-                      <th style={{ padding: "0.5rem", textAlign: "left", color: "#94a3b8" }}>Savings</th>
-                      <th style={{ padding: "0.5rem", textAlign: "left", color: "#94a3b8" }}>Status</th>
+                    <tr style={{ borderBottom: "2px solid var(--border)", textAlign: "left" }}>
+                      <th style={{ padding: "0 0 16px 0", color: "var(--text-muted)", textTransform: "uppercase", fontSize: "0.75rem", fontWeight: "800", letterSpacing: "0.05em" }}>Time</th>
+                      <th style={{ padding: "0 0 16px 0", color: "var(--text-muted)", textTransform: "uppercase", fontSize: "0.75rem", fontWeight: "800", letterSpacing: "0.05em" }}>Action</th>
+                      <th style={{ padding: "0 0 16px 0", color: "var(--text-muted)", textTransform: "uppercase", fontSize: "0.75rem", fontWeight: "800", letterSpacing: "0.05em" }}>Baseline Cost</th>
+                      <th style={{ padding: "0 0 16px 0", color: "var(--text-muted)", textTransform: "uppercase", fontSize: "0.75rem", fontWeight: "800", letterSpacing: "0.05em" }}>AI Cost</th>
+                      <th style={{ padding: "0 0 16px 0", color: "var(--text-muted)", textTransform: "uppercase", fontSize: "0.75rem", fontWeight: "800", letterSpacing: "0.05em" }}>Savings</th>
+                      <th style={{ padding: "0 0 16px 0", color: "var(--text-muted)", textTransform: "uppercase", fontSize: "0.75rem", fontWeight: "800", letterSpacing: "0.05em" }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -207,23 +209,25 @@ export function AIExplainerView({ apiFetch, recommendations, dashboard, vehicles
                       const savings = (rec.baseline_cost || 0) - (rec.recommended_cost || 0);
                       const accepted = rec.status === "accepted";
                       return (
-                        <tr key={rec.id} style={{ borderBottom: "1px solid #1e293b" }}>
-                          <td style={{ padding: "0.5rem", color: "#cbd5e1" }}>{formatTimeOnly(rec.simulation_time)}</td>
-                          <td style={{ padding: "0.5rem", fontWeight: 600 }}>{(rec.action || "").replace(/_/g, " ")}</td>
-                          <td style={{ padding: "0.5rem", color: "#94a3b8" }}>₹{formatCompact(rec.baseline_cost || 0)}</td>
-                          <td style={{ padding: "0.5rem", color: "#94a3b8" }}>₹{formatCompact(rec.recommended_cost || 0)}</td>
-                          <td style={{ padding: "0.5rem", color: savings > 0 ? "#22c55e" : "#94a3b8", fontWeight: 600 }}>
-                            {savings > 0 ? `₹${formatCompact(savings)}` : "—"}
+                        <tr key={rec.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                          <td style={{ padding: "16px 0", color: "var(--text-muted)", fontWeight: "600" }}>{formatTimeOnly(rec.simulation_time)}</td>
+                          <td style={{ padding: "16px 0", fontWeight: 800, color: "var(--text-main)" }}>{(rec.action || "").replace(/_/g, " ").toUpperCase()}</td>
+                          <td style={{ padding: "16px 0", color: "var(--text-muted)", fontWeight: "600" }}>₹{formatCompact(rec.baseline_cost || 0)}</td>
+                          <td style={{ padding: "16px 0", color: "var(--text-muted)", fontWeight: "600" }}>₹{formatCompact(rec.recommended_cost || 0)}</td>
+                          <td style={{ padding: "16px 0", color: savings > 0 ? "#10b981" : "var(--text-muted)", fontWeight: 800 }}>
+                            {savings > 0 ? `+₹${formatCompact(savings)}` : "—"}
                           </td>
-                          <td style={{ padding: "0.5rem" }}>
+                          <td style={{ padding: "16px 0" }}>
                             <span style={{
                               display: "inline-block",
-                              padding: "2px 10px",
-                              borderRadius: "12px",
-                              fontSize: "0.75rem",
-                              fontWeight: 600,
-                              backgroundColor: accepted ? "rgba(34, 197, 94, 0.15)" : "rgba(148, 163, 184, 0.15)",
-                              color: accepted ? "#22c55e" : "#94a3b8",
+                              padding: "6px 12px",
+                              borderRadius: "999px",
+                              fontSize: "0.7rem",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                              fontWeight: 800,
+                              backgroundColor: accepted ? "#f0fdf4" : "var(--bg-color)",
+                              color: accepted ? "#16a34a" : "var(--text-muted)",
                             }}>
                               {accepted ? "✓ Accepted" : rec.status === "ignored" ? "✗ Ignored" : "Pending"}
                             </span>

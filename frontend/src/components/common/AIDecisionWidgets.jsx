@@ -44,19 +44,17 @@ export function AIDecisionPanel({ decision, confidence }) {
           <span className="decision-kicker-dot" />
           Latest AI Decision
         </span>
-        {resolvedConfidence > 0 && (
-          <span
-            className="ai-confidence-badge"
-            style={{
-              background: confidenceBg,
-              color: confidenceColor,
-              borderColor: confidenceBorder,
-            }}
-          >
-            <span className="confidence-pulse" style={{ background: confidenceColor }} />
-            AI Confidence: {resolvedConfidence}%
-          </span>
-        )}
+        <span
+          className="ai-confidence-badge"
+          style={{
+            background: confidenceBg,
+            color: confidenceColor,
+            borderColor: confidenceBorder,
+          }}
+        >
+          <span className="confidence-pulse" style={{ background: confidenceColor }} />
+          AI Confidence: {resolvedConfidence}%
+        </span>
       </div>
 
       <div className="decision-title">→ {emptyText(safeDecision.title)}</div>
