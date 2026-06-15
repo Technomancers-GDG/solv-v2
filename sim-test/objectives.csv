@@ -1,0 +1,7 @@
+name,commodity,origin_facility_name,destination_facility_name,dispatch_interval_minutes,sla_minutes,priority
+Mum-Del Medical,Medical Equipment,Acme Mumbai Hub,Acme Delhi DC,120,1440,1
+Del-Kol Relief,Relief Kits,Acme Delhi DC,Acme Kolkata Depot,150,1560,2
+Chn-Bgl Pharma,Pharmaceuticals,Acme Chennai Terminal,Acme Bangalore Site,90,1080,1
+Mum-Chn Food,Food Grains,Acme Mumbai Hub,Acme Chennai Terminal,180,1800,3
+Bgl-Pune Medicine,Emergency Medicines,Acme Bangalore Site,Acme Pune Center,100,1200,2
+Hyd-Bgl Supplies,Medical Supplies,Acme Hyderabad Node,Acme Bangalore Site,120,1440,1

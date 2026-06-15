@@ -1,0 +1,13 @@
+identifier,vehicle_type,payload_capacity_units,home_facility_name,average_speed_kmph
+ACME-01,truck,1000,Acme Mumbai Hub,48
+ACME-02,truck,950,Acme Mumbai Hub,45
+ACME-03,truck,1100,Acme Delhi DC,50
+ACME-04,truck,900,Acme Delhi DC,48
+ACME-05,truck,1050,Acme Chennai Terminal,52
+ACME-06,truck,980,Acme Chennai Terminal,47
+ACME-07,truck,1000,Acme Kolkata Depot,46
+ACME-08,truck,920,Acme Bangalore Site,50
+ACME-09,truck,870,Acme Pune Center,48
+ACME-10,truck,940,Acme Hyderabad Node,49
+ACME-11,truck,1020,Acme Mumbai Hub,44
+ACME-12,truck,960,Acme Delhi DC,51
