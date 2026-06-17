@@ -27,8 +27,15 @@ def _decode_unverified_firebase_token(token: str) -> Optional[dict]:
         payload += "=" * (-len(payload) % 4)
         decoded = base64.urlsafe_b64decode(payload.encode("utf-8"))
         claims = json.loads(decoded.decode("utf-8"))
-        return claims if isinstance(claims, dict) else None
-    except Exception:
+        if isinstance(claims, dict):
+            if "user_id" in claims and "uid" not in claims:
+                claims["uid"] = claims["user_id"]
+            if "sub" in claims and "uid" not in claims:
+                claims["uid"] = claims["sub"]
+            return claims
+        return None
+    except Exception as e:
+        logger.error(f"[DIAG] _decode_unverified_firebase_token error: {e}")
         return None
 
 
@@ -37,6 +44,18 @@ def _verify_firebase_token(request: Request) -> Optional[dict]:
     if not auth_header.startswith("Bearer "):
         return None
     token = auth_header.replace("Bearer ", "", 1)
+    
+    if settings.firebase_enabled:
+        try:
+            from main import _init_firebase
+            from firebase_admin import auth as firebase_auth
+            _init_firebase()
+            decoded = firebase_auth.verify_id_token(token, clock_skew_seconds=60)
+            return decoded
+        except Exception as e:
+            logger.error(f"[DIAG] Firebase verification failed: {e}")
+            return None
+    
     return _decode_unverified_firebase_token(token)
 
 
@@ -50,6 +69,14 @@ def resolve_firebase_uid(request: Request) -> Optional[str]:
 async def get_client_from_firebase(
     request: Request, session: Session = Depends(get_session)
 ) -> IntegrationClient:
+    from middleware.api_key_auth import verify_api_key
+    try:
+        # Allow the UI to authenticate using an API key (e.g. from 1-Click Signup)
+        client = verify_api_key(request, session)
+        return client
+    except HTTPException:
+        pass
+
     uid = resolve_firebase_uid(request)
     if uid is None:
         raise HTTPException(
@@ -103,11 +130,19 @@ def get_firebase_uid_optional(request: Request) -> Optional[str]:
 async def get_or_create_client(
     request: Request, session: Session = Depends(get_session)
 ) -> IntegrationClient:
+    from middleware.api_key_auth import verify_api_key
+    try:
+        # Allow the UI to authenticate using an API key (e.g. from 1-Click Signup)
+        client = verify_api_key(request, session)
+        return client
+    except HTTPException:
+        pass
+
     uid = resolve_firebase_uid(request)
     if uid is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Valid Firebase authentication required",
+            detail="Valid API Key or Firebase authentication required",
         )
     client = _find_or_link_client(session, uid, request)
     if client is not None:

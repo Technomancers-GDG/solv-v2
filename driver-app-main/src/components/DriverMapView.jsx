@@ -6,6 +6,18 @@ import { Panel, MetricCard } from "./common/UiPrimitives";
 
 const DEFAULT_CENTER = [22.5937, 78.9629];
 const DEFAULT_ZOOM = 6;
+const INDIA_LAT_MIN = 6.5;
+const INDIA_LAT_MAX = 37.0;
+const INDIA_LON_MIN = 68.0;
+const INDIA_LON_MAX = 97.5;
+
+function isInIndiaBounds(lat, lon) {
+  return (
+    Number.isFinite(lat) && Number.isFinite(lon) &&
+    lat >= INDIA_LAT_MIN && lat <= INDIA_LAT_MAX &&
+    lon >= INDIA_LON_MIN && lon <= INDIA_LON_MAX
+  );
+}
 
 function toNumber(value) {
   const parsed = Number(value);
@@ -153,7 +165,7 @@ export function DriverMapView({
   const facilityLookup = useMemo(() => {
     const map = {};
     facilities.forEach((f) => {
-      if (hasCoordinates(f)) map[f.id] = f;
+      if (hasCoordinates(f) && isInIndiaBounds(Number(f.latitude), Number(f.longitude))) map[f.id] = f;
     });
     return map;
   }, [facilities]);
@@ -243,7 +255,9 @@ export function DriverMapView({
 
     let routePoints;
     if (decodedRoutePoints.length >= 2) {
-      routePoints = goingToDest ? decodedRoutePoints : [...decodedRoutePoints].reverse();
+      const filtered = (goingToDest ? decodedRoutePoints : [...decodedRoutePoints].reverse())
+        .filter((p) => Array.isArray(p) && p.length === 2 && isInIndiaBounds(p[0], p[1]));
+      routePoints = filtered.length >= 2 ? filtered : [startPoint, endPoint];
     } else {
       routePoints = [startPoint, endPoint];
     }
@@ -252,6 +266,7 @@ export function DriverMapView({
       status === "in_transit"
         ? (pointAlongPath(routePoints, progress) ?? startPoint)
         : startPoint;
+    if (!markerPoint || !isInIndiaBounds(markerPoint[0], markerPoint[1])) return null;
 
     return {
       identifier: wsVehicle?.identifier ?? vehicle.identifier ?? `Truck ${vehicle.id}`,

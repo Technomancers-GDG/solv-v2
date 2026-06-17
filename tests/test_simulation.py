@@ -180,11 +180,13 @@ def test_weather_risk_thresholds_raise_eta_multiplier() -> None:
 
 
 def test_news_relevance_flags_route_impacting_story() -> None:
-    service = NewsRelevanceService()
-    prediction = service.predict(
-        "Road Blockages",
-        "Heavy vehicle strike blocks highway access to the Chennai logistics corridor.",
-    )
+    from unittest.mock import patch
+    with patch("services.news_relevance.analyze_news_with_gemini", return_value={"event_type": "labor_disruption", "severity": "high"}):
+        service = NewsRelevanceService()
+        prediction = service.predict(
+            "Road Blockages",
+            "Heavy vehicle strike blocks highway access to the Chennai logistics corridor.",
+        )
 
     assert prediction.relevant is True
     assert prediction.impact_type in {"road_blockage", "labor_disruption"}

@@ -9,39 +9,36 @@ const TEMPLATES = {
 
 const ORDER = ["facilities", "vehicles", "drivers", "objectives"];
 
-function apiFetch(token, path, options = {}) {
+function apiFetch(apiKey, firebaseToken, path, options = {}) {
   const { headers: optHeaders, ...rest } = options;
   const isGet = !options.method || options.method.toUpperCase() === "GET";
+  
+  const authHeaders = {};
+  if (apiKey) authHeaders["X-API-Key"] = apiKey;
+  if (firebaseToken) authHeaders["Authorization"] = `Bearer ${firebaseToken}`;
+
   return fetch(path, {
     headers: {
-      Authorization: `Bearer ${token}`,
       ...(isGet ? {} : { "Content-Type": "text/csv" }),
+      ...authHeaders,
       ...(optHeaders || {}),
     },
     ...rest,
   }).then(r => { if (!r.ok) throw new Error(r.status === 401 ? "Authentication failed" : "Upload failed"); return r.json(); });
 }
 
-function UploadTile({ category, config, onComplete, completed, user }) {
+function UploadTile({ category, config, onComplete, completed, apiKey, firebaseToken }) {
   const [csvText, setCsvText] = useState("");
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
-
-  const getToken = async () => {
-    if (!user) {
-      throw new Error("Sign in required");
-    }
-    return user.getIdToken(true);
-  };
 
   const handleImport = async () => {
     if (!csvText.trim()) return;
     setImporting(true);
     setError("");
     try {
-      const token = await getToken();
-      const resp = await apiFetch(token, config.endpoint, {
+      const resp = await apiFetch(apiKey, firebaseToken, config.endpoint, {
         method: "POST",
         body: csvText.trim(),
         headers: { "Content-Type": "text/csv" },
@@ -91,40 +88,32 @@ function UploadTile({ category, config, onComplete, completed, user }) {
   );
 }
 
-export default function OnboardingWizard({ user, onComplete }) {
+export default function OnboardingWizard({ apiKey, firebaseToken, onComplete }) {
   const [completed, setCompleted] = useState({});
   const [allDone, setAllDone] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const loadStatus = async () => {
-      if (!user) return;
+    async function loadStatus() {
+      if (!apiKey && !firebaseToken) return;
       try {
-        const token = await user.getIdToken(true);
-        const s = await apiFetch(token, "/api/v1/client/upload-status");
-        if (cancelled) return;
+        const s = await apiFetch(apiKey, firebaseToken, "/api/v1/client/upload-status");
         const c = {};
         if (s.facilities) c.facilities = true;
         if (s.vehicles) c.vehicles = true;
         if (s.drivers) c.drivers = true;
         if (s.objectives) c.objectives = true;
         setCompleted(c);
-        if (s.all_complete) setAllDone(true);
-      } catch {
-        if (!cancelled) {
-          setCompleted({});
-          setAllDone(false);
+        if (s.all_complete) {
+          setAllDone(true);
+          onComplete?.();
         }
+      } catch {
+        setCompleted({});
+        setAllDone(false);
       }
-    };
-
+    }
     loadStatus();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+  }, [apiKey, firebaseToken, onComplete]);
 
   const handleComplete = (category) => {
     setCompleted(c => {
@@ -143,7 +132,7 @@ export default function OnboardingWizard({ user, onComplete }) {
           <div className="logo-mark large" style={{ margin: "0 auto 12px", background: "#2563eb" }}>L</div>
           <h2 style={{ color: "#f4f7fb", margin: 0 }}>Set Up Your Fleet</h2>
           <p style={{ color: "#8b8d93", marginTop: 8 }}>
-            Welcome{user?.displayName ? `, ${user.displayName}` : ""}. Upload all 4 categories to activate your operations dashboard.
+            Upload all 4 categories to activate your operations dashboard.
           </p>
         </div>
 
@@ -160,7 +149,7 @@ export default function OnboardingWizard({ user, onComplete }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
           {ORDER.map(category => (
-            <UploadTile key={category} category={category} config={TEMPLATES[category]} onComplete={handleComplete} completed={!!completed[category]} user={user} />
+            <UploadTile key={category} category={category} config={TEMPLATES[category]} onComplete={handleComplete} completed={!!completed[category]} apiKey={apiKey} firebaseToken={firebaseToken} />
           ))}
         </div>
 
@@ -170,9 +159,7 @@ export default function OnboardingWizard({ user, onComplete }) {
               <span style={{ fontSize: 36 }}>&#127881;</span>
               <h3 style={{ color: "#6ee7b7", margin: "8px 0" }}>Your operations are now live!</h3>
               <button
-                onClick={() => {
-                  onComplete?.();
-                }}
+                onClick={() => onComplete?.()}
                 style={{ padding: "12px 24px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
                 Go to Dashboard
               </button>

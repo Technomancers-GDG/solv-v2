@@ -7,7 +7,7 @@ import {
   recommendationTime,
   buildDecisionFromRecommendation,
   buildActivityFeed,
-} from "../src/App";
+} from "../src/components/DashboardShell";
 
 describe("formatINRCompact", () => {
   it("formats lakhs", () => {

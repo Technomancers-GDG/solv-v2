@@ -226,6 +226,9 @@ function injectStyles() {
   font-size:1rem;font-weight:700;margin-bottom:4px;
   display:flex;align-items:center;gap:8px;
 }
+.rl-view > .rl-section-title {
+  color: var(--text, #111827);
+}
 
 /* ── empty / loading ── */
 .rl-empty{color:${C.muted};text-align:center;padding:32px;font-style:italic;}
@@ -281,6 +284,7 @@ export function RLTrainingView({ apiFetch }) {
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     injectStyles();
     return () => { mountedRef.current = false; };
   }, []);
@@ -300,7 +304,8 @@ export function RLTrainingView({ apiFetch }) {
       setStats(s);
       setHistory(Array.isArray(h) ? h : (h?.training_steps ?? []));
       setEpisodes(Array.isArray(ep) ? ep : (ep?.episodes ?? []));
-      setActionDist(Array.isArray(ad) ? ad : (ad?.actions ?? Object.entries(ad ?? {}).map(([name, count]) => ({ name, count }))));
+      const rawCounts = ad?.counts ?? ad?.actions ?? ad ?? {};
+      setActionDist(Array.isArray(rawCounts) ? rawCounts : Object.entries(rawCounts).map(([name, count]) => ({ name, count })));
       setQValues(qv);
       setError("");
     } catch (err) {

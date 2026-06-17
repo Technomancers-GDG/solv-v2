@@ -13,6 +13,16 @@ from models import Facility, RouteTemplate
 
 logger = logging.getLogger(__name__)
 
+INDIA_LAT_MIN, INDIA_LAT_MAX = 6.5, 37.0
+INDIA_LON_MIN, INDIA_LON_MAX = 68.0, 97.5
+
+
+def clamp_to_india(lat: float, lon: float) -> tuple[float, float]:
+    return (
+        max(INDIA_LAT_MIN, min(INDIA_LAT_MAX, lat)),
+        max(INDIA_LON_MIN, min(INDIA_LON_MAX, lon)),
+    )
+
 
 def encode_polyline(points: list[tuple[float, float]]) -> str:
     """Basic Google Polyline encoding for lat/lng pairs."""
@@ -33,6 +43,46 @@ def encode_polyline(points: list[tuple[float, float]]) -> str:
         res += encode_val(lng - last_lng)
         last_lat, last_lng = lat, lng
     return res
+
+
+def _decode_polyline(encoded: str, precision: int = 5) -> list[tuple[float, float]]:
+    """Decode a Google Polyline encoded string into lat/lng pairs."""
+    if not encoded:
+        return []
+    coordinates = []
+    index = 0
+    latitude = 0
+    longitude = 0
+    factor = 10 ** precision
+    while index < len(encoded):
+        result = 0
+        shift = 0
+        while True:
+            if index >= len(encoded):
+                return coordinates
+            byte = ord(encoded[index]) - 63
+            index += 1
+            result |= (byte & 0x1F) << shift
+            shift += 5
+            if byte < 0x20:
+                break
+        lat_change = ~(result >> 1) if (result & 1) else (result >> 1)
+        latitude += lat_change
+        result = 0
+        shift = 0
+        while True:
+            if index >= len(encoded):
+                return coordinates
+            byte = ord(encoded[index]) - 63
+            index += 1
+            result |= (byte & 0x1F) << shift
+            shift += 5
+            if byte < 0x20:
+                break
+        lon_change = ~(result >> 1) if (result & 1) else (result >> 1)
+        longitude += lon_change
+        coordinates.append((latitude / factor, longitude / factor))
+    return coordinates
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -105,6 +155,15 @@ class RoutePlanner:
                 # return (common case for round-trip objectives)
                 self.get_or_create_template(session, destination, origin)
 
+    def _sanitize_polyline(self, encoded: str) -> str:
+        if not encoded:
+            return encoded
+        points = _decode_polyline(encoded, 5)
+        if not points:
+            return encoded
+        clamped = [clamp_to_india(lat, lon) for lat, lon in points]
+        return encode_polyline(clamped)
+
     def _fetch_osrm_route(
         self, origin: Facility, destination: Facility
     ) -> dict[str, object] | None:
@@ -117,6 +176,9 @@ class RoutePlanner:
             "?overview=full&steps=true&geometries=polyline"
         )
         try:
+            import time
+            if "router.project-osrm.org" in self.osrm_base_url:
+                time.sleep(0.2)
             with httpx.Client(timeout=8.0) as client:
                 response = client.get(url)
             # Will raise HTTPStatusError for 4xx/5xx
@@ -140,7 +202,7 @@ class RoutePlanner:
             return {
                 "distance_km": round(route.get("distance", 0.0) / 1000, 2),
                 "duration_minutes": round(route.get("duration", 0.0) / 60, 2),
-                "encoded_polyline": route.get("geometry", ""),
+                "encoded_polyline": self._sanitize_polyline(route.get("geometry", "")),
                 "steps": steps,
                 "source": "osrm",
             }
@@ -168,39 +230,33 @@ class RoutePlanner:
         average_speed_kmph = 48.0
         duration_minutes = road_distance / average_speed_kmph * 60
         
-        # Generate a realistic multi-point polyline that looks like a road route
-        lat1, lon1 = origin.latitude, origin.longitude
-        lat2, lon2 = destination.latitude, destination.longitude
+        lat1, lon1 = clamp_to_india(origin.latitude, origin.longitude)
+        lat2, lon2 = clamp_to_india(destination.latitude, destination.longitude)
         
-        # Calculate direction vector
         d_lat = lat2 - lat1
         d_lon = lon2 - lon1
         
-        # Perpendicular offset for curves (makes route look like real roads)
-        perp_lat = d_lon * 0.08
-        perp_lon = -d_lat * 0.08
+        perp_lat = d_lon * 0.02
+        perp_lon = -d_lat * 0.02
         
-        # Build 20 interpolated points with realistic meandering
         points = [(lat1, lon1)]
         segments = 20
         for i in range(1, segments):
             t = i / segments
-            # Base linear interpolation
             base_lat = lat1 + d_lat * t
             base_lon = lon1 + d_lon * t
             
-            # Add curves using sine waves (different frequencies for organic feel)
-            curve_strength = 1.0 - abs(t - 0.5) * 2.0  # strongest in middle, zero at ends
+            curve_strength = 1.0 - abs(t - 0.5) * 2.0
             sine_offset = (
-                (t * 6.28 * 1.5) +  # Primary frequency
-                (t * 6.28 * 3.2 * 0.3) +  # Secondary
-                (t * 6.28 * 5.7 * 0.15)   # Tertiary
+                (t * 6.28 * 1.5) +
+                (t * 6.28 * 3.2 * 0.3) +
+                (t * 6.28 * 5.7 * 0.15)
             )
             
             lat_offset = perp_lat * curve_strength * (0.5 + 0.5 * sin(sine_offset))
             lon_offset = perp_lon * curve_strength * (0.5 + 0.5 * sin(sine_offset + 1.2))
             
-            points.append((base_lat + lat_offset, base_lon + lon_offset))
+            points.append(clamp_to_india(base_lat + lat_offset, base_lon + lon_offset))
         
         points.append((lat2, lon2))
         polyline = encode_polyline(points)

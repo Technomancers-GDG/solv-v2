@@ -28,6 +28,16 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/client/upload", tags=["Client Portal Upload"])
 
+INDIA_LAT_MIN, INDIA_LAT_MAX = 6.5, 37.0
+INDIA_LON_MIN, INDIA_LON_MAX = 68.0, 97.5
+
+
+def _validate_coordinates(lat: float, lng: float) -> bool:
+    return (
+        INDIA_LAT_MIN <= lat <= INDIA_LAT_MAX
+        and INDIA_LON_MIN <= lng <= INDIA_LON_MAX
+    )
+
 
 def _parse_csv(content: str) -> list[dict[str, str]]:
     reader = csv.DictReader(io.StringIO(content))
@@ -117,6 +127,9 @@ async def upload_facilities(
                 continue
             lat = float(row.get("latitude", 0))
             lng = float(row.get("longitude", 0))
+            if not _validate_coordinates(lat, lng):
+                errors.append({"row": i + 1, "field": "latitude/longitude", "message": f"Coordinates ({lat}, {lng}) must be within India bounds (lat {INDIA_LAT_MIN}-{INDIA_LAT_MAX}, lon {INDIA_LON_MIN}-{INDIA_LON_MAX})"})
+                continue
             cap = int(row.get("base_capacity_units", 10000))
 
             existing = session.scalar(

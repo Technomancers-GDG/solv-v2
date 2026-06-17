@@ -29,12 +29,11 @@ export function IncidentForm({ vehicle, onSubmit }) {
     event.preventDefault();
     if (!vehicle) return;
     await onSubmit({
-      driver_profile_id: vehicle.driver_profile_id,
-      vehicle_id: vehicle.id,
       city,
       incident_type: incidentType,
       severity: Number(severity),
       note,
+      vehicle_id: vehicle.id,
     });
     setNote("");
     setShowForm(false);

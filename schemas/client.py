@@ -61,6 +61,7 @@ class DashboardResponse(BaseModel):
     recent_decisions: list[dict[str, Any]]
     webhook_deliveries: list[dict[str, Any]]
     vehicles: list[dict[str, Any]] = Field(default_factory=list)
+    simulation: dict[str, Any] | None = None
 
 
 class UploadResult(BaseModel):

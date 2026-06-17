@@ -95,6 +95,12 @@ app.add_middleware(SlowAPIMiddleware)
 @app.exception_handler(Exception)
 async def cors_aware_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     origin = request.headers.get("origin", "")
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers={"Access-Control-Allow-Origin": origin or "*"},
+        )
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
@@ -164,17 +170,25 @@ async def _trigger_demo_disruption() -> None:
             return
         severity = min(0.99, max(0.0, settings.demo_disruption_severity))
         event_date = simulation_engine.simulation_time.date()
-        with SessionLocal() as session:
-            from models import NewsEvent
-            event = NewsEvent(
-                original_date=event_date, simulation_date=event_date, city=settings.demo_disruption_city,
-                category="Demo Disruption", headline=f"Automatic disruption: flood pressure in {settings.demo_disruption_city}",
-                relevant=True, impact_type="weather_disruption", impact_score=severity, model_probability=severity,
-            )
-            session.add(event)
-            session.commit()
-            session.refresh(event)
-            simulation_engine.update_news_event_map(event)
+        from models import NewsEvent
+        for attempt in range(3):
+            try:
+                with SessionLocal() as session:
+                    event = NewsEvent(
+                        original_date=event_date, simulation_date=event_date, city=settings.demo_disruption_city,
+                        category="Demo Disruption", headline=f"Automatic disruption: flood pressure in {settings.demo_disruption_city}",
+                        relevant=True, impact_type="weather_disruption", impact_score=severity, model_probability=severity,
+                    )
+                    session.add(event)
+                    session.commit()
+                    session.refresh(event)
+                    simulation_engine.update_news_event_map(event)
+                break
+            except Exception:
+                if attempt < 2:
+                    await asyncio.sleep(1)
+                else:
+                    raise
     except asyncio.CancelledError:
         raise
     except Exception as exc:
@@ -217,40 +231,73 @@ async def operations_socket(websocket: WebSocket) -> None:
 @app.websocket("/ws/client")
 async def client_socket(websocket: WebSocket) -> None:
     token = websocket.query_params.get("token")
-    if not token:
+    if not token or token == "undefined":
         logger.info("[DIAG] /ws/client: missing token, closing 4001")
         await websocket.close(code=4001, reason="Missing token")
         return
 
     logger.info("[DIAG] /ws/client: token received, verifying...")
-    try:
-        _init_firebase()
-        decoded = firebase_auth.verify_id_token(token, clock_skew_seconds=60)
-        firebase_uid = decoded.get("uid")
-        logger.info("[DIAG] /ws/client: token verified, firebase_uid=%s", firebase_uid)
-    except Exception as exc:
-        logger.warning("[DIAG] /ws/client: token verification failed: %s", exc)
-        await websocket.close(code=4001, reason="Invalid token")
-        return
+    client_id = None
 
     with SessionLocal() as session:
         from models import IntegrationClient
-        client = session.scalar(
-            select(IntegrationClient).where(IntegrationClient.firebase_uid == firebase_uid)
-        )
-        if client is None or not client.enabled:
-            logger.warning("[DIAG] /ws/client: client not found or disabled for uid=%s", firebase_uid)
-            await websocket.close(code=4003, reason="Client not found")
+
+        if token.startswith("regc_"):
+            from middleware.api_key_auth import _hash_api_key
+            import hmac
+            prefix = token[:8]
+            client = session.scalar(
+                select(IntegrationClient).where(
+                    IntegrationClient.api_key_prefix == prefix,
+                    IntegrationClient.enabled.is_(True),
+                )
+            )
+            if client is not None and hmac.compare_digest(client.api_key_hash, _hash_api_key(token)):
+                client_id = client.id
+                logger.info("[DIAG] /ws/client: API key verified, client_id=%s", client_id)
+        else:
+            from middleware.firebase_client import _decode_unverified_firebase_token as _decode_fb
+            if settings.firebase_enabled:
+                try:
+                    _init_firebase()
+                    decoded = firebase_auth.verify_id_token(token, clock_skew_seconds=60)
+                except Exception as exc:
+                    logger.warning("[DIAG] /ws/client: token verification failed: %s", exc)
+                    await websocket.close(code=4001, reason="Invalid token")
+                    return
+            else:
+                decoded = _decode_fb(token)
+                if decoded is None:
+                    logger.warning("[DIAG] /ws/client: mock token decode failed")
+                    await websocket.close(code=4001, reason="Invalid token")
+                    return
+            
+            firebase_uid = decoded.get("uid")
+            client = session.scalar(
+                select(IntegrationClient).where(IntegrationClient.firebase_uid == firebase_uid)
+            )
+            if client is not None and client.enabled:
+                client_id = client.id
+                logger.info("[DIAG] /ws/client: Firebase token verified, client_id=%s", client_id)
+
+        if client_id is None:
+            logger.warning("[DIAG] /ws/client: client not found or disabled")
+            await websocket.close(code=4003, reason="Unauthorized")
             return
-        client_id = client.id
         logger.info("[DIAG] /ws/client: client found, client_id=%s", client_id)
 
     channel = f"client_{client_id}"
     engine = simulation_manager.get_engine(client_id)
     if engine is None:
-        logger.warning("[DIAG] /ws/client: NO engine for client_id=%s, closing 4004", client_id)
-        await websocket.close(code=4004, reason="No active engine for client")
-        return
+        logger.info("[DIAG] /ws/client: no engine for client_id=%s, attempting lazy start", client_id)
+        with SessionLocal() as session:
+            try:
+                engine = await simulation_manager.start_client(client_id, session)
+            except Exception as exc:
+                logger.warning("[DIAG] /ws/client: lazy start failed for client_id=%s: %s", client_id, exc)
+        if engine is None:
+            await websocket.close(code=4004, reason="No active engine for client")
+            return
 
     logger.info("[DIAG] /ws/client: engine found for client_id=%s, status=%s, vehicles=%s",
                 client_id, engine.status, len(engine.live_vehicle_states))

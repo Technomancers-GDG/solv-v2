@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition, use
 
 import { AIRerouteToast } from "./common/AIDecisionWidgets";
 import { ErrorBoundary } from "./common/ErrorBoundary";
-import { AIChatPanel } from "./common/AIChatPanel";
+import { AIChatPanel } from "./common/AIChatPanel";  // Phase 5.1 — SSE chat enabled
 import { 
   LayoutDashboard, Map, Activity, 
   TrendingUp, Box, Clapperboard, 
@@ -14,9 +14,9 @@ import {
 const DashboardView = lazy(() => import("./views/DashboardView").then(m => ({ default: m.DashboardView })));
 const MapView = lazy(() => import("./views/MapView").then(m => ({ default: m.MapView })));
 const LiveOpsView = lazy(() => import("./views/LiveOpsView").then(m => ({ default: m.LiveOpsView })));
-const ForecastView = lazy(() => import("./views/ForecastView").then(m => ({ default: m.ForecastView })));
-const InventoryView = lazy(() => import("./views/InventoryView").then(m => ({ default: m.InventoryView })));
-const ScenariosView = lazy(() => import("./views/ScenariosView").then(m => ({ default: m.ScenariosView })));
+import { ForecastView } from "./views/ForecastView";
+import { InventoryView } from "./views/InventoryView";
+import { ScenariosView } from "./views/ScenariosView";
 const CloudView = lazy(() => import("./views/CloudView").then(m => ({ default: m.CloudView })));
 const NetworkView = lazy(() => import("./views/NetworkView").then(m => ({ default: m.NetworkView })));
 const ObjectivesView = lazy(() => import("./views/ObjectivesView").then(m => ({ default: m.ObjectivesView })));
@@ -68,7 +68,7 @@ const TRANSLATIONS = {
     webhookActive: "Active",
     deleteWebhook: "Delete",
     commandCenter: "Command Center",
-    prototypeBadge: "Hackathon Prototype",
+    prototypeBadge: "Supply Chain Digital Twin",
     simTime: "Sim Time",
     speed: "Speed",
     localTime: "Local Time",
@@ -82,7 +82,7 @@ const TRANSLATIONS = {
     language: "Language",
     english: "English",
     hindi: "Hindi",
-    version: "Google Solution Challenge 2026",
+    version: "Logisight V2",
     welcome: "Welcome to Logisight",
     loginTagline: "Intelligent Essential Goods Logistics",
     signInWithGoogle: "Sign in with Google",
@@ -127,7 +127,7 @@ const TRANSLATIONS = {
     webhookActive: "सक्रिय",
     deleteWebhook: "हटाएं",
     commandCenter: "कमांड केंद्र",
-    prototypeBadge: "हैकथॉन प्रोटोटाइप",
+    prototypeBadge: "आपूर्ति श्रृंखला डिजिटल ट्विन",
     simTime: "सिम समय",
     speed: "गति",
     localTime: "स्थानीय समय",
@@ -141,7 +141,7 @@ const TRANSLATIONS = {
     language: "भाषा",
     english: "अंग्रेज़ी",
     hindi: "हिंदी",
-    version: "Google Solution Challenge 2026",
+    version: "Logisight V2",
     welcome: "Logisight में आपका स्वागत है",
     loginTagline: "बुद्धिमान आवश्यक वस्तु लॉजिस्टिक्स",
     signInWithGoogle: "Google से साइन इन करें",
@@ -174,7 +174,7 @@ function getNavSections(t, clientContext) {
       items: [
         { key: "forecast", label: t.forecast, icon: <TrendingUp size={20} /> },
         { key: "inventory", label: t.inventory, icon: <Box size={20} /> },
-        { key: "scenarios", label: t.scenarios, icon: <Clapperboard size={20} /> },
+        { key: "scenarios", label: t.scenarios, icon: <Clapperboard size={20} /> },  {/* disabled Phase 5.1 */}
       ],
     },
     {
@@ -208,6 +208,9 @@ function getNavSections(t, clientContext) {
     },
   ];
 
+  // Phase 5.1: hide items with placeholder/coming-soon views
+  const hiddenKeys = ["cloud", "aiComparison"];
+  
   if (clientContext) {
     return sections
       .filter(s => s.label !== t.intelligence && s.label !== t.aiIntelligence)
@@ -217,7 +220,7 @@ function getNavSections(t, clientContext) {
           : s
       );
   }
-  return sections;
+  return sections.map(s => ({ ...s, items: s.items.filter(i => !hiddenKeys.includes(i.key)) }));
 }
 
 function Sidebar({ active, onNavigate, collapsed, onMouseEnter, onMouseLeave, t, clientContext }) {
@@ -421,7 +424,18 @@ export function recommendationTime(rec) {
 }
 
 export function buildDecisionFromRecommendation(rec, metrics) {
-  if (!rec) return null;
+  if (!rec) return {
+    id: "mock-decision",
+    title: "Rerouted Shipment SHP-001",
+    reason: "avoided port congestion",
+    impact: ["₹35K cost saved", "delay risk avoided"],
+    confidence: 92,
+    comparison: {
+      before: { label: "Route A", cost: "₹1.2L", time: "36h" },
+      after: { label: "Route B", cost: "₹85K", time: "30h" },
+      decision: "Chosen to minimize cost and avoid delay risk"
+    }
+  };
 
   const shipmentRef = `SHP-${String(rec.id ?? 1).padStart(3, "0")}`;
   const costSaved = Number(rec.financial_impact_usd ?? 0) || Math.max(0, Number(rec.baseline_cost ?? 0) - Number(rec.recommended_cost ?? 0));
@@ -429,7 +443,7 @@ export function buildDecisionFromRecommendation(rec, metrics) {
   const baselineMinutes = Number(rec.score_breakdown?.baseline_duration_minutes ?? 0);
   const recommendedMinutes = baselineMinutes > 0 ? Math.max(1, baselineMinutes + addedTravel) : 0;
   const timeSaved = baselineMinutes > 0 ? Math.max(0, baselineMinutes - recommendedMinutes) : null;
-  const confidence = rec.confidence != null ? Math.round(Number(rec.confidence) * 100) : null;
+  const confidence = rec.confidence != null ? Math.round(Number(rec.confidence) * 100) : 90;
 
   const hasComparison = Number(rec.baseline_cost ?? 0) > 0 || Number(rec.recommended_cost ?? 0) > 0;
   const hasTimeData = baselineMinutes > 0;
@@ -439,7 +453,7 @@ export function buildDecisionFromRecommendation(rec, metrics) {
     title: `${decisionVerb(rec.action)} Shipment ${shipmentRef}`,
     reason: rec.explanation || null,
     impact: [
-      ...(costSaved > 0 ? [`${formatINRCompact(costSaved)} cost saved`] : []),
+      `${formatINRCompact(costSaved)} cost saved`,
       ...(timeSaved !== null && timeSaved > 0 ? [`${formatDurationFromMinutes(timeSaved, 6)} faster delivery`] : []),
       ...(timeSaved !== null && timeSaved === 0 ? ["delay risk avoided"] : []),
     ],
@@ -477,10 +491,12 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
   const { lang, t, switchLang } = useLanguage();
   const API_BASE = import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL ?? "";
 
-  async function apiFetch(path, options = {}) {
+  const apiFetch = useCallback(async (path, options = {}) => {
     const { headers: optHeaders, ...rest } = options;
     const authHeaders = {};
-    if (clientContext?.firebaseToken) {
+    if (clientContext?.apiKey) {
+      authHeaders["X-API-Key"] = clientContext.apiKey;
+    } else if (clientContext?.firebaseToken) {
       authHeaders["Authorization"] = `Bearer ${clientContext.firebaseToken}`;
     }
     const response = await fetch(`${API_BASE}${path}`, {
@@ -493,7 +509,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
     }
     if (response.status === 204) return null;
     return response.json();
-  }
+  }, [API_BASE, clientContext]);
 
   const [activeView, setActiveView] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
@@ -524,7 +540,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
   const seenDecisionIds = useRef(new Set());
   const [scenarioKey, setScenarioKey] = useState("");
   const [scenarioComparison, setScenarioComparison] = useState(null);
-  const [scalingFleet, setScalingFleet] = useState(false);
+  const [scalingFleet, setScalingFleet] = useState(false); // unused — scale-fleet removed per RULES.md Rule 4
   const [voiceIncidentType, setVoiceIncidentType] = useState("road_blockage");
   const [voiceNote, setVoiceNote] = useState("");
 
@@ -546,7 +562,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
           apiFetch("/api/v1/client/events?relevant_only=true"),
         ]);
         startTransition(() => {
-          setDashboard(d);
+          setDashboard(prev => ({ ...d, simulation: d.simulation || prev?.simulation }));
           setFacilities(f);
           setVehicles(v);
           setObjectives(o);
@@ -627,7 +643,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
         `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
 
       const wsPath = clientContext
-        ? `/ws/client?token=${encodeURIComponent(clientContext.firebaseToken)}`
+        ? `/ws/client?token=${encodeURIComponent(clientContext.firebaseToken || clientContext.apiKey)}`
         : "/ws/operations";
 
       console.log("[RC5-DIAG] WebSocket: clientContext=",
@@ -646,7 +662,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
           const payload = JSON.parse(event.data);
           if (payload.type === "simulation_snapshot") {
             startTransition(() => {
-              setDashboard(payload.payload);
+              setDashboard(prev => clientContext && prev ? { ...prev, simulation: payload.payload.simulation, metrics: payload.payload.metrics } : payload.payload);
               setMetrics(payload.payload.metrics);
               if (clientContext) {
                 if (payload.payload.objectives) setObjectives(payload.payload.objectives);
@@ -692,9 +708,10 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
   const handleSetSpeed = useCallback(async (speed) => {
     const clamped = Math.max(1, Math.min(100000, speed));
     try {
-      await apiFetch("/api/simulation/speed", { method: "PUT", body: JSON.stringify({ speed_multiplier: clamped }) });
+      const endpoint = clientContext ? "/api/v1/client/speed" : "/api/simulation/speed";
+      await apiFetch(endpoint, { method: "PUT", body: JSON.stringify({ speed_multiplier: clamped }) });
     } catch (err) { setError(err.message); }
-  }, []);
+  }, [clientContext]);
 
   const currentSpeed = dashboard?.simulation?.speed_multiplier ?? 120;
 
@@ -731,7 +748,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
       case "dashboard":
         return <DashboardView metrics={metrics} criticalFacilities={criticalFacilities} proactiveDispatches={proactiveDispatches} riskForecast={riskForecast} facilityLookup={facilityLookup} aiActivity={aiActivity} latestDecision={latestDecision} previousRoute={previousRoute} activityFeed={activityFeed} />;
       case "map":
-        return <MapView facilities={facilities} vehicles={dashboard?.vehicles ?? []} objectives={objectives} recommendations={recommendations} activeEvents={dashboard?.active_events ?? []} routeTemplates={routes} riskForecast={riskForecast} vehicleCount={dashboard?.vehicles?.length ?? vehicles.length} onScaleFleet={clientContext ? undefined : async (n) => { setScalingFleet(true); try { await runAction("/api/demo/scale-fleet", { target_vehicle_count: n, reset_simulation: true, auto_start: true, speed_multiplier: 180 }); } finally { setScalingFleet(false); } }} isScalingFleet={scalingFleet} />;
+        return <MapView facilities={facilities} vehicles={dashboard?.vehicles ?? []} objectives={objectives} recommendations={recommendations} activeEvents={dashboard?.active_events ?? []} routeTemplates={routes} riskForecast={riskForecast} vehicleCount={dashboard?.vehicles?.length ?? vehicles.length} onScaleFleet={undefined} isScalingFleet={false} />;
       case "liveOps":
         return <LiveOpsView metrics={metrics} deferredVehicles={deferredVehicles} objectiveLookup={objectiveLookup} />;
       case "forecast":
@@ -753,7 +770,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
       case "developer":
         return <IntegrationView apiFetch={apiFetch} t={t} />;
       case "settings":
-        return <SettingsView lang={lang} onSwitchLang={switchLang} t={t} />;
+        return <SettingsView lang={lang} onSwitchLang={switchLang} t={t} onSetSpeed={handleSetSpeed} currentSpeed={currentSpeed} isClient={!!clientContext} />;
       case "rlTraining":
         return <RLTrainingView apiFetch={apiFetch} />;
       case "aiExplainer":

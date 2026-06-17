@@ -1,25 +1,18 @@
 import { Panel } from "../common/UiPrimitives";
 
-export function CloudView({ cloudHealth }) {
+export function CloudView() {
   return (
-    <div className="view-cloud">
-      <Panel title="Google Cloud Integration Health">
-        {cloudHealth ? (
-          <div className="cloud-grid">
-            {Object.entries(cloudHealth).filter(([k]) => k !== "overall").map(([service, info]) => (
-              <div className={`cloud-card ${info.enabled ? "enabled" : "disabled"}`} key={service}>
-                <strong>{service.replace("_", " ").toUpperCase()}</strong>
-                <span>{info.enabled ? "\u2713 Enabled" : "\u25CB Disabled"}</span>
-                {info.project && <div className="cloud-meta">Project: {info.project}</div>}
-                {info.region && <div className="cloud-meta">Region: {info.region}</div>}
-                {info.dataset && <div className="cloud-meta">Dataset: {info.dataset}</div>}
-              </div>
-            ))}
-            <div className={`cloud-overall ${cloudHealth.overall === "healthy" ? "healthy" : "stub"}`}>
-              Overall: {cloudHealth.overall}
-            </div>
-          </div>
-        ) : <div className="empty">Cloud health unavailable.</div>}
+    <div className="view-cloud" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
+      <Panel title="Google Cloud Integration">
+        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+          <h3 style={{ color: "#f8fafc", marginBottom: "1rem" }}>Coming Soon</h3>
+          <p style={{ marginBottom: "1rem" }}>
+            Google Cloud integration (Firebase, PubSub, Vertex AI, BigQuery) is planned for Phase 5.
+          </p>
+          <p style={{ fontSize: "0.85rem", color: "#64748b" }}>
+            The platform currently runs on PostgreSQL + Redis with optional Gemini/Groq for LLM enhancement.
+          </p>
+        </div>
       </Panel>
     </div>
   );

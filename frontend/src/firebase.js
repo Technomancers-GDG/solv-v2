@@ -1,50 +1,47 @@
-// Firebase is disabled in this project.
-// This is a mock implementation for the frontend to continue working without Firebase.
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from "firebase/auth";
 
-export const auth = {};
-export const googleProvider = {};
+const firebaseConfig = {
+  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY || "").trim(),
+  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "").trim(),
+  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID || "").trim(),
+  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "").trim(),
+  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "").trim(),
+  appId: (import.meta.env.VITE_FIREBASE_APP_ID || "").trim(),
+};
+
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
 
 export async function signInWithGoogle() {
-  console.log("Mock Google Sign-In triggered");
-  const mockUser = {
-    uid: "mock-uid-123",
-    email: "demo@example.com",
-    displayName: "Demo User",
-    photoURL: "https://ui-avatars.com/api/?name=Demo+User",
-    getIdToken: async () => {
-      // Create a mock JWT token. The backend _decode_unverified_firebase_token expects 
-      // header.payload.signature and decodes the payload from base64.
-      // Payload: {"uid":"mock-uid-123","email":"demo@example.com","name":"Demo User"}
-      return "mock.eyJ1aWQiOiJtb2NrLXVpZC0xMjMiLCJlbWFpbCI6ImRlbW9AZXhhbXBsZS5jb20iLCJuYW1lIjoiRGVtbyBVc2VyIn0=.mock";
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const idToken = await result.user.getIdToken();
+    return { user: result.user, idToken, mode: "popup" };
+  } catch (error) {
+    const message = String(error?.message || error || "");
+    const code = String(error?.code || "");
+    const shouldRedirect =
+      code === "auth/popup-blocked" ||
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/cancelled-popup-request" ||
+      /cross-origin-opener-policy|window\.closed/i.test(message);
+
+    if (shouldRedirect) {
+      await signInWithRedirect(auth, googleProvider);
+      return { mode: "redirect" };
     }
-  };
 
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  // Trigger auth state change listeners
-  authListeners.forEach(listener => listener(mockUser));
-
-  return { 
-    user: mockUser, 
-    idToken: await mockUser.getIdToken(), 
-    mode: "popup" 
-  };
+    console.error("Google Sign-In error:", error);
+    throw error;
+  }
 }
 
-const authListeners = [];
-
 export async function logout() {
-  console.log("Mock Logout triggered");
-  authListeners.forEach(listener => listener(null));
+  return signOut(auth);
 }
 
 export function onAuthChange(callback) {
-  authListeners.push(callback);
-  // Initially notify with null (not logged in) or you could simulate logged in
-  setTimeout(() => callback(null), 100);
-  return () => {
-    const idx = authListeners.indexOf(callback);
-    if (idx > -1) authListeners.splice(idx, 1);
-  };
+  return onAuthStateChanged(auth, callback);
 }

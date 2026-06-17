@@ -80,3 +80,52 @@ def onboarding_setup(request: Request, session: Session = Depends(get_session)):
     # The get_or_create_client in upload handles actual creation.
     # This endpoint just confirms the user is authenticated.
     return {"created": False, "ready": True}
+
+
+from pydantic import BaseModel
+import secrets
+import hashlib
+from middleware.api_key_auth import API_KEY_SALT
+
+class QuickRegisterRequest(BaseModel):
+    company_name: str
+    email: str
+
+@router.post("/quick-register")
+def quick_register(req: QuickRegisterRequest, session: Session = Depends(get_session)):
+    """1-Click signup for demo purposes. Generates an IntegrationClient instantly."""
+    api_key = f"regc_{secrets.token_hex(24)}"
+    api_key_hash = hashlib.sha256(f"{API_KEY_SALT}:{api_key}".encode()).hexdigest()
+    
+    client = IntegrationClient(
+        name=req.company_name,
+        company_name=req.company_name,
+        contact_email=req.email,
+        api_key_hash=api_key_hash,
+        api_key_prefix=api_key[:8],
+        rate_limit_per_minute=5000,
+        enabled=True,
+    )
+    session.add(client)
+    session.commit()
+    session.refresh(client)
+    
+    return {
+        "client_id": client.id,
+        "company_name": client.company_name,
+        "api_key": api_key,
+        "slug": client.company_name.lower().replace(" ", "-"),
+    }
+
+@router.post("/login/firebase")
+def login_firebase(
+    request: Request,
+    client: IntegrationClient = Depends(get_or_create_client),
+):
+    """Logs in using a Firebase token and returns client details."""
+    return {
+        "client_id": client.id,
+        "company_name": client.company_name,
+        "api_key": None,
+        "slug": client.company_name.lower().replace(" ", "-"),
+    }

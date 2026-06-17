@@ -3,29 +3,17 @@ from config import settings
 from database import SessionLocal, init_db
 import models
 from app_state import simulation_engine, simulation_manager
-from middleware.client_jwt import create_access_token, verify_access_token, get_current_client
 from schemas.client import ClientRegisterRequest, ClientLoginRequest, ClientAuthResponse, DashboardResponse, UploadResult
 from routes import (
     crud_router, simulation_router, driver_router, ai_router, logistics_router,
     rl_router, comparison_router, integration_router, management_router,
     client_auth_router, client_upload_router, client_dashboard_router,
 )
-from routes.client_auth import _hash_password, _verify_password
 from routes.client_upload import router as upload_r
 from routes.client_dashboard import router as dash_r
 from services.simulation_manager import simulation_manager as sm
 
-# Test JWT
-token = create_access_token(1, "test@example.com")
-payload = verify_access_token(token)
-assert payload["sub"] == "1"
-print("JWT works OK")
 
-# Test password hash
-pwh = _hash_password("mypassword")
-assert _verify_password("mypassword", pwh)
-assert not _verify_password("wrong", pwh)
-print("Password hash works OK")
 
 # Test router registration
 assert client_auth_router is not None

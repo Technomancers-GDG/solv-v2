@@ -83,9 +83,12 @@ def _compute_client_metrics(client_id: int, session: Session) -> dict:
     financial_costs_saved_usd = sum(
         max(0, r.financial_impact_usd or 0) for r in accepted_recs
     )
-    financial_costs_incurred_usd = sum(
+    from config import load_settings
+    settings = load_settings()
+    
+    financial_costs_incurred_usd = (sum(
         (r.recommended_cost or 0) for r in accepted_recs
-    ) + sum((r.baseline_cost or 0) for r in all_recs if r.status == "ignored")
+    ) + sum((r.baseline_cost or 0) for r in all_recs if r.status == "ignored")) * settings.cost_point_to_inr
 
     reroute_count = sum(
         1 for r in accepted_recs
@@ -233,6 +236,29 @@ def client_dashboard(
         )
     ) or 0
 
+    engine = simulation_manager.get_engine(cid)
+    sim_status = None
+    if engine:
+        sim_status = engine.snapshot_status().model_dump()
+    else:
+        sim_row = session.scalar(select(ClientSimulation).where(ClientSimulation.client_id == cid))
+        if sim_row:
+            sim_status = {
+                "status": sim_row.status,
+                "simulation_time": sim_row.simulation_time.isoformat() if sim_row.simulation_time else "",
+                "speed_multiplier": sim_row.speed_multiplier,
+                "queued_events": 0,
+                "error_message": None,
+            }
+        else:
+            sim_status = {
+                "status": "idle",
+                "simulation_time": "",
+                "speed_multiplier": 0.0,
+                "queued_events": 0,
+                "error_message": None,
+            }
+
     return DashboardResponse(
         client={
             "name": client.company_name or client.name,
@@ -267,6 +293,7 @@ def client_dashboard(
         recent_decisions=recent_decisions,
         webhook_deliveries=webhook_deliveries,
         vehicles=vehicle_views,
+        simulation=sim_status,
     )
 
 
@@ -405,6 +432,8 @@ def client_routes(
             "destination_facility_id": r.destination_facility_id,
             "distance_km": r.distance_km,
             "duration_minutes": r.duration_minutes,
+            "encoded_polyline": r.encoded_polyline,
+            "source": r.source,
         }
         for r in routes
     ]
@@ -520,8 +549,23 @@ def reset_workspace(
     except RuntimeError:
         pass
 
-    session.delete(client)
-    deleted += 1
-    session.commit()
+from pydantic import BaseModel
+class ClientSpeedChange(BaseModel):
+    speed_multiplier: float
 
-    return {"ok": True, "deleted": deleted}
+@router.put("/speed")
+async def set_client_simulation_speed(
+    payload: ClientSpeedChange,
+    client: IntegrationClient = Depends(get_client_from_firebase),
+):
+    """Update the simulation speed multiplier for the client's live engine."""
+    engine = simulation_manager.get_engine(client.id)
+    if not engine:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Simulation engine not running for this client."
+        )
+    
+    # engine.set_speed returns a SimulationStatus, but we can just return ok
+    await engine.set_speed(payload.speed_multiplier)
+    return {"ok": True, "speed_multiplier": payload.speed_multiplier}

@@ -1,87 +1,104 @@
+import { useState, useEffect } from "react";
 import { Panel } from "../common/UiPrimitives";
 
-export function ScenariosView({ scenarios = [], scenarioKey, setScenarioKey, scenarioComparison, setScenarioComparison, runAction, apiFetch }) {
-  const selected = scenarios.find((s) => s.scenario_key === scenarioKey);
+const API_BASE = import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL ?? "";
+
+export function ScenariosView({ scenarios = [], apiFetch }) {
+  const [selected, setSelected] = useState(null);
+  const [running, setRunning] = useState(false);
+
+  async function runScenario(id) {
+    setRunning(true);
+    try {
+      const data = await apiFetch("/api/scenarios/" + id + "/trigger", { method: "POST" });
+      setSelected(data);
+    } catch {}
+    setRunning(false);
+  }
+
   return (
     <div className="view-scenarios" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1rem" }}>
-      <Panel title="Scenario Replay">
-        <select value={scenarioKey} onChange={(e) => setScenarioKey(e.target.value)} className="scenario-select" style={{ width: "100%", padding: "0.5rem", marginBottom: "1rem" }}>
-          <option value="">Select scenario...</option>
-          {scenarios.map((s) => <option key={s.scenario_key} value={s.scenario_key}>{s.name}</option>)}
-        </select>
-        {selected && (
-          <div className="scenario-detail" style={{ background: "#1e293b", padding: "1rem", borderRadius: "8px" }}>
-            <h4 style={{ margin: "0 0 0.5rem 0", color: "#f8fafc" }}>{selected.name}</h4>
-            <p style={{ color: "#94a3b8", fontSize: "0.9rem", marginBottom: "1rem" }}>{selected.description}</p>
-            <div className="scenario-meta" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
-              <span style={{ background: "#334155", padding: "2px 8px", borderRadius: "4px", fontSize: "0.8rem" }}>🏙️ {selected.event_city}</span>
-              <span style={{ background: "#334155", padding: "2px 8px", borderRadius: "4px", fontSize: "0.8rem" }}>⚠️ Severity: {(selected.severity ?? 0).toFixed(2)}</span>
-              <span style={{ background: "#334155", padding: "2px 8px", borderRadius: "4px", fontSize: "0.8rem" }}>⏱️ ETA x{(selected.eta_multiplier ?? 1).toFixed(2)}</span>
-            </div>
-            <div className="scenario-actions" style={{ display: "flex", gap: "0.5rem" }}>
-              <button onClick={() => runAction(`/api/scenarios/${selected.scenario_key}/trigger`, {}, "Triggered")} style={{ flex: 1, padding: "0.5rem", background: "#3b82f6", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>Trigger in Live Ops</button>
-              <button onClick={async () => { const c = await apiFetch(`/api/scenarios/${selected.scenario_key}/compare`); setScenarioComparison(c); }} style={{ flex: 2, padding: "0.5rem", background: "#10b981", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>Run A/B Comparison</button>
-            </div>
+      <Panel title="What-If Scenarios">
+        {scenarios.length === 0 ? (
+          <div className="empty" style={{ textAlign: "center", padding: "2rem", color: "#64748b" }}>
+            No scenarios defined.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {scenarios.map((s) => (
+              <div key={s.id} style={{ background: "#1e293b", padding: "1rem", borderRadius: "8px", cursor: "pointer" }}
+                   onClick={() => setSelected(s)}>
+                <div style={{ fontWeight: 600, color: "#f8fafc", marginBottom: "0.25rem" }}>{s.name}</div>
+                <div style={{ fontSize: "0.85rem", color: "#94a3b8", marginBottom: "0.5rem" }}>{s.description}</div>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <span style={{ background: "#334155", padding: "2px 8px", borderRadius: "4px", fontSize: "0.8rem", color: "#94a3b8" }}>{s.scenario_type}</span>
+                  {s.last_run_at && <span style={{ background: "#065f46", padding: "2px 8px", borderRadius: "4px", fontSize: "0.8rem", color: "#6ee7b7" }}>Last run: {new Date(s.last_run_at).toLocaleTimeString()}</span>}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </Panel>
-      <Panel title="A/B Analysis: Baseline vs AI">
-        {!scenarioComparison ? <div className="empty" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>Run comparison to view results.</div> : (
-          <div className="comparison-result">
-            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "1.5rem" }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid #334155", textAlign: "left" }}>
-                  <th scope="col" style={{ padding: "0.5rem" }}>Metric</th>
-                  <th scope="col" style={{ padding: "0.5rem" }}>Baseline (No AI)</th>
-                  <th scope="col" style={{ padding: "0.5rem" }}>AI Optimized</th>
-                  <th scope="col" style={{ padding: "0.5rem" }}>Delta</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={{ borderBottom: "1px dashed #1e293b" }}>
-                  <td style={{ padding: "0.5rem" }}>On-Time Delivery %</td>
-                  <td style={{ padding: "0.5rem" }}>{(scenarioComparison.baseline?.on_time_delivery_pct ?? 0).toFixed(1)}%</td>
-                  <td style={{ padding: "0.5rem", color: "#10b981", fontWeight: "bold" }}>{(scenarioComparison.ai?.on_time_delivery_pct ?? 0).toFixed(1)}%</td>
-                  <td style={{ padding: "0.5rem" }}>+{(scenarioComparison.improvement_summary?.on_time_delta_pct ?? 0).toFixed(1)}%</td>
-                </tr>
-                <tr style={{ borderBottom: "1px dashed #1e293b" }}>
-                  <td style={{ padding: "0.5rem" }}>Average Delay</td>
-                  <td style={{ padding: "0.5rem" }}>{(scenarioComparison.baseline?.average_delay_minutes ?? 0).toFixed(1)} min</td>
-                  <td style={{ padding: "0.5rem" }}>{(scenarioComparison.ai?.average_delay_minutes ?? 0).toFixed(1)} min</td>
-                  <td style={{ padding: "0.5rem", color: "#10b981" }}>-{(scenarioComparison.improvement_summary?.delay_reduction_minutes ?? 0).toFixed(1)} min</td>
-                </tr>
-                <tr style={{ borderBottom: "1px dashed #1e293b" }}>
-                  <td style={{ padding: "0.5rem" }}>Stockouts Prevented</td>
-                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.baseline?.stockouts_prevented ?? 0}</td>
-                  <td style={{ padding: "0.5rem", color: "#f59e0b", fontWeight: "bold" }}>{scenarioComparison.ai?.stockouts_prevented ?? 0}</td>
-                  <td style={{ padding: "0.5rem" }}>+{scenarioComparison.improvement_summary?.stockout_delta ?? 0}</td>
-                </tr>
-                <tr style={{ borderBottom: "1px dashed #1e293b" }}>
-                  <td style={{ padding: "0.5rem" }}>Overflow Events</td>
-                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.baseline?.overflow_events ?? 0}</td>
-                  <td style={{ padding: "0.5rem" }}>{scenarioComparison.ai?.overflow_events ?? 0}</td>
-                  <td style={{ padding: "0.5rem", color: "#10b981" }}>-{scenarioComparison.improvement_summary?.overflow_reduction ?? 0}</td>
-                </tr>
-              </tbody>
-            </table>
-            
-            <div style={{ display: "flex", gap: "1rem", background: "#0f172a", padding: "1rem", borderRadius: "8px" }}>
-              <div style={{ flex: 1, textAlign: "center" }}>
-                <div style={{ color: "#94a3b8", fontSize: "0.8rem", textTransform: "uppercase" }}>CO2 Emissions Saved</div>
-                <div style={{ color: "#10b981", fontSize: "1.5rem", fontWeight: "bold" }}>{(scenarioComparison.ai?.co2_saved_kg ?? 0).toFixed(1)} kg</div>
+
+      <Panel title="Comparison Results">
+        {!selected ? (
+          <div className="empty" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>
+            Select a scenario to view details.
+          </div>
+        ) : (
+          <div>
+            <h3 style={{ color: "#f8fafc", margin: "0 0 0.5rem 0" }}>{selected.name}</h3>
+            <p style={{ color: "#94a3b8", marginBottom: "1rem" }}>{selected.description}</p>
+
+            {selected.baseline_metrics ? (
+              <div>
+                <h4 style={{ color: "#94a3b8", margin: "0 0 0.5rem 0" }}>Baseline Metrics</h4>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem", marginBottom: "1rem" }}>
+                  <MetricCard label="On-Time %" value={selected.baseline_metrics.on_time_delivery_pct?.toFixed(1) + "%"} />
+                  <MetricCard label="Active Shipments" value={selected.baseline_metrics.active_shipments} />
+                  <MetricCard label="CO2 Saved" value={selected.baseline_metrics.co2_saved_kg?.toFixed(0) + " kg"} />
+                </div>
               </div>
-              <div style={{ flex: 1, textAlign: "center", borderLeft: "1px solid #334155" }}>
-                <div style={{ color: "#94a3b8", fontSize: "0.8rem", textTransform: "uppercase" }}>Idle Time Prevented</div>
-                <div style={{ color: "#3b82f6", fontSize: "1.5rem", fontWeight: "bold" }}>{(scenarioComparison.ai?.idle_minutes_prevented ?? 0).toFixed(1)} min</div>
+            ) : (
+              <div className="empty" style={{ padding: "1rem", color: "#64748b", background: "#0f172a", borderRadius: "8px", marginBottom: "1rem" }}>
+                Scenario not yet executed. Click "Run" to apply.
               </div>
-              <div style={{ flex: 1, textAlign: "center", borderLeft: "1px solid #334155" }}>
-                <div style={{ color: "#94a3b8", fontSize: "0.8rem", textTransform: "uppercase" }}>Total Reroutes</div>
-                <div style={{ color: "#f59e0b", fontSize: "1.5rem", fontWeight: "bold" }}>{scenarioComparison.ai?.reroute_count ?? 0}</div>
+            )}
+
+            <button
+              onClick={() => runScenario(selected.id)}
+              disabled={running}
+              style={{
+                padding: "0.5rem 1.5rem",
+                background: running ? "#475569" : "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: running ? "not-allowed" : "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {running ? "Running..." : "Run Scenario"}
+            </button>
+
+            {selected.scenario_metrics && (
+              <div style={{ marginTop: "1rem", padding: "1rem", background: "#0f172a", borderRadius: "8px" }}>
+                <div style={{ color: "#6ee7b7", fontSize: "0.85rem" }}>Scenario applied: {selected.scenario_metrics.note}</div>
+                <div style={{ color: "#94a3b8", fontSize: "0.8rem", marginTop: "0.25rem" }}>City: {selected.scenario_metrics.city} | Severity: {selected.scenario_metrics.severity}</div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </Panel>
+    </div>
+  );
+}
+
+function MetricCard({ label, value }) {
+  return (
+    <div style={{ background: "#1e293b", padding: "0.75rem", borderRadius: "6px", textAlign: "center" }}>
+      <div style={{ fontSize: "0.75rem", color: "#64748b", textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#f8fafc" }}>{value ?? "-"}</div>
     </div>
   );
 }

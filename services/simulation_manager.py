@@ -99,9 +99,14 @@ class SimulationManager:
                     logger.error("Error saving engine state: %s", exc)
 
     async def start_all(self, session: Session) -> None:
-        """Restore all previously running engines on server boot."""
+        """Restore all previously running engines on server boot.
+
+        Restores engines with status 'running', 'paused', or 'error'.
+        'error' engines are retried since the crash may have been caused by
+        a transient issue (e.g. database lock) that has since been resolved.
+        """
         rows = session.scalars(
-            select(ClientSimulation).where(ClientSimulation.status.in_(["running", "paused"]))
+            select(ClientSimulation).where(ClientSimulation.status.in_(["running", "paused", "error"]))
         ).all()
 
         logger.info("[DIAG] start_all: found %s engine(s) to restore: %s",

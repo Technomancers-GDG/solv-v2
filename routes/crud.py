@@ -53,7 +53,9 @@ def apply_updates(instance, updates: dict):
 # --- Facilities ---
 @crud_router.get("/api/facilities", response_model=list[FacilityRead])
 def list_facilities(session: Session = Depends(get_session)) -> list[Facility]:
-    return session.scalars(select(Facility).order_by(Facility.name)).all()
+    return session.scalars(
+        select(Facility).where(Facility.client_id.is_(None)).order_by(Facility.name)
+    ).all()
 
 
 @crud_router.post("/api/facilities", response_model=FacilityRead)
@@ -94,7 +96,9 @@ def create_port_link(payload: PortLinkCreate, session: Session = Depends(get_ses
 # --- Drivers ---
 @crud_router.get("/api/drivers", response_model=list[DriverProfileRead])
 def list_drivers(session: Session = Depends(get_session)) -> list[DriverProfile]:
-    return session.scalars(select(DriverProfile).order_by(DriverProfile.name)).all()
+    return session.scalars(
+        select(DriverProfile).where(DriverProfile.client_id.is_(None)).order_by(DriverProfile.name)
+    ).all()
 
 
 @crud_router.post("/api/drivers", response_model=DriverProfileRead)
@@ -109,7 +113,9 @@ def create_driver(payload: DriverProfileCreate, session: Session = Depends(get_s
 # --- Vehicles ---
 @crud_router.get("/api/vehicles", response_model=list[VehicleRead])
 def list_vehicles(session: Session = Depends(get_session)) -> list[Vehicle]:
-    return session.scalars(select(Vehicle).order_by(Vehicle.identifier)).all()
+    return session.scalars(
+        select(Vehicle).where(Vehicle.client_id.is_(None)).order_by(Vehicle.identifier)
+    ).all()
 
 
 @crud_router.post("/api/vehicles", response_model=VehicleRead)
@@ -143,7 +149,9 @@ def update_vehicle(vehicle_id: int, payload: VehicleUpdate, session: Session = D
 # --- Objectives ---
 @crud_router.get("/api/objectives", response_model=list[ObjectiveRead])
 def list_objectives(session: Session = Depends(get_session)) -> list[Objective]:
-    return session.scalars(select(Objective).order_by(Objective.priority.desc(), Objective.name)).all()
+    return session.scalars(
+        select(Objective).where(Objective.client_id.is_(None)).order_by(Objective.priority.desc(), Objective.name)
+    ).all()
 
 
 @crud_router.post("/api/objectives", response_model=ObjectiveRead)
@@ -169,7 +177,17 @@ def update_objective(objective_id: int, payload: ObjectiveUpdate, session: Sessi
 # --- Routes ---
 @crud_router.get("/api/routes", response_model=list[RouteTemplateRead])
 def list_routes(session: Session = Depends(get_session)) -> list[RouteTemplate]:
-    return session.scalars(select(RouteTemplate).order_by(RouteTemplate.refreshed_at.desc())).all()
+    demo_facility_ids = session.scalars(
+        select(Facility.id).where(Facility.client_id.is_(None))
+    ).all()
+    if not demo_facility_ids:
+        return []
+    return session.scalars(
+        select(RouteTemplate).where(
+            RouteTemplate.origin_facility_id.in_(demo_facility_ids),
+            RouteTemplate.destination_facility_id.in_(demo_facility_ids),
+        ).order_by(RouteTemplate.refreshed_at.desc())
+    ).all()
 
 
 # --- Events ---

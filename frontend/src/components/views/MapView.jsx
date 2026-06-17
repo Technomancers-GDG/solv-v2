@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { MapContainer, Marker, Polyline, Popup, TileLayer, Circle, useMapEvents } from "react-leaflet";
+import { MapContainer, Marker, Polyline, Popup, TileLayer, Circle, useMapEvents, useMap } from "react-leaflet";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
@@ -11,8 +11,20 @@ const INDIA_BOUNDS = [
   [6.5, 68.0],
   [37.0, 97.5],
 ];
+const INDIA_LAT_MIN = 6.5;
+const INDIA_LAT_MAX = 37.0;
+const INDIA_LON_MIN = 68.0;
+const INDIA_LON_MAX = 97.5;
 const VEHICLE_SPREAD_DEGREES = 0.04;
 const MARKER_GROUP_PRECISION = 3;
+
+function isInIndiaBounds(lat, lon) {
+  return (
+    Number.isFinite(lat) && Number.isFinite(lon) &&
+    lat >= INDIA_LAT_MIN && lat <= INDIA_LAT_MAX &&
+    lon >= INDIA_LON_MIN && lon <= INDIA_LON_MAX
+  );
+}
 
 function toNumber(value) {
   const parsed = Number(value);
@@ -138,6 +150,19 @@ function createFacilityIcon(facilityType) {
   });
 }
 
+function MapResizeObserver() {
+  const map = useMap();
+  React.useEffect(() => {
+    if (!map) return;
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
+  return null;
+}
+
 const __vehicleIconCache = {};
 function getVehicleIcon(status, identifier, selected = false) {
   const key = `${status}-${identifier}-${selected}`;
@@ -226,7 +251,9 @@ export function MapView({
 
   const facilityLookup = useMemo(() => {
     const lookup = {};
-    facilities.forEach((f) => { if (hasCoordinates(f)) lookup[f.id] = f; });
+    facilities.forEach((f) => {
+      if (hasCoordinates(f) && isInIndiaBounds(Number(f.latitude), Number(f.longitude))) lookup[f.id] = f;
+    });
     return lookup;
   }, [facilities]);
 
@@ -291,8 +318,12 @@ export function MapView({
       const routeKey = startFacility && endFacility ? `${startFacility.id}:${endFacility.id}` : null;
       const routeTemplate = routeKey ? routeTemplateLookup[routeKey] : null;
       const decodedRoutePoints = routeTemplate?.decodedRoutePoints || [];
-      const routePoints = decodedRoutePoints.length >= 2 ? decodedRoutePoints : [startPoint, endPoint];
-      const markerPoint = status === "in_transit" ? (pointAlongPath(routePoints, progress) ?? startPoint) : startPoint;
+      const rawRoutePoints = decodedRoutePoints.length >= 2 ? decodedRoutePoints : [startPoint, endPoint];
+      const routePoints = rawRoutePoints.filter((p) => Array.isArray(p) && p.length === 2 && isInIndiaBounds(p[0], p[1]));
+      const safeRoutePoints = routePoints.length >= 2 ? routePoints : [startPoint, endPoint].filter((p) => isInIndiaBounds(p[0], p[1]));
+      if (safeRoutePoints.length < 2) return;
+      const markerPoint = status === "in_transit" ? (pointAlongPath(safeRoutePoints, progress) ?? startPoint) : startPoint;
+      if (!isInIndiaBounds(markerPoint[0], markerPoint[1])) return;
       const recommendation = recommendations.find((r) => Number(r.vehicle_id) === vehicleId && String(r.action || "").startsWith("reroute"));
       const startRisk = riskByCity[String(startFacility?.city || "").trim().toLowerCase()] ?? 0;
       const endRisk = riskByCity[String(endFacility?.city || "").trim().toLowerCase()] ?? 0;
@@ -307,7 +338,7 @@ export function MapView({
         progress,
         payloadUnits,
         currentPoint: markerPoint,
-        routePoints,
+        routePoints: safeRoutePoints,
         routeSource: routeTemplate?.source || "derived",
         recommendationAction: vehicle.recommendation_action || recommendation?.action || null,
         routeRisk,
@@ -401,6 +432,7 @@ export function MapView({
 
         <div className="map-container">
           <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} scrollWheelZoom maxBounds={INDIA_BOUNDS} maxBoundsViscosity={1.0} minZoom={5} maxZoom={12} worldCopyJump={false}>
+            <MapResizeObserver />
             <MapClickHandler onMapClick={() => { setFilterVehicleId(""); setHighlightedVehicleId(""); }} />
             <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {selectedRoutePath ? (
@@ -436,13 +468,13 @@ export function MapView({
 
             {/* Active Disruption Circles */}
             {showDisruptions && disruptionEvents.map((event, i) => {
-              const facility = facilities.find((f) => String(f.city).trim().toLowerCase() === String(event.city).trim().toLowerCase() && hasCoordinates(f));
+              const facility = facilities.find((f) => String(f.city).trim().toLowerCase() === String(event.city).trim().toLowerCase() && hasCoordinates(f) && isInIndiaBounds(Number(f.latitude), Number(f.longitude)));
               if (!facility) return null;
               
               const cascadeMatch = event.headline?.match(/Cascade from (.+?) → (.+?):/);
               let cascadeDest = null;
               if (cascadeMatch) {
-                cascadeDest = facilities.find((f) => f.name === cascadeMatch[2].trim() && hasCoordinates(f));
+                cascadeDest = facilities.find((f) => f.name === cascadeMatch[2].trim() && hasCoordinates(f) && isInIndiaBounds(Number(f.latitude), Number(f.longitude)));
               }
 
               return (
@@ -481,7 +513,7 @@ export function MapView({
 
             {/* Risk Heatmap Circles */}
             {showRiskHeatmap && riskForecast.map((rf, i) => {
-              const facility = facilities.find((f) => String(f.city).trim().toLowerCase() === String(rf.city).trim().toLowerCase() && hasCoordinates(f));
+              const facility = facilities.find((f) => String(f.city).trim().toLowerCase() === String(rf.city).trim().toLowerCase() && hasCoordinates(f) && isInIndiaBounds(Number(f.latitude), Number(f.longitude)));
               if (!facility) return null;
               return (
                 <Circle
@@ -505,7 +537,7 @@ export function MapView({
               );
             })}
 
-            {facilities.map((facility) => hasCoordinates(facility) && (
+            {facilities.map((facility) => hasCoordinates(facility) && isInIndiaBounds(Number(facility.latitude), Number(facility.longitude)) && (
               <Marker key={`facility-${facility.id}`} position={[Number(facility.latitude), Number(facility.longitude)]} icon={createFacilityIcon(facility.facility_type)}>
                 <Popup>
                   <strong>{facility.name}</strong><br />

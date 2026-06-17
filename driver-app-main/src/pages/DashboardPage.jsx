@@ -64,9 +64,16 @@ export function DashboardPage({
 
   async function handleIncidentSubmit(payload) {
     try {
-      await apiFetch("/api/driver/incidents", {
+      // Map to V2 disruption API
+      const disruptionPayload = {
+        disruption_type: payload.incident_type || "manual",
+        city: payload.city || "",
+        severity: (payload.severity || 0.7),
+        note: payload.note || "",
+      };
+      await apiFetch("/api/v2/disruptions", {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(disruptionPayload),
       });
       setMessage("Incident reported successfully.");
     } catch (err) {
