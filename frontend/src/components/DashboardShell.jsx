@@ -491,8 +491,18 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
   const { lang, t, switchLang } = useLanguage();
   const API_BASE = import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL ?? "";
 
+  const apiCache = useRef({});
+
   const apiFetch = useCallback(async (path, options = {}) => {
     const { headers: optHeaders, ...rest } = options;
+    const isGet = !rest.method || rest.method === "GET";
+    
+    if (isGet) {
+      const cached = apiCache.current[path];
+      if (cached && (Date.now() - cached.timestamp < 15000)) {
+        return cached.data;
+      }
+    }
     const authHeaders = {};
     if (clientContext?.apiKey) {
       authHeaders["X-API-Key"] = clientContext.apiKey;
@@ -508,7 +518,11 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
       throw new Error(message || `Request failed: ${response.status}`);
     }
     if (response.status === 204) return null;
-    return response.json();
+    const data = await response.json();
+    if (isGet) {
+      apiCache.current[path] = { timestamp: Date.now(), data };
+    }
+    return data;
   }, [API_BASE, clientContext]);
 
   const [activeView, setActiveView] = useState("dashboard");
@@ -619,7 +633,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
 
   useEffect(() => {
     refreshAll(true);
-    const id = setInterval(() => refreshAll(false), 15000);
+    const id = setInterval(() => refreshAll(false), 30000);
     return () => clearInterval(id);
   }, [refreshAll]);
 
@@ -662,7 +676,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
           const payload = JSON.parse(event.data);
           if (payload.type === "simulation_snapshot") {
             startTransition(() => {
-              setDashboard(prev => clientContext && prev ? { ...prev, simulation: payload.payload.simulation, metrics: payload.payload.metrics } : payload.payload);
+              setDashboard(prev => clientContext && prev ? { ...prev, simulation: payload.payload.simulation, metrics: payload.payload.metrics, vehicles: payload.payload.vehicles } : payload.payload);
               setMetrics(payload.payload.metrics);
               if (clientContext) {
                 if (payload.payload.objectives) setObjectives(payload.payload.objectives);

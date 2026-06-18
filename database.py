@@ -25,7 +25,10 @@ from sqlalchemy.pool import QueuePool
 pool_kwargs = {}
 if settings.database_url.startswith("sqlite"):
     pool_kwargs["poolclass"] = QueuePool
-    pool_kwargs["pool_size"] = 15
+    pool_kwargs["pool_size"] = 5
+    pool_kwargs["max_overflow"] = 10
+elif settings.database_url.startswith("postgresql"):
+    pool_kwargs["pool_size"] = 10
     pool_kwargs["max_overflow"] = 20
 
 from sqlalchemy import event
@@ -40,6 +43,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.execute("PRAGMA temp_store=MEMORY")
         cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA cache_size=-64000")
         cursor.close()
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
@@ -114,7 +118,11 @@ def _migrate_constraints() -> None:
     sa_text = _import("sqlalchemy").text
 
     with engine.connect() as conn:
-        conn.execute(sa_text("PRAGMA foreign_keys=OFF"))
+        if settings.database_url.startswith("sqlite"):
+            conn.execute(sa_text("PRAGMA foreign_keys=OFF"))
+        elif settings.database_url.startswith("postgresql"):
+            conn.execute(sa_text("SET session_replication_role = 'replica'"))
+
         for table in [
             "driver_decisions",
             "driver_incidents",
@@ -142,11 +150,15 @@ def _migrate_constraints() -> None:
             "route_templates",
         ]:
             try:
-                conn.execute(sa_text(f"DROP TABLE IF EXISTS {table}"))
+                conn.execute(sa_text(f"DROP TABLE IF EXISTS {table} CASCADE"))
                 conn.commit()
             except Exception:
                 pass
-        conn.execute(sa_text("PRAGMA foreign_keys=ON"))
+
+        if settings.database_url.startswith("sqlite"):
+            conn.execute(sa_text("PRAGMA foreign_keys=ON"))
+        elif settings.database_url.startswith("postgresql"):
+            conn.execute(sa_text("SET session_replication_role = 'origin'"))
 
     import models  # noqa: F401
 

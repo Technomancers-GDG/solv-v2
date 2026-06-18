@@ -218,10 +218,15 @@ async def diag_engines():
 async def operations_socket(websocket: WebSocket) -> None:
     await simulation_engine.connection_manager.connect(websocket)
     try:
-        with SessionLocal() as session:
-            await websocket.send_json(
-                {"type": "simulation_snapshot", "payload": simulation_engine.dashboard_snapshot(session).model_dump(mode="json")}
-            )
+        from starlette.concurrency import run_in_threadpool
+        def get_snapshot():
+            with SessionLocal() as session:
+                return simulation_engine.dashboard_snapshot(session).model_dump(mode="json")
+        
+        snapshot = await run_in_threadpool(get_snapshot)
+        await websocket.send_json(
+            {"type": "simulation_snapshot", "payload": snapshot}
+        )
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
@@ -304,16 +309,21 @@ async def client_socket(websocket: WebSocket) -> None:
     await engine.connection_manager.connect(websocket, channel=channel)
     logger.info("[DIAG] /ws/client: websocket connected for client_id=%s", client_id)
     try:
-        with SessionLocal() as session:
-            try:
-                snapshot = engine.dashboard_snapshot(session)
-                await websocket.send_json(
-                    {"type": "simulation_snapshot", "payload": snapshot.model_dump(mode="json")}
-                )
-                logger.info("[DIAG] /ws/client: initial snapshot sent for client_id=%s, vehicles=%s",
-                            client_id, len(snapshot.vehicles))
-            except Exception as exc:
-                logger.error("[DIAG] /ws/client: snapshot failed for client_id=%s: %s", client_id, exc)
+        from starlette.concurrency import run_in_threadpool
+        def get_client_snapshot():
+            with SessionLocal() as session:
+                snap = engine.dashboard_snapshot(session)
+                return snap.model_dump(mode="json"), len(snap.vehicles)
+                
+        try:
+            payload, vehicles_len = await run_in_threadpool(get_client_snapshot)
+            await websocket.send_json(
+                {"type": "simulation_snapshot", "payload": payload}
+            )
+            logger.info("[DIAG] /ws/client: initial snapshot sent for client_id=%s, vehicles=%s",
+                        client_id, vehicles_len)
+        except Exception as exc:
+            logger.error("[DIAG] /ws/client: snapshot failed for client_id=%s: %s", client_id, exc)
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
@@ -325,9 +335,20 @@ async def client_socket(websocket: WebSocket) -> None:
 FRONTEND_DIST = Path("frontend/dist")
 DRIVER_DIST = Path("driver-app-main/dist")
 
+# Mount static assets first (order-independent)
 if FRONTEND_DIST.exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
 
+if DRIVER_DIST.exists():
+    app.mount("/driver-assets", StaticFiles(directory=DRIVER_DIST), name="driver_assets")
+
+# Specific SPA routes (must be registered before the catch-all)
+if DRIVER_DIST.exists():
+    @app.get("/driver", include_in_schema=False)
+    async def driver_index() -> FileResponse:
+        return FileResponse(DRIVER_DIST / "index.html")
+
+if FRONTEND_DIST.exists():
     @app.get("/", include_in_schema=False)
     async def frontend_index() -> FileResponse:
         return FileResponse(FRONTEND_DIST / "index.html")
@@ -336,16 +357,9 @@ if FRONTEND_DIST.exists():
     async def frontend_catch_all(full_path: str) -> FileResponse:
         """Serve index.html for all client-side routes (SPA)."""
         path = full_path.rstrip("/")
-        if path.startswith("api/") or path.startswith("ws/"):
+        if path.startswith("api/") or path.startswith("ws/") or path.startswith("driver"):
             raise HTTPException(status_code=404)
         return FileResponse(FRONTEND_DIST / "index.html")
-
-if DRIVER_DIST.exists():
-    app.mount("/driver-assets", StaticFiles(directory=DRIVER_DIST), name="driver_assets")
-
-    @app.get("/driver", include_in_schema=False)
-    async def driver_index() -> FileResponse:
-        return FileResponse(DRIVER_DIST / "index.html")
 else:
     @app.get("/", include_in_schema=False)
     async def placeholder_index() -> HTMLResponse:
@@ -364,3 +378,4 @@ else:
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+# Reload 2

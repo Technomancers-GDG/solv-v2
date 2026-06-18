@@ -142,28 +142,25 @@ class SimulationEngine:
         is long-closed.  ``_run_loop()`` opens a fresh session every
         tick, so modifications to those detached objects are invisible
         to ``session.commit()`` without an explicit ``merge``."""
-        for obj in self.vehicles.values():
-            session.merge(obj)
-        for obj in self.facilities.values():
-            session.merge(obj)
-        for obj in self.drivers.values():
-            session.merge(obj)
+        self.vehicles = {obj.id: session.merge(obj) for obj in self.vehicles.values()}
+        self.facilities = {obj.id: session.merge(obj) for obj in self.facilities.values()}
+        self.drivers = {obj.id: session.merge(obj) for obj in self.drivers.values()}
 
     # ── State Loading ───────────────────────────────────────────────
 
     def load_state(self, session: Session) -> None:
-        where = Facility.client_id.is_(self.client_id) if self.client_id is not None else Facility.client_id.is_(None)
+        where = Facility.client_id == self.client_id if self.client_id is not None else Facility.client_id.is_(None)
         self.facilities = {
             facility.id: facility for facility in session.scalars(select(Facility).where(where)).all()
         }
         self.port_links = session.scalars(select(PortLink)).all()
-        obj_where = Objective.client_id.is_(self.client_id) if self.client_id is not None else Objective.client_id.is_(None)
+        obj_where = Objective.client_id == self.client_id if self.client_id is not None else Objective.client_id.is_(None)
         self.objectives = {
             objective.id: objective for objective in session.scalars(select(Objective).where(obj_where)).all()
         }
-        veh_where = Vehicle.client_id.is_(self.client_id) if self.client_id is not None else Vehicle.client_id.is_(None)
+        veh_where = Vehicle.client_id == self.client_id if self.client_id is not None else Vehicle.client_id.is_(None)
         self.vehicles = {vehicle.id: vehicle for vehicle in session.scalars(select(Vehicle).where(veh_where)).all()}
-        drv_where = DriverProfile.client_id.is_(self.client_id) if self.client_id is not None else DriverProfile.client_id.is_(None)
+        drv_where = DriverProfile.client_id == self.client_id if self.client_id is not None else DriverProfile.client_id.is_(None)
         self.drivers = {
             driver.id: driver for driver in session.scalars(select(DriverProfile).where(drv_where)).all()
         }
@@ -192,11 +189,51 @@ class SimulationEngine:
             }
         self._load_event_maps(session)
 
+        # Expunge ALL cached objects so they remain un-expired and don\'t trigger DetachedInstanceError
+        for f in self.facilities.values(): session.expunge(f)
+        for link in self.port_links: session.expunge(link)
+        for obj in self.objectives.values(): session.expunge(obj)
+        for veh in self.vehicles.values(): session.expunge(veh)
+        for drv in self.drivers.values(): session.expunge(drv)
+        for r in self.routes.values(): session.expunge(r)
+
     def _load_event_maps(self, session: Session) -> None:
-        for weather in session.scalars(select(WeatherEvent)).all():
-            self.update_weather_event_map(weather)
-        for news in session.scalars(select(NewsEvent).where(NewsEvent.relevant.is_(True))).all():
-            self.update_news_event_map(news)
+        weather_rows = session.execute(
+            select(
+                WeatherEvent.simulation_date,
+                WeatherEvent.city,
+                WeatherEvent.closure_risk,
+                WeatherEvent.eta_multiplier,
+                WeatherEvent.precipitation_mm
+            )
+        ).all()
+        for row in weather_rows:
+            self.weather_map[(row.simulation_date.isoformat(), row.city)] = {
+                "closure_risk": row.closure_risk,
+                "eta_multiplier": row.eta_multiplier,
+                "precipitation_mm": row.precipitation_mm,
+            }
+
+        news_rows = session.execute(
+            select(
+                NewsEvent.simulation_date,
+                NewsEvent.city,
+                NewsEvent.impact_score,
+                NewsEvent.impact_type,
+                NewsEvent.headline,
+                NewsEvent.category
+            ).where(NewsEvent.relevant.is_(True))
+        ).all()
+        for row in news_rows:
+            key = (row.simulation_date.isoformat(), row.city)
+            existing = self.news_map.get(key)
+            if existing is None or row.impact_score > existing["impact_score"]:
+                self.news_map[key] = {
+                    "impact_score": row.impact_score,
+                    "impact_type": row.impact_type,
+                    "headline": row.headline,
+                    "category": row.category,
+                }
 
     # ── State Persistence ─────────────────────────────────────────
 
@@ -335,7 +372,7 @@ class SimulationEngine:
         # Auto-assign vehicles to objectives by home-facility match when no explicit assignment exists
         obj_vehicles: dict[int, list[int]] = {}
         for objective in self.objectives.values():
-            obj_vehicles[objective.id] = list(objective.assigned_vehicle_ids)
+            obj_vehicles[objective.id] = list(objective.assigned_vehicle_ids or [])
 
         for vehicle in self.vehicles.values():
             already_assigned = any(vehicle.id in vids for vids in obj_vehicles.values())
@@ -460,26 +497,37 @@ class SimulationEngine:
     # ── Main Loop ───────────────────────────────────────────────────
 
     async def _run_loop(self) -> None:
+        from sqlalchemy import text
+        from config import settings
+        
         loop = asyncio.get_running_loop()
         last_wall = loop.time()
         consecutive_errors = 0
         try:
-            while self.status == "running":
-                sleep_duration = min(0.2, 50.0 / max(self.speed_multiplier, 1))
-                await asyncio.sleep(sleep_duration)
-                self._tick_counter += 1
-                current_wall = loop.time()
-                wall_delta = current_wall - last_wall
-                last_wall = current_wall
-                self.simulation_time += timedelta(seconds=wall_delta * self.speed_multiplier)
-                turbo = self.speed_multiplier >= 5000
-                processed = 0
-                try:
-                    with SessionLocal() as session:
+            with SessionLocal(expire_on_commit=False) as session:
+                if settings.database_url.startswith("postgresql"):
+                    session.execute(text("SET LOCAL synchronous_commit = OFF"))
+                self._merge_state(session)
+                
+                while self.status == "running":
+                    sleep_duration = min(0.2, 50.0 / max(self.speed_multiplier, 1))
+                    await asyncio.sleep(sleep_duration)
+                    self._tick_counter += 1
+                    current_wall = loop.time()
+                    wall_delta = current_wall - last_wall
+                    last_wall = current_wall
+                    self.simulation_time += timedelta(seconds=wall_delta * self.speed_multiplier)
+                    turbo = self.speed_multiplier >= 5000
+                    processed = 0
+                    try:
                         batch_count = 0
                         while self.event_queue and self.event_queue[0].due_at <= self.simulation_time:
                             event = heapq.heappop(self.event_queue)
                             try:
+                                # Commit before dispatch if there are pending updates
+                                if event.event_type == 'dispatch' and batch_count > 0:
+                                    session.commit()
+                                
                                 self._process_event(session, event)
                                 processed += 1
                                 batch_count += 1
@@ -490,35 +538,34 @@ class SimulationEngine:
 
                             # Yield to the event loop every 200 events so the API/UI doesn't freeze
                             if batch_count >= 200:
-                                self._merge_state(session)
                                 session.flush()
                                 await asyncio.sleep(0)
                                 batch_count = 0
                         if processed:
-                            self._merge_state(session)
                             session.commit()
                             if not turbo:
                                 self._check_autonomous_cascade(session)
                             await self._maybe_snapshot(session)
-                            broadcast_interval = 50 if turbo else (10 if self.speed_multiplier >= 1000 else 1)
-                            if self._tick_counter % broadcast_interval == 0:
-                                await self.connection_manager.broadcast(
-                                    {"type": "simulation_snapshot", "payload": self.dashboard_snapshot(session).model_dump(mode="json")},
-                                    channel=self._channel,
-                                )
-                            # Periodic state save for client engines (every 50 ticks)
-                            if self.client_id is not None and self._tick_counter % 50 == 0:
-                                self.save_state(session)
-                    consecutive_errors = 0
-                except Exception as exc:
-                    consecutive_errors += 1
-                    self.last_error = f"{type(exc).__name__}: {exc}"
-                    if consecutive_errors >= 10:
-                        self.status = "error"
-                        logger.error("Simulation loop stopped: %s consecutive errors. Last: %s", consecutive_errors, self.last_error)
-                        return
-                    logger.warning("Tick %s failed (will retry, attempt %s/10): %s", self._tick_counter, consecutive_errors, self.last_error)
-                    await asyncio.sleep(1)
+                        
+                        broadcast_interval = 50 if turbo else 10
+                        if self._tick_counter % broadcast_interval == 0:
+                            await self.connection_manager.broadcast(
+                                {"type": "simulation_snapshot", "payload": self.dashboard_snapshot(session).model_dump(mode="json")},
+                                channel=self._channel,
+                            )
+                        # Periodic state save for client engines (every 50 ticks)
+                        if self.client_id is not None and self._tick_counter % 50 == 0:
+                            self.save_state(session)
+                        consecutive_errors = 0
+                    except Exception as exc:
+                        consecutive_errors += 1
+                        self.last_error = f"{type(exc).__name__}: {exc}"
+                        if consecutive_errors >= 10:
+                            self.status = "error"
+                            logger.error("Simulation loop stopped: %s consecutive errors. Last: %s", consecutive_errors, self.last_error)
+                            return
+                        logger.warning("Tick %s failed (will retry, attempt %s/10): %s", self._tick_counter, consecutive_errors, self.last_error)
+                        await asyncio.sleep(1)
         except asyncio.CancelledError:
             raise
         except Exception as exc:

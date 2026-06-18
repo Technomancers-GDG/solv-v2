@@ -1,13 +1,17 @@
-# Stage 1: Build the frontend
+# Stage 1: Build the admin frontend
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
-
-# Copy frontend package files and install dependencies
 COPY frontend/package*.json ./
 RUN npm install
-
-# Copy frontend source and build
 COPY frontend/ .
+RUN npm run build
+
+# Stage 1b: Build the driver app
+FROM node:20-alpine AS driver-builder
+WORKDIR /app/driver-app-main
+COPY driver-app-main/package*.json ./
+RUN npm install
+COPY driver-app-main/ .
 RUN npm run build
 
 # Stage 2: Build the backend and serve
@@ -19,7 +23,7 @@ WORKDIR /app
 # Install system dependencies (curl added for healthcheck)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    libsqlite3-dev \
+    libpq-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -30,8 +34,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
-# Copy the built frontend from Stage 1
+# Copy the built frontends from Stage 1
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+COPY --from=driver-builder /app/driver-app-main/dist /app/driver-app-main/dist
 
 # Expose port dynamically (Render/Cloud Run pass PORT)
 ENV PORT=8000

@@ -68,12 +68,12 @@ def load_settings() -> Settings:
     import secrets as _secrets
     return Settings(
         app_name=_get_env("APP_NAME", "Resilient Essential Goods Coordinator"),
-        database_url=_get_env("DATABASE_URL", "sqlite:///./supply_chain.db"),
+        database_url=_get_env("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/supply_chain"),
         osrm_base_url=_get_env("OSRM_BASE_URL", "https://router.project-osrm.org"),
         simulation_start_date=date.fromisoformat(
             _get_env("SIMULATION_START_DATE", "2026-01-01")
         ),
-        simulation_speed=float(_get_env("SIMULATION_SPEED", "120.0")),
+        simulation_speed=float(_get_env("SIMULATION_SPEED", "5000.0")),
         news_dataset_path=Path(_get_env("NEWS_DATASET_PATH", "All_Cities_News_v2.xlsx")),
         weather_dataset_path=Path(
             _get_env("WEATHER_DATASET_PATH", "Historical_Weather_Data_2024_2026.xlsx")
@@ -82,7 +82,7 @@ def load_settings() -> Settings:
         demo_mode=_get_bool_env("DEMO_MODE", "true"),
         route_use_osrm=_get_bool_env("ROUTE_USE_OSRM", "false"),
         news_model_artifact_path=Path(_get_env("NEWS_MODEL_ARTIFACT_PATH", "news_model.pkl")),
-        demo_disruption_delay_seconds=int(_get_env("DEMO_DISRUPTION_DELAY_SECONDS", "12")),
+        demo_disruption_delay_seconds=int(_get_env("DEMO_DISRUPTION_DELAY_SECONDS", "4")),
         demo_disruption_city=_get_env("DEMO_DISRUPTION_CITY", "Chennai"),
         demo_disruption_severity=float(_get_env("DEMO_DISRUPTION_SEVERITY", "0.82")),
         # JWT

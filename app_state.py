@@ -19,21 +19,31 @@ from services.route_planner import RoutePlanner
 from services.simulation import SimulationEngine
 from services.simulation_manager import simulation_manager
 
-news_model = NewsRelevanceService()
-route_planner = RoutePlanner()
-event_ingestion_service = EventIngestionService(news_model)
+class LazyService:
+    def __init__(self, factory):
+        self._factory = factory
+        self._instance = None
+    
+    def __getattr__(self, name):
+        if self._instance is None:
+            self._instance = self._factory()
+        return getattr(self._instance, name)
+
+news_model = LazyService(lambda: NewsRelevanceService())
+route_planner = LazyService(lambda: RoutePlanner())
+event_ingestion_service = LazyService(lambda: EventIngestionService(news_model))
 
 # Demo/general engine (client_id=None, channel="global")
 simulation_engine = SimulationEngine(route_planner, client_id=None, channel="global")
 simulation_manager.register_engine(None, simulation_engine)
 
-forecast_service = PredictiveForecastService()
-inventory_optimizer = InventoryOptimizer()
-data_fusion_service = DataFusionService()
-multimodal_graph_engine = MultimodalGraphEngine()
-logistics_prediction_engine = LogisticsPredictionEngine()
-logistics_decision_engine = LogisticsDecisionEngine()
-logistics_execution_service = LogisticsExecutionService()
-telemetry_simulation_service = TelemetrySimulationService()
-driver_performance_service = DriverPerformanceService(telemetry_simulation_service)
-multi_objective_optimizer = NSGA2Optimizer()
+forecast_service = LazyService(lambda: PredictiveForecastService())
+inventory_optimizer = LazyService(lambda: InventoryOptimizer())
+data_fusion_service = LazyService(lambda: DataFusionService())
+multimodal_graph_engine = LazyService(lambda: MultimodalGraphEngine())
+logistics_prediction_engine = LazyService(lambda: LogisticsPredictionEngine())
+logistics_decision_engine = LazyService(lambda: LogisticsDecisionEngine())
+logistics_execution_service = LazyService(lambda: LogisticsExecutionService())
+telemetry_simulation_service = LazyService(lambda: TelemetrySimulationService())
+driver_performance_service = LazyService(lambda: DriverPerformanceService(telemetry_simulation_service))
+multi_objective_optimizer = LazyService(lambda: NSGA2Optimizer())

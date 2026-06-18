@@ -1,5 +1,5 @@
-# Render Blueprint for Resilient Essential Goods Coordinator
-# To deploy: Go to render.com → New + → Blueprint → Connect your repo
+﻿# Render Blueprint for Resilient Essential Goods Coordinator
+# To deploy: Go to render.com â†’ New + â†’ Blueprint â†’ Connect your repo
 # Render will read this file and create the service automatically.
 
 services:
@@ -15,7 +15,9 @@ services:
       - key: APP_NAME
         value: Resilient Essential Goods Coordinator
       - key: DATABASE_URL
-        value: sqlite:///./supply_chain.db
+        fromDatabase:
+          name: solv-db
+          property: connectionString
       - key: OSRM_BASE_URL
         value: https://router.project-osrm.org
       - key: SIMULATION_START_DATE
@@ -58,7 +60,11 @@ services:
         value: Chennai
       - key: DEMO_DISRUPTION_SEVERITY
         value: "0.82"
-      # 🔴 IMPORTANT: Set your Gemini API key here or via Render Dashboard
+      # ðŸ”´ IMPORTANT: Set your Gemini API key here or via Render Dashboard
       # Generate a key at https://aistudio.google.com/apikey
       - key: GEMINI_API_KEY
         sync: false
+
+databases:
+  - name: solv-db
+    plan: starter

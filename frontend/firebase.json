@@ -9,7 +9,10 @@
     "rewrites": [
       {
         "source": "**",
-        "destination": "/index.html"
+        "run": {
+          "serviceId": "sim-backend",
+          "region": "us-central1"
+        }
       }
     ]
   }

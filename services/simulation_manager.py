@@ -64,7 +64,13 @@ class SimulationManager:
             try:
                 engine = SimulationEngine(route_planner, client_id=client_id, channel=f"client_{client_id}")
                 self._engines[client_id] = engine
-                await engine.start()
+                
+                from sqlalchemy import select
+                from models import ClientSimulation
+                row = session.scalar(select(ClientSimulation).where(ClientSimulation.client_id == client_id))
+                speed = row.speed_multiplier if row else 1000.0
+                
+                await engine.start(speed_multiplier=speed)
                 logger.info("[DIAG] Engine started successfully for client_id=%s status=%s", client_id, engine.status)
             except Exception as exc:
                 self._engines.pop(client_id, None)

@@ -111,6 +111,7 @@ class RoutePlanner:
         key = self.route_key(origin.id, destination.id)
         existing = session.scalar(select(RouteTemplate).where(RouteTemplate.route_key == key))
         if existing is not None:
+            session.expunge(existing)
             return existing
 
         route_data = None
@@ -132,6 +133,7 @@ class RoutePlanner:
         )
         session.add(route)
         session.flush()
+        session.expunge(route)
         return route
 
     def prewarm_objective_routes(

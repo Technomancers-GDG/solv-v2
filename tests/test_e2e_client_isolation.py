@@ -22,11 +22,28 @@ from services.route_planner import RoutePlanner
 from services.simulation_manager import SimulationManager
 
 
+from sqlalchemy.pool import StaticPool
+
 def _make_engine() -> "tuple[Session, any]":
     """Create in-memory SQLite DB for testing."""
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    engine = create_engine(
+        "sqlite:///:memory:", 
+        echo=False, 
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False}
+    )
     TestingSession = sessionmaker(bind=engine)
     Base.metadata.create_all(engine)
+    
+    # Patch SessionLocal globally for the duration of the test run
+    import database
+    import services.simulation_manager
+    import services.simulation.engine
+    
+    database.SessionLocal = TestingSession
+    services.simulation_manager.SessionLocal = TestingSession
+    services.simulation.engine.SessionLocal = TestingSession
+    
     return TestingSession(), engine
 
 
@@ -517,10 +534,16 @@ async def test_engine_save_and_restore() -> None:
         assert sim is not None, "ClientSimulation record missing after save_state"
         assert sim.status == "running", f"ClientSimulation status: {sim.status}"
         print(f"  [PASS] Saved engine state: status={sim.status}, ticks={sim.total_ticks}")
+        session.commit()
 
         # Stop engine
         await manager.stop_client(1)
         assert manager.get_engine(1) is None, "Engine not removed after stop"
+
+        # Simulate server crash: set status to running in DB before start_all
+        sim = session.scalar(select(ClientSimulation).where(ClientSimulation.client_id == 1))
+        sim.status = "running"
+        session.commit()
 
         # Simulate server restart: start_all
         await manager.start_all(session)

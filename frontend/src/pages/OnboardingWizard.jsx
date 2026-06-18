@@ -27,9 +27,15 @@ function apiFetch(apiKey, firebaseToken, path, options = {}) {
   }).then(r => { if (!r.ok) throw new Error(r.status === 401 ? "Authentication failed" : "Upload failed"); return r.json(); });
 }
 
-function UploadTile({ category, config, onComplete, completed, apiKey, firebaseToken }) {
+function UploadTile({ category, config, onComplete, completed, apiKey, firebaseToken, autoFillData }) {
   const [csvText, setCsvText] = useState("");
   const [importing, setImporting] = useState(false);
+
+  useEffect(() => {
+    if (autoFillData) {
+      setCsvText(autoFillData);
+    }
+  }, [autoFillData]);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
 
@@ -91,6 +97,22 @@ function UploadTile({ category, config, onComplete, completed, apiKey, firebaseT
 export default function OnboardingWizard({ apiKey, firebaseToken, onComplete }) {
   const [completed, setCompleted] = useState({});
   const [allDone, setAllDone] = useState(false);
+  const [autoFillData, setAutoFillData] = useState({});
+
+  const handleDemoImport = async () => {
+    const data = {};
+    for (const cat of ORDER) {
+      try {
+        const res = await fetch(`/sim-test/${cat}.csv`);
+        if (res.ok) {
+          data[cat] = await res.text();
+        }
+      } catch (err) {
+        console.error("Failed to load demo CSV for", cat, err);
+      }
+    }
+    setAutoFillData(data);
+  };
 
   useEffect(() => {
     async function loadStatus() {
@@ -149,7 +171,7 @@ export default function OnboardingWizard({ apiKey, firebaseToken, onComplete }) 
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
           {ORDER.map(category => (
-            <UploadTile key={category} category={category} config={TEMPLATES[category]} onComplete={handleComplete} completed={!!completed[category]} apiKey={apiKey} firebaseToken={firebaseToken} />
+            <UploadTile key={category} category={category} config={TEMPLATES[category]} onComplete={handleComplete} completed={!!completed[category]} apiKey={apiKey} firebaseToken={firebaseToken} autoFillData={autoFillData[category]} />
           ))}
         </div>
 
@@ -164,6 +186,28 @@ export default function OnboardingWizard({ apiKey, firebaseToken, onComplete }) 
                 Go to Dashboard
               </button>
             </div>
+          </div>
+        )}
+
+        {!allDone && (
+          <div style={{ position: "fixed", bottom: 40, right: 40 }}>
+            <button
+              onClick={handleDemoImport}
+              title="for demo purpose only"
+              style={{
+                padding: "10px 20px",
+                background: "#10b981",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                cursor: "pointer",
+                fontSize: 14,
+                fontWeight: "bold",
+                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+              }}
+            >
+              Import
+            </button>
           </div>
         )}
       </div>
