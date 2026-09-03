@@ -54,7 +54,7 @@ export function NavBar() {
             ) : (
               <>
                 <button className="lp-btn lp-btn-primary" onClick={() => { setMobileOpen(false); handleSignIn(); }}>Sign In</button>
-                <button className="lp-nav-link-secondary" onClick={() => { setMobileOpen(false); navigate("/client"); }}>View Demo</button>
+                <button className="lp-nav-link-secondary" onClick={() => { setMobileOpen(false); navigate("/dashboard"); }}>View Demo</button>
               </>
             )}
           </div>
@@ -70,7 +70,7 @@ export function NavBar() {
           ) : (
             <>
               <button className="lp-btn lp-btn-primary" onClick={handleSignIn}>Sign In</button>
-              <button className="lp-nav-link-secondary" onClick={() => navigate("/client")}>View Demo</button>
+              <button className="lp-nav-link-secondary" onClick={() => navigate("/dashboard")}>View Demo</button>
             </>
           )}
         </div>

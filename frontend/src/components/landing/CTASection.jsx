@@ -26,7 +26,7 @@ export function CTASection() {
             No onboarding calls. Just click and experience the platform.
           </p>
           <div className="lp-cta-actions">
-            <button className="lp-btn lp-btn-primary lp-btn-lg" onClick={() => navigate("/client")}>
+            <button className="lp-btn lp-btn-primary lp-btn-lg" onClick={() => navigate("/dashboard")}>
               Start the Demo
             </button>
             <button className="lp-btn lp-btn-secondary lp-btn-lg" onClick={() => navigate("/client")}>

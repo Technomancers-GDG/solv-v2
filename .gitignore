@@ -2,6 +2,9 @@ __pycache__/
 *.pyc
 *.pyo
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 .pytest_cache/
 pytest-cache-files-*/
 node_modules/
@@ -12,10 +15,21 @@ sc/
 # Virtual environment
 .venv/
 
-# Environment files
+# Environment and Secret files
 .env
-.env.local
-# .env.production is intentionally tracked (Firebase client keys are public by design)
+.env.*
+!.env.example
+*.local
+firebase-service-account*.json
+!firebase-service-account.example.json
+
+# Firebase tool cache
+.firebase/
+frontend/.firebase/
+
+# Large database dumps / seed data
+pg_seed_data.json
+*.jsonl
 
 # IDE
 .vscode/
@@ -34,5 +48,3 @@ coverage/
 
 # Logs
 *.log
-firebase-service-account.json
-"firebase-service-account.json" 

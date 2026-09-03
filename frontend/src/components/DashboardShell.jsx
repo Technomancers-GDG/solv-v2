@@ -227,9 +227,67 @@ function Sidebar({ active, onNavigate, collapsed, onMouseEnter, onMouseLeave, t,
   const sections = getNavSections(t, clientContext);
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : "open"}`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
-      <div className="sidebar-header">
-        <div className="logo-mark">L</div>
-        {!collapsed && <span className="logo-text">Logisight</span>}
+      <div className="sidebar-header" style={{ display: "flex", flexDirection: "column", alignItems: collapsed ? "center" : "stretch", gap: "12px", padding: collapsed ? "14px 8px" : "18px 20px 14px", borderBottom: "none" }}>
+        {/* Government of India Emblem & Ministry Title */}
+        <div
+          className="govt-branding"
+          style={{
+            width: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            textAlign: "center",
+            paddingBottom: collapsed ? "4px" : "12px",
+            borderBottom: collapsed ? "none" : "1px solid rgba(255, 255, 255, 0.1)",
+          }}
+        >
+          <img
+            src="/assets/emblem-of-india-white.svg"
+            alt="State Emblem of India"
+            style={{
+              height: collapsed ? "36px" : "56px",
+              width: "auto",
+              display: "block",
+              marginBottom: collapsed ? "0" : "8px",
+              filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.5))",
+              transition: "height 0.2s ease",
+            }}
+          />
+          {!collapsed && (
+            <>
+              <div
+                style={{
+                  fontSize: "0.78rem",
+                  fontWeight: 800,
+                  letterSpacing: "0.06em",
+                  color: "#f8fafc",
+                  textTransform: "uppercase",
+                  lineHeight: 1.25,
+                }}
+              >
+                Government of India
+              </div>
+              <div
+                style={{
+                  fontSize: "0.64rem",
+                  fontWeight: 500,
+                  color: "#94a3b8",
+                  lineHeight: 1.3,
+                  marginTop: "3px",
+                  letterSpacing: "0.01em",
+                }}
+              >
+                Ministry of Development of North Eastern Region
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Project Branding */}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", justifyContent: collapsed ? "center" : "flex-start" }}>
+          <div className="logo-mark">L</div>
+          {!collapsed && <span className="logo-text">Logisight</span>}
+        </div>
       </div>
       <nav className="sidebar-nav">
         {sections.map((section) => (
@@ -526,7 +584,7 @@ export default function DashboardShell({ user, onLogout, clientContext }) {
   }, [API_BASE, clientContext]);
 
   const [activeView, setActiveView] = useState("dashboard");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
